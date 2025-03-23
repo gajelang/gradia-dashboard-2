@@ -992,33 +992,33 @@ export default function TransactionTable() {
                         }}
                       />
                       <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTransactionToDelete(tx);
-                          setConfirmDeleteText("");
-                          setDeleteDialogOpen(true);
-                        }}
-                        title="Archive Transaction"
-                      >
-                        <Archive className="h-4 w-4" />
-                      </Button>
+  variant="destructive"
+  size="sm"
+  onClick={() => {
+    setTransactionToDelete(tx);
+    setConfirmDeleteText("");
+    setDeleteDialogOpen(true);
+  }}
+  title="Archive Transaction"
+>
+  <Archive className="h-4 w-4" />
+</Button>
+
                     </>
                   ) : (
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setTransactionToRestore(tx);
-                        setRestoreDialogOpen(true);
-                      }}
-                      className="text-green-600"
-                      title="Restore Transaction"
-                    >
-                      <RefreshCw className="h-4 w-4" />
-                    </Button>
+  variant="outline"
+  size="sm"
+  onClick={() => {
+    setTransactionToRestore(tx);
+    setRestoreDialogOpen(true);
+  }}
+  className="text-green-600"
+  title="Restore Transaction"
+>
+  <RefreshCw className="h-4 w-4" />
+</Button>
+
                   )}
                 </div>
               </TableCell>

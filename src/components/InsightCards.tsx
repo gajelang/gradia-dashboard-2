@@ -15,7 +15,7 @@ import {
 import { formatRupiah } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
 import { fetchWithAuth } from "@/lib/api";
-import {DatePickerDialog} from "@/components/DatePickerDialog";
+import { DatePickerDialog } from "@/components/DatePickerDialog";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../contexts/AuthContext";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -89,9 +89,6 @@ export default function EnhancedInsightCards({ onDateRangeChange }: EnhancedInsi
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
   const [selectedRange, setSelectedRange] = useState<DateRange | undefined>(undefined);
-  // Kept available years as it might be used in future feature development
-// Kept available years as it might be used in future feature development
-const [_availableYears, setAvailableYears] = useState<number[]>([]);
   
   // UI state
   const [isDatePickerOpen, setIsDatePickerOpen] = useState<boolean>(false);
@@ -182,11 +179,11 @@ const [_availableYears, setAvailableYears] = useState<number[]>([]);
       
       // Handle legacy data if needed and filter out archived transactions
       transactionsData = transactionsData
-        .filter((tx: Transaction) => !tx.isDeleted) // Filter out archived transactions
+        .filter((tx: Transaction) => !tx.isDeleted)
         .map((tx: Transaction) => ({
           ...tx,
-          paymentStatus: tx.paymentStatus || tx.status || "Belum Bayar", // Handle legacy format
-          isDeleted: tx.isDeleted || false // Explicitly track isDeleted status
+          paymentStatus: tx.paymentStatus || tx.status || "Belum Bayar",
+          isDeleted: tx.isDeleted || false
         }));
       
       // Fetch expenses
@@ -201,13 +198,11 @@ const [_availableYears, setAvailableYears] = useState<number[]>([]);
       setTransactions(transactionsData);
       setExpenses(expensesData);
       
-      // Extract unique years from active transactions and expenses
+      // Extract unique years (removed _availableYears as it's not used)
       const years = [...new Set([
         ...transactionsData.map(t => new Date(t.date).getFullYear()),
         ...expensesData.map(e => new Date(e.date).getFullYear())
       ])].sort((a, b) => b - a);
-      
-      setAvailableYears(years);
       
       // If no date range is set, default to current month
       if (!selectedRange) {
@@ -228,13 +223,9 @@ const [_availableYears, setAvailableYears] = useState<number[]>([]);
   const processDataByMonths = useCallback(() => {
     if (!transactions.length && !expenses.length) return;
 
-    // Create a map to store data by year-month
     const dataByMonth: Map<string, MonthlyData> = new Map();
     
-    // Filter transactions - ensure we only process active transactions
     let filteredTransactions = [...transactions].filter(tx => !tx.isDeleted);
-    
-    // Filter transactions by date range
     if (selectedRange?.from && selectedRange?.to) {
       filteredTransactions = filteredTransactions.filter(tx => {
         const txDate = new Date(tx.date);
@@ -242,9 +233,7 @@ const [_availableYears, setAvailableYears] = useState<number[]>([]);
       });
     }
     
-    // Filter expenses - ensure we only process active expenses
     let filteredExpenses = [...expenses].filter(exp => !exp.isDeleted);
-    
     if (selectedRange?.from && selectedRange?.to) {
       filteredExpenses = filteredExpenses.filter(exp => {
         const expDate = new Date(exp.date);
@@ -252,7 +241,6 @@ const [_availableYears, setAvailableYears] = useState<number[]>([]);
       });
     }
     
-    // Process transactions into monthly data
     filteredTransactions.forEach(tx => {
       const date = new Date(tx.date);
       const year = date.getFullYear();
@@ -278,11 +266,9 @@ const [_availableYears, setAvailableYears] = useState<number[]>([]);
       const monthData = dataByMonth.get(key)!;
       monthData.transactions.push(tx);
       
-      // Add to financial totals - using projectValue as the true value
       const projectValue = tx.projectValue || 0;
       monthData.totalExpectedValue += projectValue;
       
-      // Calculate paid amount based on payment status
       if (tx.paymentStatus === "Lunas") {
         monthData.totalPaid += projectValue;
       } else if (tx.paymentStatus === "DP") {
@@ -293,7 +279,6 @@ const [_availableYears, setAvailableYears] = useState<number[]>([]);
       }
     });
     
-    // Process expenses and assign them to months
     filteredExpenses.forEach(exp => {
       const date = new Date(exp.date);
       const year = date.getFullYear();
@@ -321,16 +306,11 @@ const [_availableYears, setAvailableYears] = useState<number[]>([]);
       monthData.totalExpenses += exp.amount;
     });
     
-    // Calculate expected and real profit for each month
     dataByMonth.forEach(data => {
-      // Expected profit = total project values - expenses
       data.expectedProfit = data.totalExpectedValue - data.totalExpenses;
-      
-      // Real profit = actual paid amount - expenses
       data.realProfit = data.totalPaid - data.totalExpenses;
     });
     
-    // Convert map to array and sort by date
     const dataArray = Array.from(dataByMonth.values())
       .sort((a, b) => {
         if (a.year !== b.year) return a.year - b.year;
@@ -340,61 +320,50 @@ const [_availableYears, setAvailableYears] = useState<number[]>([]);
     setMonthlyData(dataArray);
   }, [transactions, expenses, selectedRange]);
 
-  // Load financial data with proper dependency
   useEffect(() => {
     if (isAuthenticated) {
       fetchFinancialData();
     }
-  }, [isAuthenticated, fetchFinancialData]); // Added missing dependency
+  }, [isAuthenticated, fetchFinancialData]);
   
-  // Process data when range changes with proper dependency
   useEffect(() => {
     processDataByMonths();
-  }, [processDataByMonths]); // Added missing dependency
+  }, [processDataByMonths]);
 
-  // Calculate total expected value (from all monthly data)
   const getTotalExpectedValue = () => {
     return monthlyData.reduce((sum, data) => sum + data.totalExpectedValue, 0);
   };
   
-  // Calculate total expenses
   const getTotalExpenses = () => {
     return monthlyData.reduce((sum, data) => sum + data.totalExpenses, 0);
   };
   
-  // Calculate expected profit
   const getExpectedProfit = () => {
     return monthlyData.reduce((sum, data) => sum + data.expectedProfit, 0);
   };
   
-  // Calculate real profit (based on paid amount)
   const getRealProfit = () => {
     return monthlyData.reduce((sum, data) => sum + data.realProfit, 0);
   };
   
-  // Calculate total paid amount
   const getTotalPaid = () => {
     return monthlyData.reduce((sum, data) => sum + data.totalPaid, 0);
   };
   
-  // Calculate remaining payments
   const getRemainingPayments = () => {
     return monthlyData.reduce((sum, data) => sum + data.remainingPayments, 0);
   };
 
-  // Get total transaction count
   const getTotalTransactionCount = () => {
     return monthlyData.reduce((sum, data) => sum + data.transactions.length, 0);
   };
   
-  // Get total expense entries count
   const getTotalExpenseCount = () => {
     return monthlyData.reduce((sum, data) => sum + data.expenses.length, 0);
   };
 
   return (
     <div className="font-sans">
-      {/* Date Range Controls */}
       <div className="mb-4 flex justify-between items-center">
         <div className="flex items-center gap-2">
           <Button 
@@ -408,7 +377,6 @@ const [_availableYears, setAvailableYears] = useState<number[]>([]);
               : "Pilih Rentang Tanggal"}
           </Button>
           
-          {/* Date Picker Dialog Component */}
           <DatePickerDialog
             isOpen={isDatePickerOpen}
             setIsOpen={setIsDatePickerOpen}
@@ -440,7 +408,6 @@ const [_availableYears, setAvailableYears] = useState<number[]>([]);
         </div>
       </div>
 
-      {/* Insight Cards */}
       {isLoading ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -550,7 +517,6 @@ const [_availableYears, setAvailableYears] = useState<number[]>([]);
         </div>
       )}
       
-      {/* Additional Monthly Summary Card (optional) */}
       {monthlyData.length > 0 && (
         <Card className="mt-6">
           <CardHeader>
@@ -578,9 +544,9 @@ const [_availableYears, setAvailableYears] = useState<number[]>([]);
                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Status Profit</h3>
                 <div>
                   {getRealProfit() >= 0 ? (
-                    <Badge className="bg-green-100 text-green-800">Profit</Badge>
+                    <Badge className="bg-green-100 text-green-800 text-xs">Profit</Badge>
                   ) : (
-                    <Badge className="bg-red-100 text-red-800">Loss</Badge>
+                    <Badge className="bg-red-100 text-red-800 text-xs">Loss</Badge>
                   )}
                 </div>
               </div>

@@ -144,7 +144,7 @@ export default function ExpensesTable() {
         try {
           const errorData = await res.json();
           errorText = errorData.error || errorText;
-        } catch (jsonError) {
+        } catch {
           // If parsing fails, use default error message
         }
         

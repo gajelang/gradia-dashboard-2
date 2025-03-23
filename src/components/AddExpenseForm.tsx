@@ -19,7 +19,6 @@ import {
 import { toast } from "react-hot-toast";
 import { Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { PrismaClient } from "@prisma/client";
 
 // Define types for the Prisma transaction context
 interface TransactionContext {

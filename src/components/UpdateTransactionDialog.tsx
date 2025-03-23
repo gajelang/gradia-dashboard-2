@@ -568,7 +568,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                     </div>
                   ) : existingExpenses.length === 0 && newExpenses.length === 0 ? (
                     <div className="text-center py-8 text-muted-foreground">
-                      No expenses added. Click "Add Expense" to add project expenses.
+                      No expenses added. Click &quot;Add Expense&quot; to add project expenses.
                     </div>
                   ) : (
                     <div className="space-y-2">

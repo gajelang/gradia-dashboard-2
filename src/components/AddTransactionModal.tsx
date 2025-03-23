@@ -483,7 +483,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     try {
       new URL(string);
       return true;
-    } catch (_) {
+    } catch {
       return false;
     }
   };
