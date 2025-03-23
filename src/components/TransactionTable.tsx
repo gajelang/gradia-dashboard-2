@@ -410,7 +410,7 @@ export default function TransactionTable() {
       try {
         const responseText = await response.text();
         data = JSON.parse(responseText);
-      } catch (e) {
+      } catch {
         console.warn("Could not parse response as JSON");
         data = { message: "Transaction archived" };
       }
@@ -472,7 +472,7 @@ export default function TransactionTable() {
       try {
         const responseText = await res.text();
         data = JSON.parse(responseText);
-      } catch (e) {
+      } catch {
         console.warn("Could not parse response as JSON");
         data = { message: "Transaction restored" };
       }

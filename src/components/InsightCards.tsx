@@ -198,12 +198,6 @@ export default function EnhancedInsightCards({ onDateRangeChange }: EnhancedInsi
       setTransactions(transactionsData);
       setExpenses(expensesData);
       
-      // Extract unique years (removed _availableYears as it's not used)
-      const years = [...new Set([
-        ...transactionsData.map(t => new Date(t.date).getFullYear()),
-        ...expensesData.map(e => new Date(e.date).getFullYear())
-      ])].sort((a, b) => b - a);
-      
       // If no date range is set, default to current month
       if (!selectedRange) {
         const today = new Date();
