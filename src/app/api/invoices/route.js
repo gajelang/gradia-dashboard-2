@@ -139,7 +139,7 @@ export async function PATCH(request) {
     }
 
     // Update the invoice
-    const updateData: any = {
+    const updateData = {
       updatedAt: new Date()
     };
 
