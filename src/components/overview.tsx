@@ -41,11 +41,11 @@ export function Overview() {
           throw new Error(`Failed to fetch transactions: ${res.status}`);
         }
         
-        // Handle potential json parsing errors
+        // Handle potential json parsing errors without an unused error parameter
         let transactions;
         try {
           transactions = await res.json();
-        } catch (error) {
+        } catch {
           throw new Error("Failed to parse transaction data");
         }
         
@@ -150,5 +150,5 @@ export function Overview() {
         <Bar dataKey="total" fill="#4ade80" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
-  )
+  );
 }

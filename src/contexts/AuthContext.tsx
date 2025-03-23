@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 // Enhanced user interface with additional fields
@@ -57,8 +57,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
-  // Validate token with the server
-  const validateToken = async (currentToken: string) => {
+  // Wrap logout with useCallback to stabilize its reference
+  const logout = useCallback(() => {
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    router.push('/login');
+  }, [router]);
+
+  // Wrap validateToken with useCallback and include logout as dependency
+  const validateToken = useCallback(async (currentToken: string) => {
     try {
       const response = await fetch('/api/auth/me', {
         headers: {
@@ -79,16 +88,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setIsLoading(false);
       // Continue with stored user data if offline
     }
-  };
-
-  // Logout function
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    router.push('/login');
-  };
+  }, [logout]);
 
   // Check if user is already logged in on component mount
   useEffect(() => {

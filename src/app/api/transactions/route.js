@@ -39,7 +39,7 @@ export async function GET(req) {
       
       // Mengembalikan objek transaksi dengan capitalCost dan menghapus expenses
       // (karena kita tidak perlu mengirim seluruh data expense)
-      const { expenses, ...transactionData } = transaction;
+      const { ...transactionData } = transaction;
       
       return {
         ...transactionData,
@@ -71,7 +71,7 @@ export async function POST(req) {
     try {
       data = await req.json();
       console.log("Data received:", data);
-    } catch (error) {
+    } catch {
       return createSafeResponse({ message: "Invalid request data" }, 400);
     }
     
@@ -165,8 +165,8 @@ export async function POST(req) {
         });
         console.log("Company finance created successfully with amount:", amountToAdd);
       }
-    } catch (error) {
-      console.log("Finance update issue:", String(error));
+    } catch (financeError) {
+      console.log("Finance update issue:", String(financeError));
       // Continue even if finance update fails
     }
 
@@ -292,7 +292,7 @@ export async function PATCH(req) {
 
 export async function DELETE(req) {
   // Verify auth token
-  const { isAuthenticated, user } = await verifyAuthToken(req);
+  const { isAuthenticated } = await verifyAuthToken(req);
   
   if (!isAuthenticated) {
     return createSafeResponse({ error: "Unauthorized" }, 401);

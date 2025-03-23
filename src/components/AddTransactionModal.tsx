@@ -23,53 +23,33 @@ import {
   UserPlus,
   User,
   Plus,
-  // Removing unused imports
-  // X,
-  // Calendar,
-  // DollarSign
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { formatRupiah } from "@/lib/formatters";
 import { fetchWithAuth } from "@/lib/api";
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from "../contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { 
-  Sheet, 
-  SheetContent, 
-  SheetHeader, 
-  SheetTitle, 
+// Import TransactionData from the shared types file
+import { TransactionData } from "@/app/types/transaction";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
   SheetDescription,
-  // Removing unused import
-  // SheetFooter
 } from "@/components/ui/sheet";
-// Removing unused import
-// import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-// Removing unused import
-// import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-// Removing unused imports
-// import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type TransactionType = 'transaction' | 'expense';
 
-// Creating a type for the transaction data to replace any
-interface TransactionData {
-  id: string;
-  name: string;
-  projectValue?: number;
-  amount?: number;
-  description?: string;
-  [key: string]: any; // For other properties we might not know
-}
-
 interface AddTransactionModalProps {
-  onTransactionAdded: (transaction: TransactionData) => void; // Replaced any with TransactionData
+  onTransactionAdded: (transaction: TransactionData) => void;
 }
 
 // Interface for Client
 interface Client {
-  isDeleted: boolean; // Changed from any to boolean
+  isDeleted: boolean;
   id: string;
   code: string;
   name: string;
@@ -78,9 +58,9 @@ interface Client {
   address?: string;
 }
 
-// Interface for Vendor - keeping for expense creation
+// Interface for Vendor
 interface Vendor {
-  isDeleted: boolean; // Changed from any to boolean
+  isDeleted: boolean;
   id: string;
   name: string;
   serviceDesc: string;
@@ -96,7 +76,7 @@ interface PIC {
   role?: string;
 }
 
-// Interface for Transaction
+// Interface for Transaction (used for expense linking)
 interface Transaction {
   id: string;
   name: string;
@@ -106,17 +86,71 @@ interface Transaction {
   isDeleted?: boolean;
 }
 
+// Interface for form data
+interface FormData {
+  name: string;
+  projectValue: string;
+  email: string;
+  phone: string;
+  description: string;
+  date: string;
+  category: string;
+  amount: string;
+  paymentStatus: string;
+  downPaymentAmount: string;
+  startDate: string;
+  endDate: string;
+  paymentProofLink: string;
+  clientId: string;
+  vendorId: string;
+  picId: string;
+  transactionId: string;
+}
+
+// Interface for new client data
+interface NewClientData {
+  code: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  description: string;
+}
+
+// Interface for API payload
+interface ApiPayload {
+  name?: string;
+  projectValue?: number;
+  totalProfit?: number;
+  amount?: number;
+  paymentStatus?: string;
+  downPaymentAmount?: number;
+  remainingAmount?: number;
+  email?: string;
+  phone?: string;
+  description?: string;
+  date?: string;
+  startDate?: string | null;
+  endDate?: string | null;
+  clientId?: string | null;
+  picId?: string | null;
+  paymentProofLink?: string;
+  category?: string;
+  vendorId?: string | null;
+  transactionId?: string | null;
+}
+
 export default function AddTransactionModal({ onTransactionAdded }: AddTransactionModalProps) {
   const router = useRouter();
   const { user } = useAuth();
   const [transactionType, setTransactionType] = useState<TransactionType>('transaction');
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<FormData>({
     name: "",
     projectValue: "",
     email: "",
     phone: "",
     description: "",
-    date: new Date().toISOString().split('T')[0], // Default to today
+    date: new Date().toISOString().split('T')[0],
     category: "",
     amount: "",
     paymentStatus: "Belum Bayar",
@@ -125,9 +159,9 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     endDate: "",
     paymentProofLink: "",
     clientId: "",
-    vendorId: "", // Changed to single vendorId for expenses
+    vendorId: "",
     picId: "",
-    transactionId: "", // Added for linking expense to existing transaction
+    transactionId: "",
   });
   const [profit, setProfit] = useState(0);
   const [remainingAmount, setRemainingAmount] = useState(0);
@@ -148,7 +182,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   
   // State for new client creation
   const [isNewClientSheetOpen, setIsNewClientSheetOpen] = useState(false);
-  const [newClientData, setNewClientData] = useState({
+  const [newClientData, setNewClientData] = useState<NewClientData>({
     code: "",
     name: "",
     email: "",
@@ -171,15 +205,12 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     "Lunas",
   ];
 
-  // Calculate profit and remaining amount when project values change
+  // Calculate profit and remaining amount
   useEffect(() => {
     const pv = parseFloat(formData.projectValue) || 0;
     const dpAmount = parseFloat(formData.downPaymentAmount) || 0;
-    
-    // Total profit is now just the project value
     const calculatedProfit = pv;
     setProfit(calculatedProfit);
-    
     if (formData.paymentStatus === "DP") {
       setRemainingAmount(calculatedProfit - dpAmount);
     } else {
@@ -187,16 +218,12 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     }
   }, [formData.projectValue, formData.downPaymentAmount, formData.paymentStatus]);
 
-  // Check if database schema has paymentProofLink field
   useEffect(() => {
     const checkDatabaseSchema = async () => {
       try {
-        // First try to get expenses to see if the field exists in the response
         const res = await fetchWithAuth("/api/expenses", { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
-          // Check if any expense has the paymentProofLink field
-          // If at least one has it, or if the array is empty, assume it's supported
           if (data.length === 0 || data.some((exp: Record<string, unknown>) => 'paymentProofLink' in exp)) {
             setShowPaymentProofField(true);
           } else {
@@ -206,34 +233,29 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
         }
       } catch (error) {
         console.error("Error checking schema:", error);
-        // Default to not showing if we can't confirm
         setShowPaymentProofField(false);
       }
     };
-    
     checkDatabaseSchema();
   }, []);
 
-  // Fetch clients, vendors, PICs, and transactions when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchClients();
-      fetchVendors(); // Still fetch vendors for expense creation
+      fetchVendors();
       fetchPics();
       if (transactionType === 'expense') {
-        fetchTransactions(); // Fetch transactions for expense linking
+        fetchTransactions();
       }
     }
   }, [isOpen, transactionType]);
 
-  // Fetch clients
   const fetchClients = async () => {
     try {
       setLoadingClients(true);
       const res = await fetchWithAuth("/api/clients", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        // Only include active clients
         const activeClients = data.filter((client: Client) => !client.isDeleted);
         setClients(activeClients);
       }
@@ -244,14 +266,12 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     }
   };
 
-  // Fetch vendors (still needed for expense form)
   const fetchVendors = async () => {
     try {
       setLoadingVendors(true);
       const res = await fetchWithAuth("/api/vendors", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        // Only include active vendors
         const activeVendors = data.filter((vendor: Vendor) => !vendor.isDeleted);
         setVendors(activeVendors);
       }
@@ -262,25 +282,21 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     }
   };
 
-  // Fetch PICs (users who can be assigned as PIC)
   const fetchPics = async () => {
     try {
       setLoadingPics(true);
       const res = await fetchWithAuth("/api/users?role=pic", { cache: "no-store" });
-      
       if (res.ok) {
         const data = await res.json();
         console.log("PIC users fetched:", data);
         setPics(data);
       } else {
         console.error("Error fetching PICs: Server returned", res.status);
-        // Fallback with empty array instead of dummy data
         setPics([]);
         toast.error("Failed to load PIC options");
       }
     } catch (error) {
       console.error("Error fetching PICs:", error);
-      // Fallback with empty array
       setPics([]);
       toast.error("Failed to load PIC options");
     } finally {
@@ -288,14 +304,12 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     }
   };
 
-  // Fetch active transactions for expense linking
   const fetchTransactions = async () => {
     try {
       setLoadingTransactions(true);
       const res = await fetchWithAuth("/api/transactions", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        // Only include active transactions
         const activeTransactions = data.filter((tx: Transaction) => !tx.isDeleted);
         setTransactions(activeTransactions);
       }
@@ -306,7 +320,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     }
   };
 
-  // Reset form helper
   const resetForm = () => {
     setFormData({
       name: "",
@@ -323,16 +336,15 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       endDate: "",
       paymentProofLink: "",
       clientId: "",
-      vendorId: "", // Reset vendor ID
+      vendorId: "",
       picId: "",
-      transactionId: "", // Reset transaction ID
+      transactionId: "",
     });
     setProfit(0);
     setRemainingAmount(0);
     setFormErrors({});
   };
 
-  // Reset new client form
   const resetNewClientForm = () => {
     setNewClientData({
       code: "",
@@ -347,11 +359,9 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    
-    // Clear any error for this field
     if (formErrors[name]) {
       setFormErrors(prev => {
-        const newErrors = {...prev};
+        const newErrors = { ...prev };
         delete newErrors[name];
         return newErrors;
       });
@@ -360,18 +370,13 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
 
   const handlePaymentStatusChange = (value: string) => {
     setFormData(prev => ({ ...prev, paymentStatus: value }));
-    
-    // Reset downPaymentAmount if changing from DP to something else
     if (value !== "DP") {
       setFormData(prev => ({ ...prev, downPaymentAmount: "" }));
     }
   };
 
-  // Handle client selection
   const handleClientChange = (value: string) => {
     setFormData(prev => ({ ...prev, clientId: value === "none" ? "" : value }));
-    
-    // If a client is selected, pre-fill client details
     if (value && value !== "none") {
       const selectedClient = clients.find(client => client.id === value);
       if (selectedClient) {
@@ -384,47 +389,39 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     }
   };
 
-  // Handle vendor selection for expense type
   const handleVendorChange = (value: string) => {
     setFormData(prev => ({ ...prev, vendorId: value === "none" ? "" : value }));
   };
 
-  // Handle PIC selection
   const handlePicChange = (value: string) => {
     setFormData(prev => ({ ...prev, picId: value === "none" ? "" : value }));
   };
 
-  // Handle transaction selection for expense linking
   const handleTransactionChange = (value: string) => {
     setFormData(prev => ({ ...prev, transactionId: value === "none" ? "" : value }));
   };
 
-  // Handle category selection
   const handleCategoryChange = (value: string) => {
     setFormData(prev => ({ ...prev, category: value }));
     if (formErrors.category) {
       setFormErrors(prev => {
-        const newErrors = {...prev};
+        const newErrors = { ...prev };
         delete newErrors.category;
         return newErrors;
       });
     }
   };
 
-  // Handle new client input change
   const handleNewClientChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setNewClientData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Create new client
   const handleCreateClient = async () => {
-    // Validate form
     if (!newClientData.code || !newClientData.name) {
       toast.error("Client code and name are required");
       return;
     }
-
     try {
       const res = await fetchWithAuth("/api/clients", {
         method: "POST",
@@ -433,14 +430,10 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           createdById: user?.userId
         }),
       });
-
       if (!res.ok) {
         throw new Error("Failed to create client");
       }
-
       const newClient = await res.json();
-      
-      // Add the new client to the list and select it
       setClients(prev => [...prev, newClient]);
       setFormData(prev => ({
         ...prev,
@@ -448,8 +441,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
         email: newClientData.email || prev.email,
         phone: newClientData.phone || prev.phone,
       }));
-      
-      // Reset form and close sheet
       resetNewClientForm();
       setIsNewClientSheetOpen(false);
       toast.success("Client created successfully");
@@ -461,14 +452,11 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
-    
     if (transactionType === 'transaction') {
       if (!formData.name.trim()) errors.name = "Transaction name is required";
       if (!formData.projectValue) errors.projectValue = "Project value is required";
       if (!formData.date) errors.date = "Date is required";
       if (profit < 0) errors.profit = "Profit cannot be negative";
-      
-      // Validate DP amount if DP status is selected
       if (formData.paymentStatus === "DP") {
         if (!formData.downPaymentAmount) {
           errors.downPaymentAmount = "Down payment amount is required";
@@ -484,60 +472,45 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
         errors.amount = "Valid expense amount is required";
       if (!formData.date) errors.date = "Date is required";
     }
-    
-    // Validate payment proof link format if provided and the field is shown
     if (showPaymentProofField && formData.paymentProofLink && !isValidURL(formData.paymentProofLink)) {
       errors.paymentProofLink = "Please enter a valid URL";
     }
-    
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  // Simple URL validator
   const isValidURL = (string: string) => {
     try {
       new URL(string);
       return true;
-    } catch (_unused) { // Changed from _ to _unused to indicate intentionally unused
+    } catch (_) {
       return false;
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (isSubmitting) return; // Prevent multiple submissions
-    
-    // Validate form before submission
+    if (isSubmitting) return;
     if (!validateForm()) {
       toast.error("Please correct the errors in the form");
       return;
     }
-    
     setIsSubmitting(true);
-    
     try {
-      let payload: Record<string, any>; // Changed from any to Record<string, any>
+      let payload: ApiPayload = {};
       let apiEndpoint;
-
       if (transactionType === 'transaction') {
-        // Determine the amount to be added to revenue based on payment status
         let revenueAmount = 0;
-        
         if (formData.paymentStatus === "Lunas") {
-          // Full amount for "Lunas" (paid in full)
           revenueAmount = profit;
         } else if (formData.paymentStatus === "DP") {
-          // Only down payment amount for "DP"
           revenueAmount = parseFloat(formData.downPaymentAmount) || 0;
         }
-        
         payload = {
           name: formData.name || "Transaction", 
           projectValue: parseFloat(formData.projectValue) || 0,
           totalProfit: profit,
-          amount: revenueAmount, // This is what will affect the revenue
+          amount: revenueAmount,
           paymentStatus: formData.paymentStatus,
           downPaymentAmount: formData.paymentStatus === "DP" ? parseFloat(formData.downPaymentAmount) : 0,
           remainingAmount: remainingAmount,
@@ -550,12 +523,9 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           clientId: formData.clientId || null,
           picId: formData.picId || null,
         };
-        
-        // Only add payment proof link if the field is shown and has a value
         if (showPaymentProofField && formData.paymentProofLink) {
           payload.paymentProofLink = formData.paymentProofLink;
         }
-        
         apiEndpoint = "/api/transactions";
       } else {
         payload = {
@@ -563,34 +533,23 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           amount: parseFloat(formData.amount),
           description: formData.description || "",
           date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
-          vendorId: formData.vendorId || null, // Include vendor ID for expense
-          transactionId: formData.transactionId || null, // Include transaction ID for linking
+          vendorId: formData.vendorId || null,
+          transactionId: formData.transactionId || null,
         };
-        
-        // Only add payment proof link if the field is shown and has a value
         if (showPaymentProofField && formData.paymentProofLink) {
           payload.paymentProofLink = formData.paymentProofLink;
         }
-        
         apiEndpoint = "/api/expenses";
       }
-
       console.log("Sending payload:", payload);
-
-      // Adding a timeout to make sure we get a response or abort
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
-      // Use fetchWithAuth instead of regular fetch
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       const res = await fetchWithAuth(apiEndpoint, {
         method: "POST",
         body: JSON.stringify(payload),
         signal: controller.signal
       });
-      
       clearTimeout(timeoutId);
-
-      // Handle HTTP errors before attempting to parse
       if (!res.ok) {
         let errorMessage = "Server error occurred";
         try {
@@ -602,25 +561,18 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
         }
         throw new Error(errorMessage);
       }
-
-      // Parse the response with error handling
-      let responseData = {};
+      let responseData: Record<string, unknown> = {};
       try {
         responseData = await res.json();
         console.log("Server response:", responseData);
       } catch (jsonError) {
         console.error("Failed to parse server response:", jsonError);
-        // Continue anyway - we'll use default values
       }
-      
-      // Extract transaction data with fallbacks for missing properties
       const transactionData = 
-        (responseData as Record<string, any>)?.transaction || 
-        (responseData as Record<string, any>)?.expense || 
-        responseData || 
-        payload; // Use payload as last resort
-      
-      // Add user information to the response
+        (responseData?.transaction as TransactionData) || 
+        (responseData?.expense as TransactionData) || 
+        responseData as unknown as TransactionData || 
+        payload as unknown as TransactionData;
       if (user) {
         transactionData.createdBy = {
           id: user.userId,
@@ -628,13 +580,8 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           email: user.email
         };
       }
-      
-      // Notify parent component
       onTransactionAdded(transactionData);
-
       toast.success(`${transactionType === 'transaction' ? 'Transaction' : 'Expense'} added successfully!`);
-
-      // Reset form & close modal
       resetForm();
       setIsOpen(false);
     } catch (error) {
@@ -658,7 +605,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           <DialogTitle>Add New Entry</DialogTitle>
           <DialogDescription>Choose entry type and fill in details.</DialogDescription>
           
-          {/* Transaction Type Selector */}
           <div className="mb-4">
             <Select 
               value={transactionType} 
@@ -666,7 +612,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                 setTransactionType(value);
                 resetForm();
                 if (value === 'expense') {
-                  // Load transactions for expense linking
                   fetchTransactions();
                 }
               }}
@@ -681,14 +626,11 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
             </Select>
           </div>
 
-          {/* Scrollable content container */}
           <ScrollArea className="h-[calc(90vh-180px)] pr-4">
             <form onSubmit={handleSubmit}>
               {transactionType === 'transaction' ? (
                 <div className="space-y-4">
-                  {/* Two-column grid for transaction form */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Left column */}
                     <div className="space-y-4">
                       <div>
                         <label className="text-sm font-medium mb-1 block">Transaction Name</label>
@@ -726,7 +668,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         {formErrors.profit && <p className="text-red-500 text-xs mt-1">{formErrors.profit}</p>}
                       </div>
                       
-                      {/* Payment Status */}
                       <div>
                         <label className="text-sm font-medium mb-1 block">Payment Status</label>
                         <Select
@@ -748,7 +689,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         </Select>
                       </div>
                       
-                      {/* Show Down Payment field only if DP is selected */}
                       {formData.paymentStatus === "DP" && (
                         <div>
                           <label className="text-sm font-medium mb-1 block">Down Payment Amount</label>
@@ -773,7 +713,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         </div>
                       )}
 
-                      {/* Contact Information */}
                       <div>
                         <label className="text-sm font-medium mb-1 block">Client Email</label>
                         <Input
@@ -796,9 +735,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                       </div>
                     </div>
                     
-                    {/* Right column */}
                     <div className="space-y-4">
-                      {/* Client Selection */}
                       <div className="space-y-2">
                         <label className="text-sm font-medium flex justify-between items-center">
                           <span>Client</span>
@@ -815,7 +752,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         </label>
                         <Select value={formData.clientId} onValueChange={handleClientChange}>
                           <SelectTrigger>
-                            {loadingClients ? ( // Using loadingClients here
+                            {loadingClients ? (
                               <div className="flex items-center">
                                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                                 <span>Loading clients...</span>
@@ -835,7 +772,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         </Select>
                       </div>
                       
-                      {/* PIC Selection */}
                       <div className="space-y-2">
                         <label className="text-sm font-medium flex justify-between items-center">
                           <span>Person In Charge (PIC)</span>
@@ -887,7 +823,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         )}
                       </div>
                       
-                      {/* Description field */}
                       <div>
                         <label className="text-sm font-medium mb-1 block">Description</label>
                         <Textarea
@@ -899,7 +834,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         />
                       </div>
                       
-                      {/* Date field */}
                       <div>
                         <label className="text-sm font-medium mb-1 block">Transaction Date</label>
                         <Input
@@ -913,7 +847,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         {formErrors.date && <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>}
                       </div>
                       
-                      {/* Broadcast Dates */}
                       <div className="flex gap-2">
                         <div className="flex-1">
                           <label className="text-sm text-muted-foreground mb-1 block">Start Date</label>
@@ -937,7 +870,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                     </div>
                   </div>
                   
-                  {/* Payment Proof Link Field - Below the two columns */}
                   {showPaymentProofField && (
                     <div className="space-y-2 mt-2">
                       <div className="flex items-center">
@@ -962,7 +894,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                   )}
                 </div>
               ) : (
-                // Expense Form - Single Column Layout with Transaction and Vendor selection
                 <div className="space-y-4">
                   <div>
                     <label className="text-sm font-medium mb-1 block">Category</label>
@@ -1001,7 +932,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                     {formErrors.amount && <p className="text-red-500 text-xs mt-1">{formErrors.amount}</p>}
                   </div>
                   
-                  {/* Transaction Selection - For linking expense to existing project */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium mb-1 block">Link to Transaction/Project</label>
                     <Select
@@ -1033,7 +963,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                     </p>
                   </div>
                   
-                  {/* Vendor Selection - Added for expenses */}
                   <div className="space-y-2">
                     <label className="text-sm font-medium mb-1 block">Vendor/Subcontractor</label>
                     <Select
@@ -1089,7 +1018,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                     {formErrors.date && <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>}
                   </div>
                   
-                  {/* Payment Proof Link Field - added for both transaction and expense */}
                   {showPaymentProofField && (
                     <div className="space-y-2">
                       <div className="flex items-center">
@@ -1117,7 +1045,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
             </form>
           </ScrollArea>
           
-          {/* Buttons - Common for both transaction and expense */}
           <div className="flex justify-end gap-2 mt-4 pt-2 border-t">
             <Button 
               type="button" 
@@ -1144,7 +1071,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
         </DialogContent>
       </Dialog>
       
-      {/* New Client Sheet */}
       <Sheet open={isNewClientSheetOpen} onOpenChange={setIsNewClientSheetOpen}>
         <SheetContent className="w-full sm:max-w-md">
           <SheetHeader>

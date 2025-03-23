@@ -1,6 +1,5 @@
-// app/api/users/route.ts
 import { NextRequest } from "next/server";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import { verifyAuthToken } from "@/lib/auth";
 import { createSafeResponse } from "@/lib/api";
 
@@ -19,7 +18,7 @@ export async function GET(request: NextRequest) {
     const role = searchParams.get('role');
     
     // Construct the where clause based on parameters
-    const whereClause: any = {};
+    const whereClause: Prisma.UserWhereInput = {};
     
     // Filter by role if provided
     if (role) {

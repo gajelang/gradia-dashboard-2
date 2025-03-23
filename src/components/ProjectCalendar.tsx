@@ -216,7 +216,7 @@ export default function ProjectCalendar() {
     if (!dateString) return "Not set";
     try {
       return format(parseISO(dateString), "d MMM yyyy", { locale: id });
-    } catch (_) {
+    } catch {
       return "Invalid date";
     }
   };
@@ -466,7 +466,7 @@ export default function ProjectCalendar() {
                     height: `${Math.min(maxRows * 30, 200)}px`, // Increase height for more space
                   }}
                 >
-                  {week.map((_, dayIndex) => (
+                  {week.map((_unused, dayIndex) => (
                     <div 
                       key={`day-col-${dayIndex}`} 
                       className="border-r last:border-r-0 h-full"
@@ -536,7 +536,7 @@ export default function ProjectCalendar() {
           projectsByMonth[monthKey] = [];
         }
         projectsByMonth[monthKey].push(project);
-      } catch (_) {
+      } catch {
         // Skip invalid dates
       }
     });

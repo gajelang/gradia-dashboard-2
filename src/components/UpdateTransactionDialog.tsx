@@ -255,7 +255,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     }
     
     // Add the new expense to the list
-    setNewExpenses([...newExpenses, {...newExpense}]);
+    setNewExpenses([...newExpenses, { ...newExpense }]);
     
     // Close the add expense panel and reset form
     setIsAddExpenseOpen(false);
@@ -272,7 +272,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     // Clear any error for this field
     if (expenseErrors[field]) {
       setExpenseErrors(prev => {
-        const newErrors = {...prev};
+        const newErrors = { ...prev };
         delete newErrors[field];
         return newErrors;
       });
@@ -319,7 +319,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     // Clear any error for this field
     if (formErrors[name]) {
       setFormErrors(prev => {
-        const newErrors = {...prev};
+        const newErrors = { ...prev };
         delete newErrors[name];
         return newErrors;
       });
@@ -571,7 +571,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                       No expenses added. Click "Add Expense" to add project expenses.
                     </div>
                   ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {/* Existing Expenses (Read-only) */}
                       {existingExpenses.length > 0 && (
                         <div className="mb-4">
@@ -682,7 +682,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
           <Separator className="my-4" />
           
           <div className="mt-4">
-            <p className="mb-2">Type "UPDATE" to confirm changes.</p>
+            <p className="mb-2">Type &quot;UPDATE&quot; to confirm changes.</p>
             <Input
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}

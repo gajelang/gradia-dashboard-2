@@ -10,8 +10,8 @@ export default async function handler(
     const financeData = await prisma.companyFinance.findFirst();
     
     if (!financeData) {
-      // If no finance record exists, create one
-      const newFinanceRecord = await prisma.companyFinance.create({
+      // If no finance record exists, create one and return its value
+      await prisma.companyFinance.create({
         data: { totalFunds: 0 }
       });
       

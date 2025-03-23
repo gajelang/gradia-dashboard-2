@@ -98,7 +98,7 @@ export default function UpdateExpenseDialog({ expense, onExpenseUpdated }: Updat
     // Clear any error for this field
     if (formErrors[name]) {
       setFormErrors(prev => {
-        const newErrors = {...prev};
+        const newErrors = { ...prev };
         delete newErrors[name];
         return newErrors;
       });
@@ -109,7 +109,7 @@ export default function UpdateExpenseDialog({ expense, onExpenseUpdated }: Updat
     setFormData(prev => ({ ...prev, category: value }));
     if (formErrors.category) {
       setFormErrors(prev => {
-        const newErrors = {...prev};
+        const newErrors = { ...prev };
         delete newErrors.category;
         return newErrors;
       });
@@ -254,7 +254,7 @@ export default function UpdateExpenseDialog({ expense, onExpenseUpdated }: Updat
           </div>
           
           <div className="mt-4">
-            <p className="mb-2">Type "UPDATE" to confirm expense changes.</p>
+            <p className="mb-2">Type &quot;UPDATE&quot; to confirm expense changes.</p>
             <Input
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}

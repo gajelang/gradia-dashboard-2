@@ -56,7 +56,8 @@ export async function POST(req: NextRequest) {
     });
     
     // Don't return the password
-    const { password: _, ...userWithoutPassword } = user;
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password: passwordField, ...userWithoutPassword } = user;
     
     // Store additional data somewhere else if needed
     // For now we'll just log it

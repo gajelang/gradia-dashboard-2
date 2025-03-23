@@ -19,6 +19,47 @@ import {
 import { toast } from "react-hot-toast";
 import { Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { PrismaClient } from "@prisma/client";
+
+// Define types for the Prisma transaction context
+interface TransactionContext {
+  expense: {
+    create: (arg0: {
+      data: {
+        category: string;
+        amount: number;
+        description: string | null;
+        date: Date;
+      };
+    }) => Promise<ExpenseRecord>;
+  };
+  companyFinance: {
+    update: (arg0: {
+      where: {
+        id: string;
+      };
+      data: {
+        totalFunds: {
+          decrement: number;
+        };
+      };
+    }) => Promise<CompanyFinanceRecord>;
+  };
+}
+
+// Define result types
+interface ExpenseRecord {
+  id: string;
+  category: string;
+  amount: number;
+  description: string | null;
+  date: Date;
+}
+
+interface CompanyFinanceRecord {
+  id: string;
+  totalFunds: number;
+}
 
 interface AddExpenseFormProps {
   currentTotalFunds: number;
@@ -65,16 +106,7 @@ export default function AddExpenseForm({
 
     try {
       // Start a transaction to create expense and update funds
-      const result = await prisma.$transaction(async (tx: {
-          expense: { create: (arg0: { data: { category: string; amount: number; description: string | null; date: Date; }; }) => any; }; companyFinance: {
-            update: (arg0: {
-              where: {
-                // Using string ID as the Prisma schema expects a string
-                id: string; // Replace with the actual identifier from your database
-              }; data: { totalFunds: { decrement: number; }; };
-            }) => any;
-          };
-        }) => {
+      const result = await prisma.$transaction(async (tx: TransactionContext) => {
         // Create expense record
         const expense = await tx.expense.create({
           data: {

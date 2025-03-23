@@ -619,7 +619,7 @@ export default function VendorTable() {
           
           <div className="py-4">
             <p className="mb-2 font-medium">Vendor: {vendorToDelete?.name}</p>
-            <p className="mb-4 text-sm text-muted-foreground">Type "DELETE" to confirm.</p>
+            <p className="mb-4 text-sm text-muted-foreground">Type &quot;DELETE&quot; to confirm.</p>
             <Input
               value={confirmDeleteText}
               onChange={(e) => setConfirmDeleteText(e.target.value)}
@@ -653,7 +653,7 @@ export default function VendorTable() {
           </DialogHeader>
           
           <div className="py-4">
-            <p>Are you sure you want to restore vendor "{vendorToRestore?.name}"?</p>
+            <p>Are you sure you want to restore vendor &quot;{vendorToRestore?.name}&quot;?</p>
           </div>
           
           <DialogFooter>

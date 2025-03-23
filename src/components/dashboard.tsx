@@ -20,7 +20,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import { fetchWithAuth } from "@/lib/api"
 import { toast } from "react-hot-toast"
 import { DateRange as RDPDateRange } from "react-day-picker"
-import { Transaction, TransactionData, convertToTransaction } from "../app/types/transaction"
+import { Transaction, TransactionData, convertToTransaction } from "@/app/types/transaction"
 
 // Load Inter font
 const inter = Inter({
@@ -29,7 +29,7 @@ const inter = Inter({
   display: "swap",
 })
 
-// Define DateRange for chart components
+// Define a DateRange for chart components
 interface DateRange {
   from: Date;
   to: Date;
@@ -41,7 +41,7 @@ export default function Dashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch transactions for RecentTransactions
+  // Fetch transactions when authenticated
   useEffect(() => {
     if (isAuthenticated) {
       fetchTransactions();
@@ -53,18 +53,12 @@ export default function Dashboard() {
       setIsLoading(true);
       const res = await fetchWithAuth("/api/transactions", { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to fetch transactions");
-      const data = await res.json();
+
+      // Type the response as an array of TransactionData
+      const data: TransactionData[] = await res.json();
       
-      // Map raw data to Transaction format
-      const mappedData = data.map((tx: any) => ({
-        id: tx.id,
-        name: tx.name,
-        amount: tx.amount,
-        status: tx.paymentStatus || tx.status || "Belum Bayar",
-        email: tx.email || "",
-        description: tx.description || "",
-        date: tx.date
-      }));
+      // Map raw data to the Transaction format using the helper function
+      const mappedData = data.map((tx: TransactionData) => convertToTransaction(tx));
       
       setTransactions(mappedData);
     } catch (error) {
@@ -75,19 +69,18 @@ export default function Dashboard() {
     }
   }
 
-  // This function handles new transactions with the correct interface
+  // This function handles a new transaction added by the modal.
   function handleTransactionAdded(transaction: TransactionData): void {
-    // Convert TransactionData to Transaction
     const newTransaction = convertToTransaction(transaction);
     setTransactions((prev) => [newTransaction, ...prev]);
   }
 
-  // This wrapper function handles DateRange | undefined correctly
+  // Handle date range changes for the chart
   const handleDateRangeChange = (dateRange: RDPDateRange | undefined) => {
     setSelectedDateRange(dateRange);
   };
 
-  // Convert RDPDateRange to DateRange for IncomeExpensesChart
+  // Convert RDPDateRange to a DateRange type for the chart
   const getChartDateRange = (): DateRange | undefined => {
     if (selectedDateRange?.from && selectedDateRange?.to) {
       return {

@@ -105,10 +105,13 @@ interface DateRange {
   to: Date;
 }
 
-// Custom tooltip props
 interface CustomBarTooltipProps {
   active?: boolean;
-  payload?: Array<any>;
+  payload?: Array<{
+    name: string;
+    value: number;
+    color: string;
+  }>;
   label?: string;
 }
 

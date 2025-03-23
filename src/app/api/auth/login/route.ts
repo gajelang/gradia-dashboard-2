@@ -34,8 +34,9 @@ export async function POST(req: NextRequest) {
     // Generate JWT token
     const token = generateToken(user);
     
-    // Don't return the password
-    const { password: _, ...userWithoutPassword } = user;
+    // Remove the password using object destructuring
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password: passwordField, ...userWithoutPassword } = user;
     
     return createSafeResponse({ 
       user: userWithoutPassword,

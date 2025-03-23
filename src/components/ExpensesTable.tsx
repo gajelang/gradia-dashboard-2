@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { 
@@ -129,11 +129,8 @@ export default function ExpensesTable() {
   // Loading state
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetchExpenses();
-  }, [viewMode, fetchExpenses]) // Added fetchExpenses to dependency array
-
-  async function fetchExpenses() {
+  // Wrap fetchExpenses in useCallback to prevent unnecessary re-renders
+  const fetchExpenses = useCallback(async () => {
     try {
       setLoading(true);
       // Add query parameter to filter active or deleted items
@@ -147,7 +144,7 @@ export default function ExpensesTable() {
         try {
           const errorData = await res.json();
           errorText = errorData.error || errorText;
-        } catch (e) {
+        } catch (jsonError) {
           // If parsing fails, use default error message
         }
         
@@ -211,7 +208,11 @@ export default function ExpensesTable() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [viewMode]); // Add dependencies for useCallback
+
+  useEffect(() => {
+    fetchExpenses();
+  }, [viewMode, fetchExpenses]); // Added fetchExpenses to dependency array
 
   // Filtering and Sorting Logic
   useEffect(() => {

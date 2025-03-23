@@ -90,7 +90,8 @@ export default function EnhancedInsightCards({ onDateRangeChange }: EnhancedInsi
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
   const [selectedRange, setSelectedRange] = useState<DateRange | undefined>(undefined);
   // Kept available years as it might be used in future feature development
-  const [availableYears, setAvailableYears] = useState<number[]>([]);
+// Kept available years as it might be used in future feature development
+const [_availableYears, setAvailableYears] = useState<number[]>([]);
   
   // UI state
   const [isDatePickerOpen, setIsDatePickerOpen] = useState<boolean>(false);

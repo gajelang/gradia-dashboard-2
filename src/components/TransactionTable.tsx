@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -19,7 +19,7 @@ import {
   Info,
   Store,
   DollarSign,
-  LinkIcon
+  Link as LinkIcon
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
@@ -142,7 +142,16 @@ interface Expense {
 }
 
 type SortDirection = "asc" | "desc" | null;
-type SortField = "name" | "amount" | "projectValue" | "paymentStatus" | "date" | "capitalCost" | "createdBy" | null;
+type SortField =
+  | "name"
+  | "amount"
+  | "projectValue"
+  | "paymentStatus"
+  | "date"
+  | "capitalCost"
+  | "createdBy"
+  | null;
+
 interface DateFilter {
   month: number | null;
   year: number | null;
@@ -169,7 +178,13 @@ function getBroadcastStatus(tx: Transaction): string {
 }
 
 // Broadcast status indicator component
-function BroadcastIndicator({ startDate, endDate }: { startDate?: string; endDate?: string }) {
+function BroadcastIndicator({
+  startDate,
+  endDate,
+}: {
+  startDate?: string;
+  endDate?: string;
+}) {
   const status = getBroadcastStatus({ startDate, endDate } as Transaction);
   let bgColor = "";
   switch (status) {
@@ -189,7 +204,9 @@ function BroadcastIndicator({ startDate, endDate }: { startDate?: string; endDat
       bgColor = "bg-gray-500";
   }
   return (
-    <span className={`inline-block rounded px-2 py-0.5 text-xs font-medium text-white ${bgColor}`}>
+    <span
+      className={`inline-block rounded px-2 py-0.5 text-xs font-medium text-white ${bgColor}`}
+    >
       {status}
     </span>
   );
@@ -197,75 +214,93 @@ function BroadcastIndicator({ startDate, endDate }: { startDate?: string; endDat
 
 export default function TransactionTable() {
   const { user } = useAuth();
-  
+
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [deletedTransactions, setDeletedTransactions] = useState<Transaction[]>([]);
-  const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
+  const [deletedTransactions, setDeletedTransactions] = useState<Transaction[]>(
+    []
+  );
+  const [filteredTransactions, setFilteredTransactions] = useState<
+    Transaction[]
+  >([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<Transaction[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
-  const [dateFilter, setDateFilter] = useState<DateFilter>({ month: null, year: null });
+  const [dateFilter, setDateFilter] = useState<DateFilter>({
+    month: null,
+    year: null,
+  });
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [broadcastFilter, setBroadcastFilter] = useState("Semua");
   const [loading, setLoading] = useState(true);
-  
+
   // State for transaction deletion
-  const [transactionToDelete, setTransactionToDelete] = useState<Transaction | null>(null);
+  const [transactionToDelete, setTransactionToDelete] =
+    useState<Transaction | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmDeleteText, setConfirmDeleteText] = useState("");
-  
+
   // State for restore deleted transaction
-  const [transactionToRestore, setTransactionToRestore] = useState<Transaction | null>(null);
+  const [transactionToRestore, setTransactionToRestore] =
+    useState<Transaction | null>(null);
   const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
-  
+
   // View mode state (active or deleted transactions)
   const [viewMode, setViewMode] = useState<"active" | "deleted">("active");
-  
+
   // State for transaction expenses
   const [transactionExpenses, setTransactionExpenses] = useState<Expense[]>([]);
   const [activeExpenses, setActiveExpenses] = useState<Expense[]>([]);
   const [archivedExpenses, setArchivedExpenses] = useState<Expense[]>([]);
   const [loadingExpenses, setLoadingExpenses] = useState(false);
-  
+
   // State for transaction detail modal
   const [detailModalOpen, setDetailModalOpen] = useState(false);
-  const [selectedDetailTransaction, setSelectedDetailTransaction] = useState<Transaction | null>(null);
+  const [selectedDetailTransaction, setSelectedDetailTransaction] =
+    useState<Transaction | null>(null);
   const [detailViewTab, setDetailViewTab] = useState<string>("details");
 
-  // Fetch transactions data
-  useEffect(() => {
-    fetchTransactionsAndExpenses();
-  }, [viewMode]);
-
-  // Fetch transactions and expenses
-  const fetchTransactionsAndExpenses = async () => {
+  // -------------------------------------------------------------
+  // 1) Define fetchTransactionsAndExpenses ABOVE the effect:
+  // -------------------------------------------------------------
+  const fetchTransactionsAndExpenses = useCallback(async () => {
     try {
       setLoading(true);
       const queryParam = viewMode === "deleted" ? "?deleted=true" : "";
-      const resTransactions = await fetchWithAuth(`/api/transactions${queryParam}`, { 
-        cache: "no-store" 
-      });
-      
+      const resTransactions = await fetchWithAuth(
+        `/api/transactions${queryParam}`,
+        {
+          cache: "no-store",
+        }
+      );
+
       if (!resTransactions.ok) throw new Error("Gagal mengambil data transaksi");
       const transactionsData = await resTransactions.json();
-      
-      // Make sure we only set active transactions in active view and deleted transactions in deleted view
+
+      // Make sure we only set active transactions in active view and deleted in deleted view
       if (viewMode === "active") {
-        // Filter out any deleted transactions that might have been returned
-        const activeTransactions = transactionsData.filter((tx: { isDeleted: boolean }) => !tx.isDeleted);
+        const activeTransactions = transactionsData.filter(
+          (tx: { isDeleted: boolean }) => !tx.isDeleted
+        );
         setTransactions(activeTransactions);
         setFilteredTransactions(activeTransactions);
       } else {
-        // For deleted view, ensure we only have deleted transactions
-        const deletedTxs = transactionsData.filter((tx: { isDeleted: boolean }) => tx.isDeleted);
+        const deletedTxs = transactionsData.filter(
+          (tx: { isDeleted: boolean }) => tx.isDeleted
+        );
         setDeletedTransactions(deletedTxs);
         setFilteredTransactions(deletedTxs);
       }
 
       // Extract available years from data with proper typing
-      const years = [...new Set(transactionsData.map((tx: { date: string | number | Date; }) => new Date(tx.date).getFullYear()))] as number[];
+      const years = [
+        ...new Set(
+          transactionsData.map((tx: { date: string }) =>
+            new Date(tx.date).getFullYear()
+          )
+        ),
+      ] as number[];
       setAvailableYears(years.sort((a, b) => b - a));
     } catch (error) {
       console.error("Error mengambil data:", error);
@@ -273,24 +308,35 @@ export default function TransactionTable() {
     } finally {
       setLoading(false);
     }
-  };
+    // Only re-run if viewMode changes
+  }, [viewMode]);
+
+  // -------------------------------------------------------------
+  // 2) Now useEffect that calls it:
+  // -------------------------------------------------------------
+  useEffect(() => {
+    fetchTransactionsAndExpenses();
+  }, [fetchTransactionsAndExpenses]);
 
   // Fetch transaction expenses
   const fetchTransactionExpenses = async (transactionId: string) => {
     try {
       setLoadingExpenses(true);
-      
+
       console.log(`Fetching expenses for transaction: ${transactionId}`);
-      
-      const res = await fetchWithAuth(`/api/transactions/expenses?transactionId=${transactionId}&includeArchived=true`, {
-        cache: "no-store"
-      });
-      
+
+      const res = await fetchWithAuth(
+        `/api/transactions/expenses?transactionId=${transactionId}&includeArchived=true`,
+        {
+          cache: "no-store",
+        }
+      );
+
       if (!res.ok) {
         console.error(`Error response from /api/transactions/expenses: ${res.status}`);
         throw new Error("Failed to fetch transaction expenses");
       }
-      
+
       let data;
       try {
         data = await res.json();
@@ -298,39 +344,39 @@ export default function TransactionTable() {
         console.error("Error parsing response:", e);
         throw new Error("Failed to parse expense data");
       }
-      
+
       setTransactionExpenses(data.expenses || []);
       setActiveExpenses(data.activeExpenses || []);
       setArchivedExpenses(data.archivedExpenses || []);
-      
+
       // Update capital cost in the selected transaction
       if (selectedDetailTransaction && data.totalCapitalCost !== undefined) {
         setSelectedDetailTransaction({
           ...selectedDetailTransaction,
-          capitalCost: data.totalCapitalCost
+          capitalCost: data.totalCapitalCost,
         });
-        
+
         // Update transactions in main lists
-        setTransactions(prevTransactions => 
-          prevTransactions.map(tx => 
-            tx.id === transactionId 
-              ? { ...tx, capitalCost: data.totalCapitalCost } 
-              : tx
+        setTransactions((prevTransactions) =>
+          prevTransactions.map((tx) =>
+            tx.id === transactionId ? { ...tx, capitalCost: data.totalCapitalCost } : tx
           )
         );
-        
-        setFilteredTransactions(prevTransactions => 
-          prevTransactions.map(tx => 
-            tx.id === transactionId 
-              ? { ...tx, capitalCost: data.totalCapitalCost } 
-              : tx
+
+        setFilteredTransactions((prevTransactions) =>
+          prevTransactions.map((tx) =>
+            tx.id === transactionId ? { ...tx, capitalCost: data.totalCapitalCost } : tx
           )
         );
       }
     } catch (error) {
       console.error("Error fetching transaction expenses:", error);
-      toast.error(`Failed to load expenses: ${error instanceof Error ? error.message : "Unknown error"}`);
-      
+      toast.error(
+        `Failed to load expenses: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+
       setTransactionExpenses([]);
       setActiveExpenses([]);
       setArchivedExpenses([]);
@@ -345,21 +391,21 @@ export default function TransactionTable() {
       toast.error("Cannot delete: No transaction selected");
       return false;
     }
-    
+
     try {
       toast.loading("Archiving transaction...", { id: "deleteTransaction" });
-      
+
       const response = await fetchWithAuth("/api/transactions/softDelete", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           id: transactionToDelete.id,
-          deletedBy: user?.userId
+          deletedBy: user?.userId,
         }),
       });
-      
+
       let data;
       try {
         const responseText = await response.text();
@@ -368,32 +414,36 @@ export default function TransactionTable() {
         console.warn("Could not parse response as JSON");
         data = { message: "Transaction archived" };
       }
-      
+
       if (!response.ok) {
         throw new Error(data?.message || `Server returned ${response.status}`);
       }
-      
-      toast.success(data?.message || "Transaction archived successfully", { id: "deleteTransaction" });
-      
+
+      toast.success(data?.message || "Transaction archived successfully", {
+        id: "deleteTransaction",
+      });
+
       // Remove from transactions list and update filtered list
-      setTransactions(prev => prev.filter(t => t.id !== transactionToDelete.id));
-      setFilteredTransactions(prev => prev.filter(t => t.id !== transactionToDelete.id));
-      
+      setTransactions((prev) => prev.filter((t) => t.id !== transactionToDelete.id));
+      setFilteredTransactions((prev) =>
+        prev.filter((t) => t.id !== transactionToDelete.id)
+      );
+
       setDeleteDialogOpen(false);
       setTransactionToDelete(null);
-      
+
       // Refresh data to ensure everything is in sync
       fetchTransactionsAndExpenses();
-      
+
       return true;
     } catch (error) {
       console.error("Error in softDeleteTransaction:", error);
-      
+
       let errorMessage = "Failed to archive transaction";
       if (error instanceof Error) {
         errorMessage = error.message;
       }
-      
+
       toast.error(errorMessage, { id: "deleteTransaction" });
       return false;
     }
@@ -408,13 +458,13 @@ export default function TransactionTable() {
 
     try {
       toast.loading("Restoring transaction...", { id: "restoreTransaction" });
-      
+
       const res = await fetchWithAuth("/api/transactions/restore", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           id: transactionToRestore.id,
-          restoredBy: user?.userId
+          restoredBy: user?.userId,
         }),
       });
 
@@ -426,31 +476,41 @@ export default function TransactionTable() {
         console.warn("Could not parse response as JSON");
         data = { message: "Transaction restored" };
       }
-      
+
       if (!res.ok) {
         throw new Error(data?.message || `Server returned ${res.status}`);
       }
 
-      toast.success(data?.message || "Transaction restored successfully", { id: "restoreTransaction" });
-      
+      toast.success(data?.message || "Transaction restored successfully", {
+        id: "restoreTransaction",
+      });
+
       // Remove the transaction from deleted list
-      setDeletedTransactions(prev => prev.filter(t => t.id !== transactionToRestore.id));
-      setFilteredTransactions(prev => prev.filter(t => t.id !== transactionToRestore.id));
-      
+      setDeletedTransactions((prev) =>
+        prev.filter((t) => t.id !== transactionToRestore.id)
+      );
+      setFilteredTransactions((prev) =>
+        prev.filter((t) => t.id !== transactionToRestore.id)
+      );
+
       // Refresh both active and deleted transaction lists
       fetchTransactionsAndExpenses();
-      
+
       setRestoreDialogOpen(false);
       setTransactionToRestore(null);
     } catch (error) {
       console.error("Error restoring transaction:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to restore transaction", { id: "restoreTransaction" });
+      toast.error(
+        error instanceof Error ? error.message : "Failed to restore transaction",
+        { id: "restoreTransaction" }
+      );
     }
   };
 
   // Filter and sort transactions
   useEffect(() => {
-    let result = viewMode === "active" ? [...transactions] : [...deletedTransactions];
+    let result =
+      viewMode === "active" ? [...transactions] : [...deletedTransactions];
 
     // Filter by date
     if (dateFilter.month !== null || dateFilter.year !== null) {
@@ -481,7 +541,9 @@ export default function TransactionTable() {
         if (sortField === "date") {
           const dateA = new Date(a.date);
           const dateB = new Date(b.date);
-          return sortDirection === "asc" ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
+          return sortDirection === "asc"
+            ? dateA.getTime() - dateB.getTime()
+            : dateB.getTime() - dateA.getTime();
         } else if (["amount", "projectValue", "capitalCost"].includes(sortField)) {
           const valueA = a[sortField] || 0;
           const valueB = b[sortField] || 0;
@@ -491,17 +553,29 @@ export default function TransactionTable() {
         } else if (sortField === "createdBy") {
           const nameA = a.createdBy?.name || "";
           const nameB = b.createdBy?.name || "";
-          return sortDirection === "asc" ? nameA.localeCompare(nameB) : nameB.localeCompare(nameA);
+          return sortDirection === "asc"
+            ? nameA.localeCompare(nameB)
+            : nameB.localeCompare(nameA);
         } else {
           const valueA = String(a[sortField] || "").toLowerCase();
           const valueB = String(b[sortField] || "").toLowerCase();
-          return sortDirection === "asc" ? valueA.localeCompare(valueB) : valueB.localeCompare(valueA);
+          return sortDirection === "asc"
+            ? valueA.localeCompare(valueB)
+            : valueB.localeCompare(valueA);
         }
       });
     }
 
     setFilteredTransactions(result);
-  }, [transactions, deletedTransactions, sortField, sortDirection, dateFilter, broadcastFilter, viewMode]);
+  }, [
+    transactions,
+    deletedTransactions,
+    sortField,
+    sortDirection,
+    dateFilter,
+    broadcastFilter,
+    viewMode,
+  ]);
 
   // Search function
   const handleSearch = () => {
@@ -513,7 +587,7 @@ export default function TransactionTable() {
 
     const lowerCaseSearch = searchTerm.toLowerCase();
     const dataToSearch = viewMode === "active" ? transactions : deletedTransactions;
-    
+
     const results = dataToSearch.filter(
       (tx) =>
         tx.name.toLowerCase().includes(lowerCaseSearch) ||
@@ -522,7 +596,8 @@ export default function TransactionTable() {
         (tx.phone && tx.phone.toLowerCase().includes(lowerCaseSearch)) ||
         tx.paymentStatus.toLowerCase().includes(lowerCaseSearch) ||
         tx.amount.toString().includes(lowerCaseSearch) ||
-        (tx.createdBy?.name && tx.createdBy.name.toLowerCase().includes(lowerCaseSearch))
+        (tx.createdBy?.name &&
+          tx.createdBy.name.toLowerCase().includes(lowerCaseSearch))
     );
 
     setSearchResults(results);
@@ -577,13 +652,16 @@ export default function TransactionTable() {
   const handleTransactionClick = (transaction: Transaction) => {
     setSelectedDetailTransaction(transaction);
     setDetailViewTab("details");
-    
+
     // If transaction has already been selected, reuse the expenses
-    if (selectedDetailTransaction?.id === transaction.id && transactionExpenses.length > 0) {
+    if (
+      selectedDetailTransaction?.id === transaction.id &&
+      transactionExpenses.length > 0
+    ) {
       setDetailModalOpen(true);
       return;
     }
-    
+
     // Otherwise fetch expenses before opening modal
     fetchTransactionExpenses(transaction.id);
     setDetailModalOpen(true);
@@ -609,7 +687,7 @@ export default function TransactionTable() {
       month: "short",
       day: "numeric",
       hour: "2-digit",
-      minute: "2-digit"
+      minute: "2-digit",
     });
   };
 
@@ -634,16 +712,28 @@ export default function TransactionTable() {
   };
 
   const monthNames = [
-    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-    "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+    "Januari",
+    "Februari",
+    "Maret",
+    "April",
+    "Mei",
+    "Juni",
+    "Juli",
+    "Agustus",
+    "September",
+    "Oktober",
+    "November",
+    "Desember",
   ];
 
   // Get sort icon
   const getSortIcon = (field: SortField) => {
     if (sortField !== field) return <ArrowUpDown className="ml-1 h-4 w-4" />;
-    return sortDirection === 'asc' 
-      ? <ChevronUp className="ml-1 h-4 w-4" /> 
-      : <ChevronDown className="ml-1 h-4 w-4" />;
+    return sortDirection === "asc" ? (
+      <ChevronUp className="ml-1 h-4 w-4" />
+    ) : (
+      <ChevronDown className="ml-1 h-4 w-4" />
+    );
   };
 
   return (
@@ -651,10 +741,10 @@ export default function TransactionTable() {
       {/* Title */}
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Transaksi</h2>
-        
+
         {/* View Toggle */}
-        <Tabs 
-          value={viewMode} 
+        <Tabs
+          value={viewMode}
           onValueChange={(value) => setViewMode(value as "active" | "deleted")}
           className="w-[400px]"
         >
@@ -705,16 +795,20 @@ export default function TransactionTable() {
                     </TableHeader>
                     <TableBody>
                       {searchResults.map((tx) => (
-                        <TableRow 
-                          key={tx.id} 
-                          className={`${tx.isDeleted ? "bg-gray-50" : ""} hover:bg-gray-100 cursor-pointer`}
+                        <TableRow
+                          key={tx.id}
+                          className={`${
+                            tx.isDeleted ? "bg-gray-50" : ""
+                          } hover:bg-gray-100 cursor-pointer`}
                           onClick={() => {
                             setShowSearchResults(false);
                             handleTransactionClick(tx);
                           }}
                         >
                           <TableCell className="font-medium">{tx.name}</TableCell>
-                          <TableCell>Rp{formatRupiah(tx.projectValue || 0)}</TableCell>
+                          <TableCell>
+                            Rp{formatRupiah(tx.projectValue || 0)}
+                          </TableCell>
                           <TableCell>{tx.paymentStatus}</TableCell>
                           <TableCell>{formatDate(tx.date)}</TableCell>
                         </TableRow>
@@ -723,7 +817,9 @@ export default function TransactionTable() {
                   </Table>
                 </div>
               ) : (
-                <div className="text-center py-6">Tidak ada transaksi yang cocok.</div>
+                <div className="text-center py-6">
+                  Tidak ada transaksi yang cocok.
+                </div>
               )}
               <div className="mt-4 flex justify-end">
                 <Button onClick={() => setShowSearchResults(false)}>Tutup</Button>
@@ -736,7 +832,10 @@ export default function TransactionTable() {
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2">
             <Calendar className="h-4 w-4 text-muted-foreground" />
-            <Select onValueChange={handleMonthChange} value={dateFilter.month?.toString() || "all"}>
+            <Select
+              onValueChange={handleMonthChange}
+              value={dateFilter.month?.toString() || "all"}
+            >
               <SelectTrigger className="w-[120px]">
                 <SelectValue placeholder="Bulan" />
               </SelectTrigger>
@@ -751,7 +850,10 @@ export default function TransactionTable() {
             </Select>
           </div>
 
-          <Select onValueChange={handleYearChange} value={dateFilter.year?.toString() || "all"}>
+          <Select
+            onValueChange={handleYearChange}
+            value={dateFilter.year?.toString() || "all"}
+          >
             <SelectTrigger className="w-[100px]">
               <SelectValue placeholder="Tahun" />
             </SelectTrigger>
@@ -765,7 +867,10 @@ export default function TransactionTable() {
             </SelectContent>
           </Select>
 
-          <Select onValueChange={handleBroadcastFilterChange} value={broadcastFilter}>
+          <Select
+            onValueChange={handleBroadcastFilterChange}
+            value={broadcastFilter}
+          >
             <SelectTrigger className="w-[140px]">
               <SelectValue placeholder="Status Siar" />
             </SelectTrigger>
@@ -778,7 +883,10 @@ export default function TransactionTable() {
             </SelectContent>
           </Select>
 
-          {(dateFilter.month !== null || dateFilter.year !== null || sortField !== null || broadcastFilter !== "Semua") && (
+          {(dateFilter.month !== null ||
+            dateFilter.year !== null ||
+            sortField !== null ||
+            broadcastFilter !== "Semua") && (
             <Button variant="ghost" size="icon" onClick={clearFilters} title="Hapus filter">
               <X className="h-4 w-4" />
             </Button>
@@ -797,19 +905,27 @@ export default function TransactionTable() {
       {/* Simplified Transaction Table */}
       <Table>
         <TableCaption>
-          {viewMode === "active" 
-            ? "Daftar transaksi aktif" 
+          {viewMode === "active"
+            ? "Daftar transaksi aktif"
             : "Daftar transaksi yang telah diarsip"}
         </TableCaption>
         <TableHeader>
           <TableRow>
             <TableHead>
-              <Button variant="ghost" onClick={() => handleSort("name")} className="flex items-center p-0 hover:bg-transparent">
+              <Button
+                variant="ghost"
+                onClick={() => handleSort("name")}
+                className="flex items-center p-0 hover:bg-transparent"
+              >
                 Nama {getSortIcon("name")}
               </Button>
             </TableHead>
             <TableHead>
-              <Button variant="ghost" onClick={() => handleSort("date")} className="flex items-center p-0 hover:bg-transparent">
+              <Button
+                variant="ghost"
+                onClick={() => handleSort("date")}
+                className="flex items-center p-0 hover:bg-transparent"
+              >
                 Tanggal {getSortIcon("date")}
               </Button>
             </TableHead>
@@ -819,15 +935,19 @@ export default function TransactionTable() {
         </TableHeader>
         <TableBody>
           {filteredTransactions.map((tx) => (
-            <TableRow 
-              key={tx.id} 
-              className={`${tx.isDeleted ? "bg-gray-50" : ""} hover:bg-gray-100 cursor-pointer`}
+            <TableRow
+              key={tx.id}
+              className={`${
+                tx.isDeleted ? "bg-gray-50" : ""
+              } hover:bg-gray-100 cursor-pointer`}
               onClick={() => handleTransactionClick(tx)}
             >
               <TableCell className="font-medium">
                 {tx.name}
                 {tx.description && (
-                  <div className="text-xs text-muted-foreground truncate max-w-xs">{tx.description}</div>
+                  <div className="text-xs text-muted-foreground truncate max-w-xs">
+                    {tx.description}
+                  </div>
                 )}
               </TableCell>
               <TableCell>
@@ -837,7 +957,11 @@ export default function TransactionTable() {
                 </div>
               </TableCell>
               <TableCell>
-                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getPaymentStatusColor(tx.paymentStatus)}`}>
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getPaymentStatusColor(
+                    tx.paymentStatus
+                  )}`}
+                >
                   {tx.paymentStatus}
                 </span>
               </TableCell>
@@ -845,13 +969,19 @@ export default function TransactionTable() {
               <TableCell>
                 {tx.startDate || tx.endDate ? (
                   <div className="text-xs flex flex-col gap-1">
-                    <BroadcastIndicator startDate={tx.startDate} endDate={tx.endDate} />
+                    <BroadcastIndicator
+                      startDate={tx.startDate}
+                      endDate={tx.endDate}
+                    />
                   </div>
                 ) : (
                   "-"
                 )}
               </TableCell>
-              <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+              <TableCell
+                className="text-right"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="flex justify-end gap-1">
                   {viewMode === "active" ? (
                     <>
@@ -897,11 +1027,13 @@ export default function TransactionTable() {
           {filteredTransactions.length === 0 && !loading && (
             <TableRow>
               <TableCell colSpan={6} className="text-center py-6">
-                {(dateFilter.month !== null || dateFilter.year !== null || broadcastFilter !== "Semua")
+                {dateFilter.month !== null ||
+                dateFilter.year !== null ||
+                broadcastFilter !== "Semua"
                   ? "Tidak ada transaksi untuk periode yang dipilih."
-                  : viewMode === "active" 
-                    ? "Tidak ada transaksi aktif."
-                    : "Tidak ada transaksi terarsip."}
+                  : viewMode === "active"
+                  ? "Tidak ada transaksi aktif."
+                  : "Tidak ada transaksi terarsip."}
               </TableCell>
             </TableRow>
           )}
@@ -914,7 +1046,7 @@ export default function TransactionTable() {
           <DialogHeader>
             <DialogTitle>Detail Transaksi</DialogTitle>
           </DialogHeader>
-          
+
           {selectedDetailTransaction && (
             <div className="flex flex-col h-full">
               <Tabs value={detailViewTab} onValueChange={setDetailViewTab}>
@@ -929,7 +1061,7 @@ export default function TransactionTable() {
                     )}
                   </TabsTrigger>
                 </TabsList>
-                
+
                 <div className="max-h-[calc(90vh-150px)] overflow-y-auto py-4">
                   <TabsContent value="details">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -943,16 +1075,22 @@ export default function TransactionTable() {
                           </h3>
                           <div className="grid grid-cols-3 gap-1">
                             <div className="text-sm font-medium">Nama:</div>
-                            <div className="text-sm col-span-2">{selectedDetailTransaction.name}</div>
-                            
+                            <div className="text-sm col-span-2">
+                              {selectedDetailTransaction.name}
+                            </div>
+
                             <div className="text-sm font-medium">Deskripsi:</div>
-                            <div className="text-sm col-span-2">{selectedDetailTransaction.description || "-"}</div>
-                            
+                            <div className="text-sm col-span-2">
+                              {selectedDetailTransaction.description || "-"}
+                            </div>
+
                             <div className="text-sm font-medium">Tanggal:</div>
-                            <div className="text-sm col-span-2">{formatDate(selectedDetailTransaction.date)}</div>
+                            <div className="text-sm col-span-2">
+                              {formatDate(selectedDetailTransaction.date)}
+                            </div>
                           </div>
                         </div>
-                        
+
                         {/* Financial Information */}
                         <div className="space-y-2">
                           <h3 className="text-lg font-bold flex items-center">
@@ -961,44 +1099,69 @@ export default function TransactionTable() {
                           </h3>
                           <div className="grid grid-cols-3 gap-1">
                             <div className="text-sm font-medium">Nilai Proyek:</div>
-                            <div className="text-sm col-span-2">Rp{formatRupiah(selectedDetailTransaction.projectValue || 0)}</div>
-                            
-                            <div className="text-sm font-medium">Biaya Modal:</div>
-                            <div className="text-sm col-span-2">Rp{formatRupiah(selectedDetailTransaction.capitalCost || 0)}</div>
-                            
-                            <div className="text-sm font-medium">Net Profit:</div>
-                            <div className="text-sm col-span-2">Rp{formatRupiah(calculateNetProfit(selectedDetailTransaction))}</div>
-                            
-                            <div className="text-sm font-medium">Status Pembayaran:</div>
                             <div className="text-sm col-span-2">
-                              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getPaymentStatusColor(selectedDetailTransaction.paymentStatus)}`}>
+                              Rp{formatRupiah(selectedDetailTransaction.projectValue || 0)}
+                            </div>
+
+                            <div className="text-sm font-medium">Biaya Modal:</div>
+                            <div className="text-sm col-span-2">
+                              Rp{formatRupiah(selectedDetailTransaction.capitalCost || 0)}
+                            </div>
+
+                            <div className="text-sm font-medium">Net Profit:</div>
+                            <div className="text-sm col-span-2">
+                              Rp{formatRupiah(
+                                calculateNetProfit(selectedDetailTransaction)
+                              )}
+                            </div>
+
+                            <div className="text-sm font-medium">
+                              Status Pembayaran:
+                            </div>
+                            <div className="text-sm col-span-2">
+                              <span
+                                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getPaymentStatusColor(
+                                  selectedDetailTransaction.paymentStatus
+                                )}`}
+                              >
                                 {selectedDetailTransaction.paymentStatus}
                               </span>
                             </div>
-                            
+
                             {selectedDetailTransaction.paymentStatus === "DP" && (
                               <>
                                 <div className="text-sm font-medium">DP Amount:</div>
-                                <div className="text-sm col-span-2">Rp{formatRupiah(selectedDetailTransaction.downPaymentAmount || 0)}</div>
-                                
-                                <div className="text-sm font-medium">Remaining Amount:</div>
-                                <div className="text-sm col-span-2">Rp{formatRupiah(selectedDetailTransaction.remainingAmount || 0)}</div>
+                                <div className="text-sm col-span-2">
+                                  Rp{formatRupiah(
+                                    selectedDetailTransaction.downPaymentAmount || 0
+                                  )}
+                                </div>
+
+                                <div className="text-sm font-medium">
+                                  Remaining Amount:
+                                </div>
+                                <div className="text-sm col-span-2">
+                                  Rp{formatRupiah(
+                                    selectedDetailTransaction.remainingAmount || 0
+                                  )}
+                                </div>
                               </>
                             )}
-                            
+
                             <div className="text-sm font-medium">Dibayarkan:</div>
                             <div className="text-sm col-span-2 text-green-600 font-semibold">
-                              Rp{formatRupiah(
-                                selectedDetailTransaction.paymentStatus === "Lunas" 
-                                  ? (selectedDetailTransaction.projectValue || 0) 
-                                  : selectedDetailTransaction.paymentStatus === "DP" 
-                                    ? (selectedDetailTransaction.downPaymentAmount || 0) 
-                                    : 0
+                              Rp
+                              {formatRupiah(
+                                selectedDetailTransaction.paymentStatus === "Lunas"
+                                  ? selectedDetailTransaction.projectValue || 0
+                                  : selectedDetailTransaction.paymentStatus === "DP"
+                                  ? selectedDetailTransaction.downPaymentAmount || 0
+                                  : 0
                               )}
                             </div>
                           </div>
                         </div>
-                        
+
                         {/* Client Information */}
                         <div className="space-y-2">
                           <h3 className="text-lg font-bold flex items-center">
@@ -1010,35 +1173,42 @@ export default function TransactionTable() {
                               <>
                                 <div className="text-sm font-medium">Client:</div>
                                 <div className="text-sm col-span-2">
-                                  {selectedDetailTransaction.client.name} ({selectedDetailTransaction.client.code})
+                                  {selectedDetailTransaction.client.name} (
+                                  {selectedDetailTransaction.client.code})
                                 </div>
                               </>
                             ) : null}
-                            
+
                             {selectedDetailTransaction.email && (
                               <>
                                 <div className="text-sm font-medium">Email:</div>
-                                <div className="text-sm col-span-2">{selectedDetailTransaction.email}</div>
+                                <div className="text-sm col-span-2">
+                                  {selectedDetailTransaction.email}
+                                </div>
                               </>
                             )}
-                            
+
                             {selectedDetailTransaction.phone && (
                               <>
                                 <div className="text-sm font-medium">Phone:</div>
-                                <div className="text-sm col-span-2">{selectedDetailTransaction.phone}</div>
+                                <div className="text-sm col-span-2">
+                                  {selectedDetailTransaction.phone}
+                                </div>
                               </>
                             )}
-                            
+
                             {selectedDetailTransaction.pic && (
                               <>
                                 <div className="text-sm font-medium">PIC:</div>
-                                <div className="text-sm col-span-2">{selectedDetailTransaction.pic.name}</div>
+                                <div className="text-sm col-span-2">
+                                  {selectedDetailTransaction.pic.name}
+                                </div>
                               </>
                             )}
                           </div>
                         </div>
                       </div>
-                      
+
                       {/* Right Column */}
                       <div className="space-y-6">
                         {/* Broadcast Information */}
@@ -1048,39 +1218,51 @@ export default function TransactionTable() {
                             Informasi Periode Siar
                           </h3>
                           <div className="grid grid-cols-3 gap-1">
-                            <div className="text-sm font-medium">Tanggal Mulai:</div>
-                            <div className="text-sm col-span-2">{formatDate(selectedDetailTransaction.startDate)}</div>
-                            
-                            <div className="text-sm font-medium">Tanggal Berakhir:</div>
-                            <div className="text-sm col-span-2">{formatDate(selectedDetailTransaction.endDate)}</div>
-                            
+                            <div className="text-sm font-medium">
+                              Tanggal Mulai:
+                            </div>
+                            <div className="text-sm col-span-2">
+                              {formatDate(selectedDetailTransaction.startDate)}
+                            </div>
+
+                            <div className="text-sm font-medium">
+                              Tanggal Berakhir:
+                            </div>
+                            <div className="text-sm col-span-2">
+                              {formatDate(selectedDetailTransaction.endDate)}
+                            </div>
+
                             <div className="text-sm font-medium">Status Siar:</div>
                             <div className="text-sm col-span-2">
-                              <BroadcastIndicator 
-                                startDate={selectedDetailTransaction.startDate} 
-                                endDate={selectedDetailTransaction.endDate} 
+                              <BroadcastIndicator
+                                startDate={selectedDetailTransaction.startDate}
+                                endDate={selectedDetailTransaction.endDate}
                               />
                             </div>
                           </div>
                         </div>
-                        
+
                         {/* Vendor Information */}
-                        {selectedDetailTransaction.vendors && selectedDetailTransaction.vendors.length > 0 && (
-                          <div className="space-y-2">
-                            <h3 className="text-lg font-bold flex items-center">
-                              <Store className="h-5 w-5 mr-2 text-primary" />
-                              Vendor/Subcon
-                            </h3>
-                            <div className="grid grid-cols-1 gap-1 pl-2">
-                              {selectedDetailTransaction.vendors.map((vendor, index) => (
-                                <div key={vendor.id} className="text-sm">
-                                  {index + 1}. {vendor.name} - {vendor.serviceDesc}
-                                </div>
-                              ))}
+                        {selectedDetailTransaction.vendors &&
+                          selectedDetailTransaction.vendors.length > 0 && (
+                            <div className="space-y-2">
+                              <h3 className="text-lg font-bold flex items-center">
+                                <Store className="h-5 w-5 mr-2 text-primary" />
+                                Vendor/Subcon
+                              </h3>
+                              <div className="grid grid-cols-1 gap-1 pl-2">
+                                {selectedDetailTransaction.vendors.map(
+                                  (vendor, index) => (
+                                    <div key={vendor.id} className="text-sm">
+                                      {index + 1}. {vendor.name} -{" "}
+                                      {vendor.serviceDesc}
+                                    </div>
+                                  )
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                        
+                          )}
+
                         {/* Payment Proof Link */}
                         {selectedDetailTransaction.paymentProofLink && (
                           <div className="space-y-2">
@@ -1089,9 +1271,9 @@ export default function TransactionTable() {
                               Bukti Pembayaran
                             </h3>
                             <div className="pl-2">
-                              <a 
-                                href={selectedDetailTransaction.paymentProofLink} 
-                                target="_blank" 
+                              <a
+                                href={selectedDetailTransaction.paymentProofLink}
+                                target="_blank"
                                 rel="noopener noreferrer"
                                 className="text-blue-600 hover:underline flex items-center text-sm"
                               >
@@ -1101,49 +1283,67 @@ export default function TransactionTable() {
                             </div>
                           </div>
                         )}
-                        
+
                         {/* Audit Information */}
                         <div className="space-y-2">
                           <h3 className="text-lg font-bold">Informasi Audit</h3>
                           <div className="grid grid-cols-3 gap-1">
                             {selectedDetailTransaction.createdBy && (
                               <>
-                                <div className="text-sm font-medium">Dibuat Oleh:</div>
+                                <div className="text-sm font-medium">
+                                  Dibuat Oleh:
+                                </div>
                                 <div className="text-sm col-span-2">
                                   {selectedDetailTransaction.createdBy.name}
                                 </div>
-                                
-                                <div className="text-sm font-medium">Dibuat Pada:</div>
+
+                                <div className="text-sm font-medium">
+                                  Dibuat Pada:
+                                </div>
                                 <div className="text-sm col-span-2">
-                                  {formatDateTime(selectedDetailTransaction.createdAt)}
+                                  {formatDateTime(
+                                    selectedDetailTransaction.createdAt
+                                  )}
                                 </div>
                               </>
                             )}
-                            
+
                             {selectedDetailTransaction.updatedBy && (
                               <>
-                                <div className="text-sm font-medium">Diperbarui Oleh:</div>
+                                <div className="text-sm font-medium">
+                                  Diperbarui Oleh:
+                                </div>
                                 <div className="text-sm col-span-2">
                                   {selectedDetailTransaction.updatedBy.name}
                                 </div>
-                                
-                                <div className="text-sm font-medium">Diperbarui Pada:</div>
+
+                                <div className="text-sm font-medium">
+                                  Diperbarui Pada:
+                                </div>
                                 <div className="text-sm col-span-2">
-                                  {formatDateTime(selectedDetailTransaction.updatedAt)}
+                                  {formatDateTime(
+                                    selectedDetailTransaction.updatedAt
+                                  )}
                                 </div>
                               </>
                             )}
-                            
+
                             {selectedDetailTransaction.deletedBy && (
                               <>
-                                <div className="text-sm font-medium">Diarsipkan Oleh:</div>
+                                <div className="text-sm font-medium">
+                                  Diarsipkan Oleh:
+                                </div>
                                 <div className="text-sm col-span-2">
                                   {selectedDetailTransaction.deletedBy.name}
                                 </div>
-                                
-                                <div className="text-sm font-medium">Diarsipkan Pada:</div>
+
+                                <div className="text-sm font-medium">
+                                  Diarsipkan Pada:
+                                </div>
                                 <div className="text-sm col-span-2">
-                                  {formatDateTime(selectedDetailTransaction.deletedAt)}
+                                  {formatDateTime(
+                                    selectedDetailTransaction.deletedAt
+                                  )}
                                 </div>
                               </>
                             )}
@@ -1152,7 +1352,7 @@ export default function TransactionTable() {
                       </div>
                     </div>
                   </TabsContent>
-                  
+
                   <TabsContent value="expenses">
                     {loadingExpenses ? (
                       <div className="flex items-center justify-center py-8">
@@ -1170,7 +1370,7 @@ export default function TransactionTable() {
                               Expenses Diarsipkan ({archivedExpenses.length})
                             </TabsTrigger>
                           </TabsList>
-                          
+
                           <TabsContent value="active">
                             {activeExpenses.length > 0 ? (
                               <div>
@@ -1187,18 +1387,31 @@ export default function TransactionTable() {
                                   <TableBody>
                                     {activeExpenses.map((expense) => (
                                       <TableRow key={expense.id}>
-                                        <TableCell className="font-medium">{expense.category}</TableCell>
-                                        <TableCell>Rp{formatRupiah(expense.amount)}</TableCell>
-                                        <TableCell>{expense.description || "-"}</TableCell>
-                                        <TableCell>{formatDate(expense.date)}</TableCell>
-                                        <TableCell>{expense.createdBy?.name || "Unknown"}</TableCell>
+                                        <TableCell className="font-medium">
+                                          {expense.category}
+                                        </TableCell>
+                                        <TableCell>
+                                          Rp{formatRupiah(expense.amount)}
+                                        </TableCell>
+                                        <TableCell>
+                                          {expense.description || "-"}
+                                        </TableCell>
+                                        <TableCell>
+                                          {formatDate(expense.date)}
+                                        </TableCell>
+                                        <TableCell>
+                                          {expense.createdBy?.name || "Unknown"}
+                                        </TableCell>
                                       </TableRow>
                                     ))}
                                   </TableBody>
                                 </Table>
-                                
+
                                 <div className="mt-4 text-right font-bold">
-                                  Total: Rp{formatRupiah(selectedDetailTransaction.capitalCost || 0)}
+                                  Total: Rp
+                                  {formatRupiah(
+                                    selectedDetailTransaction.capitalCost || 0
+                                  )}
                                 </div>
                               </div>
                             ) : (
@@ -1207,7 +1420,7 @@ export default function TransactionTable() {
                               </div>
                             )}
                           </TabsContent>
-                          
+
                           <TabsContent value="archived">
                             {archivedExpenses.length > 0 ? (
                               <div>
@@ -1223,24 +1436,42 @@ export default function TransactionTable() {
                                   </TableHeader>
                                   <TableBody>
                                     {archivedExpenses.map((expense) => (
-                                      <TableRow key={expense.id} className="bg-gray-50">
-                                        <TableCell className="font-medium">{expense.category}</TableCell>
-                                        <TableCell>Rp{formatRupiah(expense.amount)}</TableCell>
-                                        <TableCell>{expense.description || "-"}</TableCell>
-                                        <TableCell>{formatDate(expense.date)}</TableCell>
-                                        <TableCell>{expense.deletedBy?.name || "Unknown"}</TableCell>
+                                      <TableRow
+                                        key={expense.id}
+                                        className="bg-gray-50"
+                                      >
+                                        <TableCell className="font-medium">
+                                          {expense.category}
+                                        </TableCell>
+                                        <TableCell>
+                                          Rp{formatRupiah(expense.amount)}
+                                        </TableCell>
+                                        <TableCell>
+                                          {expense.description || "-"}
+                                        </TableCell>
+                                        <TableCell>
+                                          {formatDate(expense.date)}
+                                        </TableCell>
+                                        <TableCell>
+                                          {expense.deletedBy?.name || "Unknown"}
+                                        </TableCell>
                                       </TableRow>
                                     ))}
                                   </TableBody>
                                 </Table>
-                                
+
                                 <div className="mt-4 text-right">
                                   <p className="text-sm text-muted-foreground">
-                                    Expense yang diarsipkan tidak termasuk dalam perhitungan biaya modal
+                                    Expense yang diarsipkan tidak termasuk dalam
+                                    perhitungan biaya modal
                                   </p>
                                   <p className="font-medium mt-1">
-                                    Total Diarsipkan: Rp{formatRupiah(
-                                      archivedExpenses.reduce((sum, exp) => sum + exp.amount, 0)
+                                    Total Diarsipkan: Rp
+                                    {formatRupiah(
+                                      archivedExpenses.reduce(
+                                        (sum, exp) => sum + exp.amount,
+                                        0
+                                      )
                                     )}
                                   </p>
                                 </div>
@@ -1257,7 +1488,7 @@ export default function TransactionTable() {
                   </TabsContent>
                 </div>
               </Tabs>
-              
+
               <div className="pt-4 mt-auto border-t flex justify-between items-center">
                 {viewMode === "active" ? (
                   <div className="flex gap-2">
@@ -1268,7 +1499,7 @@ export default function TransactionTable() {
                         fetchTransactionsAndExpenses();
                       }}
                     />
-                    
+
                     <UpdateTransactionDialog
                       transaction={selectedDetailTransaction}
                       onTransactionUpdated={() => {
@@ -1278,9 +1509,9 @@ export default function TransactionTable() {
                     />
                   </div>
                 ) : (
-                  <div></div> // Empty div to maintain layout with flex justify-between
+                  <div />
                 )}
-                
+
                 <Button variant="outline" onClick={() => setDetailModalOpen(false)}>
                   Tutup
                 </Button>
@@ -1296,22 +1527,24 @@ export default function TransactionTable() {
           <DialogHeader>
             <DialogTitle>Konfirmasi Pengarsipan</DialogTitle>
             <DialogDescription>
-              Transaksi ini akan diarsipkan dan tidak akan muncul di daftar transaksi aktif.
-              Anda dapat mengembalikannya dari tampilan arsip jika diperlukan.
+              Transaksi ini akan diarsipkan dan tidak akan muncul di daftar
+              transaksi aktif. Anda dapat mengembalikannya dari tampilan arsip
+              jika diperlukan.
             </DialogDescription>
           </DialogHeader>
-          <p className="mb-2">Ketik "DELETE" untuk mengkonfirmasi.</p>
+          {/* Escape quotes here */}
+          <p className="mb-2">Ketik &quot;DELETE&quot; untuk mengkonfirmasi.</p>
           <Input
             value={confirmDeleteText}
             onChange={(e) => setConfirmDeleteText(e.target.value)}
-            placeholder="Ketik DELETE untuk mengkonfirmasi"
+            placeholder='Ketik "DELETE" untuk mengkonfirmasi'
           />
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
               Batal
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={softDeleteTransaction}
               disabled={confirmDeleteText !== "DELETE"}
             >
@@ -1327,15 +1560,16 @@ export default function TransactionTable() {
           <DialogHeader>
             <DialogTitle>Konfirmasi Pemulihan</DialogTitle>
             <DialogDescription>
-              Transaksi ini akan dipulihkan dan akan muncul kembali di daftar transaksi aktif.
+              Transaksi ini akan dipulihkan dan akan muncul kembali di daftar
+              transaksi aktif.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setRestoreDialogOpen(false)}>
               Batal
             </Button>
-            <Button 
-              variant="default" 
+            <Button
+              variant="default"
               onClick={restoreTransaction}
               className="bg-green-600 hover:bg-green-700"
             >

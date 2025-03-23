@@ -135,7 +135,7 @@ export default function UpdateStatusDialog({ transaction, onStatusUpdated }: Upd
             </div>
           )}
           <div className="mt-4">
-            <p className="mb-2">Type "UPDATE" to confirm changing payment status.</p>
+            <p className="mb-2">Type &quot;UPDATE&quot; to confirm changing payment status.</p>
             <Input
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
