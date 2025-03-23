@@ -1,26 +1,279 @@
-@import "tailwindcss";
+/* Deklarasi font Inter secara langsung */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Penerapan font Inter secara global dan agresif */
+html, body, * {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol" !important;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    
+    /* Tambahkan Inter sebagai fallback font secara langsung di CSS variables */
+    --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 83.1%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+  }
+  
+  /* Penerapan font Family untuk elemen dasar */
+  html {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Use direct CSS for applying theme variables */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  /* Penerapan Font-family ke berbagai elemen UI */
+  h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, select, textarea {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  
+  /* Khusus dialog dan modal */
+  .dialog, .modal, [role="dialog"] {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+  }
+}
+
+/* Add custom component styles */
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded-md bg-primary text-primary-foreground;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  .btn-secondary {
+    @apply px-4 py-2 rounded-md bg-secondary text-secondary-foreground;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  .card {
+    @apply rounded-lg border bg-card p-4 shadow-sm;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  .tab {
+    @apply px-4 py-2 font-medium;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  .tab-active {
+    @apply border-b-2 border-primary;
+  }
+
+  /* Tambahkan kode CSS ini ke file globals.css Anda */
+
+/* Styling khusus untuk komponen calendar */
+.rdp {
+  --rdp-cell-size: 40px; /* Ukuran sel tanggal */
+  --rdp-accent-color: #0000ff; /* Warna aksen */
+  --rdp-background-color: #e7edff; /* Warna latar seleksi */
+  --rdp-accent-color-dark: #3003e1; /* Warna aksen gelap */
+  --rdp-background-color-dark: #180270; /* Warna latar seleksi gelap */
+  --rdp-outline: 2px solid var(--rdp-accent-color); /* Outline fokus */
+  --rdp-outline-selected: 2px solid var(--rdp-accent-color); /* Outline fokus item terpilih */
+  margin: 0;
+  font-family: 'Inter', sans-serif !important;
+}
+
+.rdp-months {
+  display: flex;
+  justify-content: center;
+}
+
+.rdp-month {
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.rdp-table {
+  margin: 0;
+  max-width: 100%;
+  border-collapse: collapse;
+}
+
+.rdp-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0;
+  text-align: left;
+}
+
+.rdp-caption_label {
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 8px 0;
+}
+
+.rdp-head_cell {
+  font-weight: 500;
+  font-size: 0.875rem;
+  text-align: center;
+  padding: 8px 0;
+  color: #6b7280;
+}
+
+.rdp-tbody {
+  font-size: 0.875rem;
+}
+
+.rdp-cell {
+  width: var(--rdp-cell-size);
+  height: var(--rdp-cell-size);
+  padding: 0;
+  text-align: center;
+}
+
+.rdp-button {
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  padding: 0;
+  background: none;
+  color: #1f2937;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rdp-button:hover:not([disabled]):not(.rdp-day_selected) {
+  background-color: #f3f4f6;
+}
+
+.rdp-button:focus-visible:not([disabled]) {
+  outline: var(--rdp-outline);
+  background-color: var(--rdp-background-color);
+}
+
+.rdp-button[disabled] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.rdp-day_selected, 
+.rdp-day_selected:focus-visible, 
+.rdp-day_selected:hover {
+  background-color: var(--rdp-accent-color);
+  color: white;
+}
+
+.rdp-day_outside {
+  opacity: 0.5;
+}
+
+.rdp-day_range_middle {
+  background-color: var(--rdp-background-color);
+}
+
+/* Dialog untuk date picker */
+.date-picker-dialog .DialogContent {
+  font-family: 'Inter', sans-serif !important;
+}
+
+.date-picker-dialog .DialogTitle {
+  font-weight: 600;
+  font-size: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+/* Tombol-tombol preset */
+.date-range-presets {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.date-range-preset-button {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 2.5rem;
+  padding: 0 1rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.2s;
+  background-color: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+.date-range-preset-button:hover {
+  background-color: #f3f4f6;
+}
+}
+
+/* Font Inter untuk komponen dialog/modal */
+.DialogContent, .DialogTitle, .DialogDescription, 
+.DialogHeader, .DialogFooter, .DialogClose {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
 }

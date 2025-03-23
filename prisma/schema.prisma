@@ -1,0 +1,235 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id                     String        @id @default(uuid())
+  name                   String
+  email                  String        @unique
+  password               String        // Will be hashed
+  role                   String        @default("guest") // "admin", "user", "pic", "staff", "guest"
+  metadata               String?       // JSON string for additional user data
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  
+  // User profile relation
+  profile                UserProfile?
+  
+  // Original relations
+  transactions           Transaction[] @relation("CreatedBy")
+  expenses               Expense[]     @relation("ExpenseCreatedBy")
+  
+  // New relations for soft delete
+  updatedTransactions    Transaction[] @relation("TransactionUpdatedBy")
+  deletedTransactions    Transaction[] @relation("TransactionDeletedBy")
+  updatedExpenses        Expense[]     @relation("ExpenseUpdatedBy")
+  deletedExpenses        Expense[]     @relation("ExpenseDeletedBy")
+  
+  // New relations for PIC
+  picTransactions        Transaction[] @relation("TransactionPIC")
+  
+  // Relations for managing vendors and clients
+  createdVendors         Vendor[]      @relation("VendorCreatedBy")
+  updatedVendors         Vendor[]      @relation("VendorUpdatedBy")
+  deletedVendors         Vendor[]      @relation("VendorDeletedBy")
+  
+  createdClients         Client[]      @relation("ClientCreatedBy")
+  updatedClients         Client[]      @relation("ClientUpdatedBy")
+  deletedClients         Client[]      @relation("ClientDeletedBy")
+  
+  // Invoice relation
+  createdInvoices        Invoice[]     @relation("InvoiceCreatedBy")
+}
+
+// New model for storing extended user profile data
+model UserProfile {
+  id                String    @id @default(uuid())
+  userId            String    @unique
+  user              User      @relation(fields: [userId], references: [id])
+  
+  // Personal information
+  fullName          String?
+  phoneNumber       String?
+  position          String?
+  department        String?
+  address           String?
+  
+  // Professional information
+  bio               String?   @db.Text
+  skills            String?
+  experience        String?   @db.Text
+  
+  // Timestamps
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model CompanyFinance {
+  id         String   @id @default(uuid())
+  totalFunds Float    @default(0.0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Transaction {
+  id                String    @id @default(uuid())
+  amount            Float
+  projectValue      Float?
+  totalProfit       Float?
+  downPaymentAmount Float?
+  remainingAmount   Float?
+  status            String
+  paymentStatus     String
+  email             String?
+  phone             String?
+  name              String
+  description       String
+  date              DateTime
+  startDate         DateTime?
+  endDate           DateTime?
+  paymentProofLink  String?
+  expenses          Expense[]
+  capitalCost       Float?
+  
+  // Existing tracking fields
+  createdById       String?
+  createdBy         User?      @relation("CreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  updatedById       String?
+  
+  // New soft delete fields
+  isDeleted         Boolean    @default(false)
+  deletedAt         DateTime?
+  deletedById       String?
+  updatedBy         User?      @relation("TransactionUpdatedBy", fields: [updatedById], references: [id])
+  deletedBy         User?      @relation("TransactionDeletedBy", fields: [deletedById], references: [id])
+  
+  // New relations
+  clientId          String?
+  client            Client?    @relation(fields: [clientId], references: [id])
+  
+  vendorId          String?
+  vendor            Vendor?    @relation(fields: [vendorId], references: [id])
+  
+  picId             String?
+  pic               User?      @relation("TransactionPIC", fields: [picId], references: [id])
+  
+  // Invoices related to this transaction
+  invoices          Invoice[]
+}
+
+model Expense {
+  id               String       @id @default(uuid())
+  category         String
+  amount           Float
+  description      String?
+  date             DateTime     @default(now())
+  paymentProofLink String?
+  transactionId    String?
+  transaction      Transaction? @relation(fields: [transactionId], references: [id])
+  
+  // Existing tracking fields
+  createdById      String?
+  createdBy        User?        @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  updatedById      String?
+  
+  // New soft delete fields
+  isDeleted        Boolean      @default(false)
+  deletedAt        DateTime?
+  deletedById      String?
+  updatedBy        User?        @relation("ExpenseUpdatedBy", fields: [updatedById], references: [id])
+  deletedBy        User?        @relation("ExpenseDeletedBy", fields: [deletedById], references: [id])
+}
+
+model Budget {
+  id       String @id @default(uuid())
+  category String
+  budget   Float
+  actual   Float
+}
+
+// New models
+
+model Client {
+  id              String        @id @default(uuid())
+  code            String        @unique  // Unique code for client
+  name            String
+  email           String?
+  phone           String?
+  address         String?
+  description     String?
+  transactions    Transaction[]
+  invoices        Invoice[]
+  
+  // Tracking fields
+  createdById     String?
+  createdBy       User?         @relation("ClientCreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  updatedById     String?
+  updatedBy       User?         @relation("ClientUpdatedBy", fields: [updatedById], references: [id])
+  
+  // Soft delete fields
+  isDeleted       Boolean       @default(false)
+  deletedAt       DateTime?
+  deletedById     String?
+  deletedBy       User?         @relation("ClientDeletedBy", fields: [deletedById], references: [id])
+}
+
+model Vendor {
+  id              String        @id @default(uuid())
+  name            String
+  serviceDesc     String        // Description of services provided
+  email           String?
+  phone           String?
+  address         String?
+  transactions    Transaction[]
+  
+  // Tracking fields
+  createdById     String?
+  createdBy       User?         @relation("VendorCreatedBy", fields: [createdById], references: [id])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  updatedById     String?
+  updatedBy       User?         @relation("VendorUpdatedBy", fields: [updatedById], references: [id])
+  
+  // Soft delete fields
+  isDeleted       Boolean       @default(false)
+  deletedAt       DateTime?
+  deletedById     String?
+  deletedBy       User?         @relation("VendorDeletedBy", fields: [deletedById], references: [id])
+}
+
+// New model for invoices
+model Invoice {
+  id                String      @id @default(uuid())
+  invoiceNumber     String      @unique
+  date              DateTime
+  dueDate           DateTime
+  amount            Float
+  tax               Float?
+  totalAmount       Float
+  paymentStatus     String      @default("Belum Bayar")
+  description       String?
+  
+  // Relations
+  transactionId     String?
+  transaction       Transaction? @relation(fields: [transactionId], references: [id])
+  
+  clientId          String?
+  client            Client?     @relation(fields: [clientId], references: [id])
+  
+  // Tracking fields
+  createdById       String?
+  createdBy         User?       @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+}
