@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   DollarSign, 
   CreditCard, 
   TrendingUp, 
-  CreditCard as PaymentIcon, 
+  // Removed unused PaymentIcon
   ChevronLeft, 
   ChevronRight, 
   Calendar as CalendarIcon,
@@ -14,8 +14,8 @@ import {
 } from "lucide-react";
 import { formatRupiah } from "@/lib/formatters";
 import { Button } from "@/components/ui/button";
-import { DatePickerDialog } from "@/components/DatePickerDialog";
 import { fetchWithAuth } from "@/lib/api";
+import {DatePickerDialog} from "@/components/DatePickerDialog";
 import { toast } from "react-hot-toast";
 import { useAuth } from "../contexts/AuthContext";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -47,6 +47,7 @@ interface Transaction {
   vendorIds?: string[];
   capitalCost?: number;
   isDeleted?: boolean; // Added isDeleted flag
+  status?: string; // For legacy data support
 }
 
 // Interface for expense data
@@ -88,6 +89,7 @@ export default function EnhancedInsightCards({ onDateRangeChange }: EnhancedInsi
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
   const [selectedRange, setSelectedRange] = useState<DateRange | undefined>(undefined);
+  // Kept available years as it might be used in future feature development
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   
   // UI state
@@ -167,20 +169,8 @@ export default function EnhancedInsightCards({ onDateRangeChange }: EnhancedInsi
     return new Date(2000, monthNum - 1, 1).toLocaleString('id-ID', { month: 'long' });
   };
 
-  // Load financial data
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchFinancialData();
-    }
-  }, [isAuthenticated]);
-  
-  // Process data when range changes
-  useEffect(() => {
-    processDataByMonths();
-  }, [transactions, expenses, selectedRange]);
-
-  // Fetch financial data
-  async function fetchFinancialData() {
+  // Fetch financial data (memoized with useCallback)
+  const fetchFinancialData = useCallback(async () => {
     try {
       setIsLoading(true);
       
@@ -191,8 +181,8 @@ export default function EnhancedInsightCards({ onDateRangeChange }: EnhancedInsi
       
       // Handle legacy data if needed and filter out archived transactions
       transactionsData = transactionsData
-        .filter((tx: any) => !tx.isDeleted) // Filter out archived transactions
-        .map((tx: any) => ({
+        .filter((tx: Transaction) => !tx.isDeleted) // Filter out archived transactions
+        .map((tx: Transaction) => ({
           ...tx,
           paymentStatus: tx.paymentStatus || tx.status || "Belum Bayar", // Handle legacy format
           isDeleted: tx.isDeleted || false // Explicitly track isDeleted status
@@ -204,7 +194,7 @@ export default function EnhancedInsightCards({ onDateRangeChange }: EnhancedInsi
       let expensesData: Expense[] = await resExpenses.json();
       
       // Filter out archived expenses
-      expensesData = expensesData.filter((exp: any) => !exp.isDeleted);
+      expensesData = expensesData.filter((exp: Expense) => !exp.isDeleted);
       
       // Set data
       setTransactions(transactionsData);
@@ -231,10 +221,10 @@ export default function EnhancedInsightCards({ onDateRangeChange }: EnhancedInsi
     } finally {
       setIsLoading(false);
     }
-  }
+  }, [selectedRange]);
 
-  // Process data into monthly records
-  function processDataByMonths() {
+  // Process data into monthly records (memoized with useCallback)
+  const processDataByMonths = useCallback(() => {
     if (!transactions.length && !expenses.length) return;
 
     // Create a map to store data by year-month
@@ -247,7 +237,7 @@ export default function EnhancedInsightCards({ onDateRangeChange }: EnhancedInsi
     if (selectedRange?.from && selectedRange?.to) {
       filteredTransactions = filteredTransactions.filter(tx => {
         const txDate = new Date(tx.date);
-        return txDate >= selectedRange.from! && txDate <= selectedRange.to!;
+        return txDate >= selectedRange.from && txDate <= selectedRange.to;
       });
     }
     
@@ -257,7 +247,7 @@ export default function EnhancedInsightCards({ onDateRangeChange }: EnhancedInsi
     if (selectedRange?.from && selectedRange?.to) {
       filteredExpenses = filteredExpenses.filter(exp => {
         const expDate = new Date(exp.date);
-        return expDate >= selectedRange.from! && expDate <= selectedRange.to!;
+        return expDate >= selectedRange.from && expDate <= selectedRange.to;
       });
     }
     
@@ -347,7 +337,19 @@ export default function EnhancedInsightCards({ onDateRangeChange }: EnhancedInsi
       });
     
     setMonthlyData(dataArray);
-  }
+  }, [transactions, expenses, selectedRange]);
+
+  // Load financial data with proper dependency
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchFinancialData();
+    }
+  }, [isAuthenticated, fetchFinancialData]); // Added missing dependency
+  
+  // Process data when range changes with proper dependency
+  useEffect(() => {
+    processDataByMonths();
+  }, [processDataByMonths]); // Added missing dependency
 
   // Calculate total expected value (from all monthly data)
   const getTotalExpectedValue = () => {

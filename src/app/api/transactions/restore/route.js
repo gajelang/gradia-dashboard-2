@@ -1,5 +1,3 @@
-// app/api/transactions/restore/route.js
-
 import { PrismaClient } from "@prisma/client";
 import { verifyAuthToken } from "@/lib/auth";
 import { createSafeResponse } from "@/lib/api";
@@ -44,7 +42,7 @@ export async function POST(req) {
           deletedAt: null,
           deletedById: null,
           updatedAt: new Date(),
-          updatedById: restoredBy || user.userId
+          updatedById: restoredBy || user?.userId
         }
       });
       
@@ -71,7 +69,7 @@ export async function POST(req) {
             deletedAt: null,
             deletedById: null,
             updatedAt: new Date(),
-            updatedById: restoredBy || user.userId
+            updatedById: restoredBy || user?.userId
           }
         });
         

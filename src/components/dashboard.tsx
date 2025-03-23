@@ -15,11 +15,12 @@ import ResourcesTab from "@/components/ResourceTab"
 import InvoiceCreator from "@/components/InvoiceCreator"
 import ProjectCalendar from "@/components/ProjectCalendar"
 import DashboardHeader from "@/components/dashboard-header"
-import FinancialAnalysis from "@/components/FinanceAnalysis" // Import the FinancialAnalysis component
+import FinancialAnalysis from "@/components/FinanceAnalysis"
 import { useAuth } from "@/contexts/AuthContext"
 import { fetchWithAuth } from "@/lib/api"
 import { toast } from "react-hot-toast"
 import { DateRange as RDPDateRange } from "react-day-picker"
+import { Transaction, TransactionData, convertToTransaction } from "../app/types/transaction"
 
 // Load Inter font
 const inter = Inter({
@@ -28,35 +29,15 @@ const inter = Inter({
   display: "swap",
 })
 
-// Definisi ulang untuk DateRange yang kompatibel dengan kedua komponen
+// Define DateRange for chart components
 interface DateRange {
   from: Date;
   to: Date;
 }
 
-// Updated Transaction type to match the new interface
-interface Transaction {
-  id: string;
-  name: string;
-  description: string;
-  amount: number;
-  paymentStatus: string; // Updated from status
-  date: string;
-  email?: string; // Now optional
-  phone?: string; // New field
-  startDate?: string; // New field
-  endDate?: string; // New field
-  clientId?: string; // New field for client relationship
-  vendorId?: string; // New field for vendor relationship
-  picId?: string; // New field for PIC relationship
-}
-
 export default function Dashboard() {
-  const { isAuthenticated, user } = useAuth();
-  // Using RDPDateRange (react-day-picker DateRange) but will convert to our DateRange when passing to components
+  const { isAuthenticated } = useAuth();
   const [selectedDateRange, setSelectedDateRange] = useState<RDPDateRange | undefined>(undefined);
-  
-  // Explicitly type the transactions state as Transaction[]
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -74,10 +55,15 @@ export default function Dashboard() {
       if (!res.ok) throw new Error("Failed to fetch transactions");
       const data = await res.json();
       
-      // Map old transactions to new format if necessary
+      // Map raw data to Transaction format
       const mappedData = data.map((tx: any) => ({
-        ...tx,
-        paymentStatus: tx.paymentStatus || tx.status || "Belum Bayar", // Handle old format
+        id: tx.id,
+        name: tx.name,
+        amount: tx.amount,
+        status: tx.paymentStatus || tx.status || "Belum Bayar",
+        email: tx.email || "",
+        description: tx.description || "",
+        date: tx.date
       }));
       
       setTransactions(mappedData);
@@ -87,6 +73,13 @@ export default function Dashboard() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  // This function handles new transactions with the correct interface
+  function handleTransactionAdded(transaction: TransactionData): void {
+    // Convert TransactionData to Transaction
+    const newTransaction = convertToTransaction(transaction);
+    setTransactions((prev) => [newTransaction, ...prev]);
   }
 
   // This wrapper function handles DateRange | undefined correctly
@@ -105,13 +98,8 @@ export default function Dashboard() {
     return undefined;
   };
 
-  // Explicitly type the transaction parameter
-  function handleTransactionAdded(transaction: Transaction): void {
-    setTransactions((prev) => [transaction, ...prev]);
-  }
-
   const handleDownloadReport = () => {
-    toast.info("Report download feature will be implemented soon");
+    toast.success("Report download feature will be implemented soon");
   }
 
   return (
@@ -126,7 +114,6 @@ export default function Dashboard() {
               Download Report
             </Button>
             <AddTransactionModal onTransactionAdded={handleTransactionAdded} />
-            {/* Add Invoice Creator component */}
             <InvoiceCreator />
           </div>
         </div>
@@ -140,12 +127,10 @@ export default function Dashboard() {
             <TabsTrigger value="resources">Resources</TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="space-y-4">
-            {/* Pass the wrapped handler function to InsightCards */}
             <InsightCards onDateRangeChange={handleDateRangeChange} />
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
               <div className="col-span-4">
                 <h3 className="text-lg font-semibold mb-2">Income vs Expenses</h3>
-                {/* Pass converted DateRange to IncomeExpensesChart */}
                 <IncomeExpensesChart selectedRange={getChartDateRange()} />
               </div>
               <div className="col-span-3">
@@ -159,8 +144,6 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
-            
-            {/* Add Project Calendar component */}
             <div className="mt-6">
               <ProjectCalendar />
             </div>
@@ -171,7 +154,6 @@ export default function Dashboard() {
           <TabsContent value="expenses" className="space-y-4">
             <ExpensesTable />
           </TabsContent>
-          {/* Add the Financial Analysis Tab */}
           <TabsContent value="analysis" className="space-y-4">
             <FinancialAnalysis />
           </TabsContent>

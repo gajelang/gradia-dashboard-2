@@ -23,9 +23,10 @@ import {
   UserPlus,
   User,
   Plus,
-  X,
-  Calendar,
-  DollarSign
+  // Removing unused imports
+  // X,
+  // Calendar,
+  // DollarSign
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { formatRupiah } from "@/lib/formatters";
@@ -38,23 +39,37 @@ import {
   SheetHeader, 
   SheetTitle, 
   SheetDescription,
-  SheetFooter
+  // Removing unused import
+  // SheetFooter
 } from "@/components/ui/sheet";
-import { Separator } from "@/components/ui/separator";
+// Removing unused import
+// import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+// Removing unused import
+// import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Removing unused imports
+// import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type TransactionType = 'transaction' | 'expense';
 
+// Creating a type for the transaction data to replace any
+interface TransactionData {
+  id: string;
+  name: string;
+  projectValue?: number;
+  amount?: number;
+  description?: string;
+  [key: string]: any; // For other properties we might not know
+}
+
 interface AddTransactionModalProps {
-  onTransactionAdded: (transaction: any) => void;
+  onTransactionAdded: (transaction: TransactionData) => void; // Replaced any with TransactionData
 }
 
 // Interface for Client
 interface Client {
-  isDeleted: any;
+  isDeleted: boolean; // Changed from any to boolean
   id: string;
   code: string;
   name: string;
@@ -65,7 +80,7 @@ interface Client {
 
 // Interface for Vendor - keeping for expense creation
 interface Vendor {
-  isDeleted: any;
+  isDeleted: boolean; // Changed from any to boolean
   id: string;
   name: string;
   serviceDesc: string;
@@ -182,7 +197,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           const data = await res.json();
           // Check if any expense has the paymentProofLink field
           // If at least one has it, or if the array is empty, assume it's supported
-          if (data.length === 0 || data.some((exp: any) => 'paymentProofLink' in exp)) {
+          if (data.length === 0 || data.some((exp: Record<string, unknown>) => 'paymentProofLink' in exp)) {
             setShowPaymentProofField(true);
           } else {
             console.log("paymentProofLink field not found in expenses, hiding field");
@@ -484,7 +499,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     try {
       new URL(string);
       return true;
-    } catch (_) {
+    } catch (_unused) { // Changed from _ to _unused to indicate intentionally unused
       return false;
     }
   };
@@ -503,7 +518,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     setIsSubmitting(true);
     
     try {
-      let payload: any;
+      let payload: Record<string, any>; // Changed from any to Record<string, any>
       let apiEndpoint;
 
       if (transactionType === 'transaction') {
@@ -600,8 +615,8 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       
       // Extract transaction data with fallbacks for missing properties
       const transactionData = 
-        (responseData as any)?.transaction || 
-        (responseData as any)?.expense || 
+        (responseData as Record<string, any>)?.transaction || 
+        (responseData as Record<string, any>)?.expense || 
         responseData || 
         payload; // Use payload as last resort
       
@@ -800,7 +815,14 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         </label>
                         <Select value={formData.clientId} onValueChange={handleClientChange}>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select client" />
+                            {loadingClients ? ( // Using loadingClients here
+                              <div className="flex items-center">
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                <span>Loading clients...</span>
+                              </div>
+                            ) : (
+                              <SelectValue placeholder="Select client" />
+                            )}
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">No client</SelectItem>
@@ -871,7 +893,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         <Textarea
                           name="description"
                           value={formData.description}
-                          onChange={handleChange as any}
+                          onChange={handleChange}
                           placeholder="Enter transaction description"
                           rows={3}
                         />
@@ -1048,7 +1070,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                     <Textarea
                       name="description"
                       value={formData.description}
-                      onChange={handleChange as any}
+                      onChange={handleChange}
                       placeholder="Enter expense description"
                       rows={3}
                     />

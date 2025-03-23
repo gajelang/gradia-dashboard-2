@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,7 +17,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
+  // Removed unused DialogTrigger
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
@@ -40,7 +40,7 @@ import {
   Mail,
   Phone,
   MapPin,
-  Info,
+  // Removed unused Info
   User,
   Clock
 } from "lucide-react";
@@ -107,12 +107,8 @@ export default function ClientTable() {
   const [isRestoreDialogOpen, setIsRestoreDialogOpen] = useState(false);
   const [clientToRestore, setClientToRestore] = useState<Client | null>(null);
 
-  // Fetch clients
-  useEffect(() => {
-    fetchClients();
-  }, [viewMode]);
-
-  const fetchClients = async () => {
+  // Define fetchClients with useCallback to avoid dependency issues
+  const fetchClients = useCallback(async () => {
     try {
       setLoading(true);
       const queryParam = viewMode === "deleted" ? "?deleted=true" : "";
@@ -133,7 +129,12 @@ export default function ClientTable() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [viewMode]); // Add viewMode as dependency
+
+  // Fetch clients
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]); // Now fetchClients is properly defined before being used
 
   // Search clients
   const handleSearch = () => {
@@ -337,16 +338,6 @@ export default function ClientTable() {
       console.error("Error restoring client:", error);
       toast.error("Failed to restore client");
     }
-  };
-
-  // Format date for display
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
   };
 
   // Format datetime with time
@@ -647,7 +638,7 @@ export default function ClientTable() {
           
           <div className="py-4">
             <p className="mb-2 font-medium">Client: {clientToDelete?.name} ({clientToDelete?.code})</p>
-            <p className="mb-4 text-sm text-muted-foreground">Type "DELETE" to confirm.</p>
+            <p className="mb-4 text-sm text-muted-foreground">Type &quot;DELETE&quot; to confirm.</p>
             <Input
               value={confirmDeleteText}
               onChange={(e) => setConfirmDeleteText(e.target.value)}
@@ -681,7 +672,7 @@ export default function ClientTable() {
           </DialogHeader>
           
           <div className="py-4">
-            <p>Are you sure you want to restore client "{clientToRestore?.name}"?</p>
+            <p>Are you sure you want to restore client &quot;{clientToRestore?.name}&quot;?</p>
           </div>
           
           <DialogFooter>

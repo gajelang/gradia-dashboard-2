@@ -8,6 +8,11 @@ interface MonthlyData {
   total: number;
 }
 
+interface Transaction {
+  date: string;
+  amount: number;
+}
+
 export function Overview() {
   const [data, setData] = useState<MonthlyData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +45,7 @@ export function Overview() {
         let transactions;
         try {
           transactions = await res.json();
-        } catch (jsonError) {
+        } catch (error) {
           throw new Error("Failed to parse transaction data");
         }
         
@@ -52,7 +57,7 @@ export function Overview() {
         // Process the data safely
         const monthlyData: Record<string, MonthlyData> = {};
         
-        transactions.forEach((transaction: any) => {
+        transactions.forEach((transaction: Transaction) => {
           // Skip invalid entries
           if (!transaction || typeof transaction !== 'object') return;
           
@@ -60,7 +65,7 @@ export function Overview() {
           let month;
           try {
             month = new Date(transaction.date).toLocaleString("default", { month: "short" });
-          } catch (e) {
+          } catch {
             // Skip entries with invalid dates
             return;
           }

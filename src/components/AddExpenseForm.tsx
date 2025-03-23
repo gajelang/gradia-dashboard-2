@@ -65,7 +65,16 @@ export default function AddExpenseForm({
 
     try {
       // Start a transaction to create expense and update funds
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async (tx: {
+          expense: { create: (arg0: { data: { category: string; amount: number; description: string | null; date: Date; }; }) => any; }; companyFinance: {
+            update: (arg0: {
+              where: {
+                // Using string ID as the Prisma schema expects a string
+                id: string; // Replace with the actual identifier from your database
+              }; data: { totalFunds: { decrement: number; }; };
+            }) => any;
+          };
+        }) => {
         // Create expense record
         const expense = await tx.expense.create({
           data: {

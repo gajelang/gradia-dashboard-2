@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { fetchWithAuth } from '@/lib/api';
 
 // Enhanced user interface with additional fields
 interface User {
@@ -23,6 +22,15 @@ interface User {
   updatedAt?: string;
 }
 
+// Additional registration data interface
+interface AdditionalRegistrationData {
+  fullName?: string;
+  phoneNumber?: string;
+  position?: string;
+  department?: string;
+  [key: string]: string | undefined;
+}
+
 // Extended AuthContext with additional registration parameters
 interface AuthContextType {
   user: User | null;
@@ -31,7 +39,7 @@ interface AuthContextType {
   isLoading: boolean;
   error: string | null;
   login: (email: string, password: string) => Promise<boolean>;
-  register: (name: string, email: string, password: string, additionalData?: any) => Promise<boolean>;
+  register: (name: string, email: string, password: string, additionalData?: AdditionalRegistrationData) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -48,25 +56,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-
-  // Check if user is already logged in on component mount
-  useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    
-    if (storedToken && storedUser) {
-      try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-        validateToken(storedToken);
-      } catch (err) {
-        console.error("Error parsing stored user:", err);
-        logout(); // Invalid stored data, log out
-      }
-    } else {
-      setIsLoading(false);
-    }
-  }, []);
 
   // Validate token with the server
   const validateToken = async (currentToken: string) => {
@@ -91,6 +80,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Continue with stored user data if offline
     }
   };
+
+  // Logout function
+  const logout = () => {
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    router.push('/login');
+  };
+
+  // Check if user is already logged in on component mount
+  useEffect(() => {
+    const storedToken = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+    
+    if (storedToken && storedUser) {
+      try {
+        setToken(storedToken);
+        setUser(JSON.parse(storedUser));
+        validateToken(storedToken);
+      } catch (err) {
+        console.error("Error parsing stored user:", err);
+        logout(); // Invalid stored data, log out
+      }
+    } else {
+      setIsLoading(false);
+    }
+  }, [logout, validateToken]);
 
   // Login function
   const login = async (email: string, password: string): Promise<boolean> => {
@@ -136,7 +153,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     name: string, 
     email: string, 
     password: string,
-    additionalData?: any
+    additionalData?: AdditionalRegistrationData
   ): Promise<boolean> => {
     setIsLoading(true);
     setError(null);
@@ -173,15 +190,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Logout function
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    router.push('/login');
   };
 
   // Value object for the context provider

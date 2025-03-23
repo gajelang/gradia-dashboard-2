@@ -50,25 +50,13 @@ import {
 import { formatRupiah } from "@/lib/formatters";
 import UpdateStatusDialog from "@/components/UpdateStatusDialog";
 import UpdateTransactionDialog from "@/components/UpdateTransactionDialog";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetClose
-} from "@/components/ui/sheet";
 import { fetchWithAuth } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
 
 // Extended Transaction interface to include creator and audit info
 interface Transaction {
-  paymentProofLink: any;
+  paymentProofLink?: string | null;
   id: string;
   name: string;
   description: string;
@@ -236,7 +224,6 @@ export default function TransactionTable() {
   const [viewMode, setViewMode] = useState<"active" | "deleted">("active");
   
   // State for transaction expenses
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [transactionExpenses, setTransactionExpenses] = useState<Expense[]>([]);
   const [activeExpenses, setActiveExpenses] = useState<Expense[]>([]);
   const [archivedExpenses, setArchivedExpenses] = useState<Expense[]>([]);
@@ -253,41 +240,40 @@ export default function TransactionTable() {
   }, [viewMode]);
 
   // Fetch transactions and expenses
-  // Fetch transactions and expenses
-const fetchTransactionsAndExpenses = async () => {
-  try {
-    setLoading(true);
-    const queryParam = viewMode === "deleted" ? "?deleted=true" : "";
-    const resTransactions = await fetchWithAuth(`/api/transactions${queryParam}`, { 
-      cache: "no-store" 
-    });
-    
-    if (!resTransactions.ok) throw new Error("Gagal mengambil data transaksi");
-    const transactionsData = await resTransactions.json();
-    
-    // Make sure we only set active transactions in active view and deleted transactions in deleted view
-    if (viewMode === "active") {
-      // Filter out any deleted transactions that might have been returned
-      const activeTransactions = transactionsData.filter((tx: { isDeleted: any; }) => !tx.isDeleted);
-      setTransactions(activeTransactions);
-      setFilteredTransactions(activeTransactions);
-    } else {
-      // For deleted view, ensure we only have deleted transactions
-      const deletedTxs = transactionsData.filter((tx: { isDeleted: any; }) => tx.isDeleted);
-      setDeletedTransactions(deletedTxs);
-      setFilteredTransactions(deletedTxs);
-    }
+  const fetchTransactionsAndExpenses = async () => {
+    try {
+      setLoading(true);
+      const queryParam = viewMode === "deleted" ? "?deleted=true" : "";
+      const resTransactions = await fetchWithAuth(`/api/transactions${queryParam}`, { 
+        cache: "no-store" 
+      });
+      
+      if (!resTransactions.ok) throw new Error("Gagal mengambil data transaksi");
+      const transactionsData = await resTransactions.json();
+      
+      // Make sure we only set active transactions in active view and deleted transactions in deleted view
+      if (viewMode === "active") {
+        // Filter out any deleted transactions that might have been returned
+        const activeTransactions = transactionsData.filter((tx: { isDeleted: boolean }) => !tx.isDeleted);
+        setTransactions(activeTransactions);
+        setFilteredTransactions(activeTransactions);
+      } else {
+        // For deleted view, ensure we only have deleted transactions
+        const deletedTxs = transactionsData.filter((tx: { isDeleted: boolean }) => tx.isDeleted);
+        setDeletedTransactions(deletedTxs);
+        setFilteredTransactions(deletedTxs);
+      }
 
-    // Extract available years from data with proper typing
-    const years = [...new Set(transactionsData.map((tx: { date: string | number | Date; }) => new Date(tx.date).getFullYear()))] as number[];
-    setAvailableYears(years.sort((a, b) => b - a));
-  } catch (error) {
-    console.error("Error mengambil data:", error);
-    toast.error("Gagal memuat data");
-  } finally {
-    setLoading(false);
-  }
-};
+      // Extract available years from data with proper typing
+      const years = [...new Set(transactionsData.map((tx: { date: string | number | Date; }) => new Date(tx.date).getFullYear()))] as number[];
+      setAvailableYears(years.sort((a, b) => b - a));
+    } catch (error) {
+      console.error("Error mengambil data:", error);
+      toast.error("Gagal memuat data");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Fetch transaction expenses
   const fetchTransactionExpenses = async (transactionId: string) => {
@@ -871,7 +857,7 @@ const fetchTransactionsAndExpenses = async () => {
                     <>
                       <UpdateTransactionDialog
                         transaction={tx}
-                        onTransactionUpdated={(updatedTx) => {
+                        onTransactionUpdated={() => {
                           fetchTransactionsAndExpenses();
                         }}
                       />
@@ -1277,23 +1263,15 @@ const fetchTransactionsAndExpenses = async () => {
                   <div className="flex gap-2">
                     <UpdateStatusDialog
                       transaction={selectedDetailTransaction}
-                      onStatusUpdated={(updatedTx) => {
-                        setSelectedDetailTransaction(updatedTx);
-                        
-                        // Update the transaction in the main list
-                        setTransactions((prev) => prev.map((t) => (
-                          t.id === updatedTx.id ? { ...updatedTx, capitalCost: t.capitalCost } : t
-                        )));
-                        
-                        setFilteredTransactions((prev) => prev.map((t) => (
-                          t.id === updatedTx.id ? { ...updatedTx, capitalCost: t.capitalCost } : t
-                        )));
+                      onStatusUpdated={() => {
+                        // Refresh data after status update
+                        fetchTransactionsAndExpenses();
                       }}
                     />
                     
                     <UpdateTransactionDialog
                       transaction={selectedDetailTransaction}
-                      onTransactionUpdated={(updatedTx) => {
+                      onTransactionUpdated={() => {
                         setDetailModalOpen(false);
                         fetchTransactionsAndExpenses();
                       }}

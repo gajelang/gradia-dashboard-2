@@ -73,7 +73,7 @@ export async function verifyAuthToken(req: NextRequest): Promise<AuthResult> {
 }
 
 // Helper function to check if a route is allowed
-export function isRouteAllowed(user: UserJwtPayload | null, route: string, method: string): boolean {
+export function isRouteAllowed(user: UserJwtPayload | null): boolean {
   if (!user) return false;
   
   // Admin role has access to everything
@@ -84,3 +84,6 @@ export function isRouteAllowed(user: UserJwtPayload | null, route: string, metho
   
   return true; // By default, authenticated users have access
 }
+
+// For backward compatibility with any code using verifyAuth
+export const verifyAuth = verifyAuthToken;

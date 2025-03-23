@@ -64,6 +64,26 @@ interface IncomeExpensesChartProps {
 // Different views for the chart
 type ViewMode = '7d' | '30d' | '90d' | 'custom';
 
+// Types for custom components
+interface TooltipProps {
+  active?: boolean;
+  payload?: {
+    name: string;
+    value: number;
+    color: string;
+  }[];
+  label?: string;
+}
+
+interface LegendProps {
+  payload?: {
+    value: string;
+    color: string;
+    type?: string;
+    dataKey?: string;
+  }[];
+}
+
 export function IncomeExpensesChart({ selectedRange }: IncomeExpensesChartProps) {
   const [data, setData] = useState<ChartData[]>([]);
   const [allData, setAllData] = useState<ChartData[]>([]);
@@ -256,7 +276,7 @@ export function IncomeExpensesChart({ selectedRange }: IncomeExpensesChartProps)
     }
     
     fetchFinancialData();
-  }, [selectedRange]);
+  }, [selectedRange, viewMode]);
 
   // Update filtered data when view mode changes
   useEffect(() => {
@@ -288,10 +308,10 @@ export function IncomeExpensesChart({ selectedRange }: IncomeExpensesChartProps)
   }, [viewMode, allData]);
 
   // Custom tooltip for chart
-  const CustomTooltip = ({ active, payload, label }: any) => {
+  const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
     if (active && payload && payload.length) {
-      const income = payload.find((p: any) => p.name === "Income")?.value || 0;
-      const expenses = payload.find((p: any) => p.name === "Expenses")?.value || 0;
+      const income = payload.find((p) => p.name === "Income")?.value || 0;
+      const expenses = payload.find((p) => p.name === "Expenses")?.value || 0;
       const profit = income - expenses;
       
       return (
@@ -327,10 +347,12 @@ export function IncomeExpensesChart({ selectedRange }: IncomeExpensesChartProps)
   };
 
   // Custom legend with better styling
-  const CustomLegend = ({ payload }: any) => {
+  const CustomLegend = ({ payload }: LegendProps) => {
+    if (!payload) return null;
+    
     return (
       <div className="flex justify-center mt-2 gap-6">
-        {payload.map((entry: any, index: number) => (
+        {payload.map((entry, index) => (
           <div key={`legend-${index}`} className="flex items-center">
             <div 
               className="w-3 h-3 rounded-full mr-2"

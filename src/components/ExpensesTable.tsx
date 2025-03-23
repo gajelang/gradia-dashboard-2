@@ -7,7 +7,7 @@ import {
   ChevronUp, 
   ChevronDown, 
   Search,
-  Calendar,
+  // Removed unused Calendar import
   X,
   ExternalLink,
   Tag,
@@ -53,8 +53,8 @@ import {
 } from "@/components/ui/tooltip"
 import { fetchWithAuth } from "@/lib/api" // Import the authentication utility
 import { useAuth } from "@/contexts/AuthContext" // Import auth context for current user
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Removed unused Badge import
 
 type SortDirection = "asc" | "desc" | null;
 type SortField = "category" | "amount" | "description" | "date" | "transactionId" | "createdBy" | null;
@@ -131,7 +131,7 @@ export default function ExpensesTable() {
 
   useEffect(() => {
     fetchExpenses();
-  }, [viewMode]) // Refetch when viewMode changes
+  }, [viewMode, fetchExpenses]) // Added fetchExpenses to dependency array
 
   async function fetchExpenses() {
     try {
@@ -159,8 +159,8 @@ export default function ExpensesTable() {
       try {
         data = await res.json();
         console.log(`Fetched ${data.length} ${viewMode} expenses`, data);
-      } catch (e) {
-        console.error("Error parsing expense data:", e);
+      } catch (jsonError) { // Changed from e to jsonError to avoid using an unused variable
+        console.error("Error parsing expense data:", jsonError);
         throw new Error("Invalid data format received from server");
       }
       
@@ -365,11 +365,6 @@ export default function ExpensesTable() {
       minute: "2-digit"
     });
   };
-
-  const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
-  ];
 
   // Soft delete expense function
   const softDeleteExpense = async () => {
@@ -802,11 +797,11 @@ export default function ExpensesTable() {
           <DialogHeader>
             <DialogTitle>Confirm Archive</DialogTitle>
             <DialogDescription>
-              This expense will be archived and won't appear in the active expenses list.
+              This expense will be archived and won&apos;t appear in the active expenses list.
               You can restore it from the archive view if needed.
             </DialogDescription>
           </DialogHeader>
-          <p className="mb-2">Type "DELETE" to confirm.</p>
+          <p className="mb-2">Type &quot;DELETE&quot; to confirm.</p>
           <Input
             value={confirmDeleteText}
             onChange={(e) => setConfirmDeleteText(e.target.value)}

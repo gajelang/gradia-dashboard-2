@@ -15,9 +15,26 @@ import { Save } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { fetchWithAuth } from "@/lib/api"; // Import the authentication utility
 
+// Define a proper Transaction interface
+interface Transaction {
+  id: string;
+  paymentStatus: string;
+  downPaymentAmount?: number;
+  totalProfit?: number;
+}
+
 interface UpdateStatusDialogProps {
-  transaction: any; // Adjust the type as needed
-  onStatusUpdated: (updatedTransaction: any) => void;
+  transaction: Transaction;
+  onStatusUpdated: (updatedTransaction: Transaction) => void;
+}
+
+// Define the payload interface for the update request
+interface StatusUpdatePayload {
+  id: string;
+  paymentStatus: string;
+  downPaymentAmount?: number;
+  amount?: number;
+  remainingAmount?: number;
 }
 
 export default function UpdateStatusDialog({ transaction, onStatusUpdated }: UpdateStatusDialogProps) {
@@ -34,17 +51,18 @@ export default function UpdateStatusDialog({ transaction, onStatusUpdated }: Upd
     }
 
     // Build payload for update
-    const payload: any = {
+    const payload: StatusUpdatePayload = {
       id: transaction.id,
       paymentStatus: status,
     };
 
     if (status === "DP") {
-      payload.downPaymentAmount = parseFloat(downPaymentAmount);
-      if (payload.downPaymentAmount <= 0) {
+      const dpAmount = parseFloat(downPaymentAmount);
+      if (isNaN(dpAmount) || dpAmount <= 0) {
         toast.error("Down payment amount must be greater than 0");
         return;
       }
+      payload.downPaymentAmount = dpAmount;
       const totalProfit = transaction.totalProfit || 0;
       if (payload.downPaymentAmount > totalProfit) {
         toast.error("Down payment cannot exceed total profit");
@@ -79,7 +97,7 @@ export default function UpdateStatusDialog({ transaction, onStatusUpdated }: Upd
       setOpen(false);
     } catch (error) {
       console.error("Error updating payment status:", error);
-      toast.error(`Error updating payment status: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Error updating payment status: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   };
 

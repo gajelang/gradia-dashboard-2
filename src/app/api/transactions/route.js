@@ -7,7 +7,7 @@ const prisma = new PrismaClient();
 // Function to handle GET requests
 export async function GET(req) {
   // Verify auth token
-  const { isAuthenticated, user } = await verifyAuthToken(req);
+  const { isAuthenticated } = await verifyAuthToken(req);
   
   if (!isAuthenticated) {
     return createSafeResponse({ error: "Unauthorized" }, 401);

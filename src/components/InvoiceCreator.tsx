@@ -7,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,10 +28,8 @@ import {
 import {
   FileText,
   Download,
-  Calendar,
   Save,
   Loader2,
-  UserPlus,
   SearchIcon
 } from "lucide-react";
 import { formatRupiah } from "@/lib/formatters";
@@ -44,7 +41,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 // Types
 interface Transaction {
-  isDeleted: any;
+  isDeleted: boolean;
   id: string;
   name: string;
   description: string;
@@ -62,7 +59,7 @@ interface Transaction {
 }
 
 interface Client {
-  isDeleted: any;
+  isDeleted: boolean;
   id: string;
   code: string;
   name: string;
@@ -533,7 +530,11 @@ export default function InvoiceCreator() {
               <div className="space-y-4 pt-4 border-t">
                 <div className="flex justify-between items-center">
                   <h3 className="font-medium">Client Information</h3>
-                  {clients.length > 0 && (
+                  {loadingClients ? (
+                    <div className="text-center">
+                      <Loader2 className="h-4 w-4 animate-spin mx-auto" />
+                    </div>
+                  ) : clients.length > 0 && (
                     <Select 
                       value={selectedClient} 
                       onValueChange={handleClientSelect}

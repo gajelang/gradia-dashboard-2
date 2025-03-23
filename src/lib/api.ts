@@ -20,8 +20,17 @@ export async function fetchWithAuth(url: string, options: RequestInit = {}): Pro
   });
 }
 
+// Generic response data type to replace 'any'
+export type ResponseData = 
+  | Record<string, unknown>
+  | Array<unknown>
+  | string
+  | number
+  | boolean
+  | null;
+
 // Helper for safe response creation in API routes
-export function createSafeResponse(data: any, status = 200): Response {
+export function createSafeResponse(data: ResponseData, status = 200): Response {
   const responseBody = JSON.stringify(data || {});
   return new Response(responseBody, {
     status,

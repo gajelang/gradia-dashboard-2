@@ -15,8 +15,6 @@ import {
   ChevronLeft, 
   ChevronRight, 
   ClipboardList,
-  X,
-  Clock,
   CreditCard,
   Mail,
   Phone,
@@ -78,6 +76,27 @@ interface Project {
   date?: string;
   paymentProofLink?: string;
   isDeleted?: boolean; // Added isDeleted flag
+}
+
+// Transaction type for API response
+interface TransactionApiResponse {
+  id: string;
+  name: string | null;
+  description: string | null;
+  startDate?: string;
+  endDate?: string;
+  paymentStatus?: string;
+  status?: string;
+  amount?: number;
+  projectValue?: number;
+  totalProfit?: number;
+  downPaymentAmount?: number;
+  remainingAmount?: number;
+  email?: string;
+  phone?: string;
+  date?: string;
+  paymentProofLink?: string;
+  isDeleted?: boolean;
 }
 
 interface CalendarProject extends Project {
@@ -151,8 +170,8 @@ export default function ProjectCalendar() {
         // 2. Are NOT archived (isDeleted !== true)
         // 3. Map all additional transaction fields per the database
         const projectsData = data
-          .filter((tx: any) => (tx.startDate || tx.endDate) && !tx.isDeleted)
-          .map((tx: any) => ({
+          .filter((tx: TransactionApiResponse) => (tx.startDate || tx.endDate) && !tx.isDeleted)
+          .map((tx: TransactionApiResponse) => ({
             id: tx.id,
             name: tx.name || "Untitled Project",
             description: tx.description || "",
@@ -197,7 +216,7 @@ export default function ProjectCalendar() {
     if (!dateString) return "Not set";
     try {
       return format(parseISO(dateString), "d MMM yyyy", { locale: id });
-    } catch (e) {
+    } catch (_) {
       return "Invalid date";
     }
   };
@@ -226,7 +245,7 @@ export default function ProjectCalendar() {
     
     if (week.length > 0) {
       const lastDayOfMonth = days[days.length - 1];
-      let daysToAdd = 7 - week.length;
+      const daysToAdd = 7 - week.length;
       for (let i = 1; i <= daysToAdd; i++) {
         week.push(addDays(lastDayOfMonth, i));
       }
@@ -517,7 +536,7 @@ export default function ProjectCalendar() {
           projectsByMonth[monthKey] = [];
         }
         projectsByMonth[monthKey].push(project);
-      } catch (e) {
+      } catch (_) {
         // Skip invalid dates
       }
     });

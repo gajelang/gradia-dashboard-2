@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/select";
 import { Edit2, Loader2, Link as LinkIcon, Save } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { formatRupiah } from "@/lib/formatters";
 import { fetchWithAuth } from "@/lib/api"; // Import the authentication utility
 
 interface Expense {
@@ -63,7 +62,7 @@ export default function UpdateExpenseDialog({ expense, onExpenseUpdated }: Updat
     try {
       new URL(string);
       return true;
-    } catch (_) {
+    } catch {
       return false;
     }
   };

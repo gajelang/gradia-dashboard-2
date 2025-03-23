@@ -10,8 +10,8 @@ export interface Transaction {
   date: string
 }
 
-// Gunakan `let` agar data bisa dimodifikasi (misal, POST menambahkan data baru)
-export let transactions: Transaction[] = [
+// Sample transaction data
+export const transactions: Transaction[] = [
   {
     id: "1",
     amount: 250,
@@ -40,3 +40,6 @@ export let transactions: Transaction[] = [
     date: "2023-06-13",
   },
 ]
+
+// If you need to modify this data dynamically, consider creating a mutable copy like this:
+// export const getMutableTransactions = () => [...transactions];

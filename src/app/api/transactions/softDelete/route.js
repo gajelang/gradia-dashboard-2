@@ -36,7 +36,7 @@ export async function POST(req) {
         data: {
           isDeleted: true,
           deletedAt: new Date(),
-          deletedById: deletedBy || user.userId
+          deletedById: deletedBy || user?.userId
         }
       });
       
@@ -55,7 +55,7 @@ export async function POST(req) {
           data: {
             isDeleted: true,
             deletedAt: new Date(),
-            deletedById: deletedBy || user.userId
+            deletedById: deletedBy || user?.userId
           }
         });
         

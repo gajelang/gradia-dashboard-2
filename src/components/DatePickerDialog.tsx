@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -18,6 +18,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fetchWithAuth } from "@/lib/api";
+import { DateRange as DayPickerDateRange } from "react-day-picker";
 
 // Define DateRange to match exactly with the parent component
 interface DateRange {
@@ -44,6 +46,27 @@ export function DatePickerDialog({
   const [selectedTab, setSelectedTab] = useState<string>("calendar");
   const [selectedMonth, setSelectedMonth] = useState<string>(new Date().getMonth().toString());
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
+  
+  // If you need to fetch any data, define the fetch function using useCallback before any useEffect
+  const fetchClients = useCallback(async () => {
+    try {
+      const res = await fetchWithAuth("/api/clients", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        // Process data if needed
+        return data;
+      }
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+    }
+  }, []); // Add any dependencies if needed
+  
+  // Then use the function in useEffect
+  useEffect(() => {
+    if (isOpen) {
+      fetchClients();
+    }
+  }, [isOpen, fetchClients]); // Now fetchClients is properly defined before reference
   
   // Month names
   const monthNames: string[] = [
@@ -118,15 +141,18 @@ export function DatePickerDialog({
     setSelectedTab(value);
   };
 
-  // Handle calendar selection
-  const handleCalendarSelect = (value: any) => {
-    // Only set if both from and to are defined
-    if (value?.from && value?.to) {
-      const range: DateRange = {
-        from: value.from,
-        to: value.to
+  // Handle calendar selection - correctly handle the type conversion between react-day-picker's DateRange and our DateRange
+  const handleCalendarSelect = (range: DayPickerDateRange | undefined) => {
+    if (range?.from && range?.to) {
+      // Convert to our DateRange type with non-optional properties
+      const convertedRange: DateRange = {
+        from: range.from,
+        to: range.to
       };
-      setSelectedRange(range);
+      setSelectedRange(convertedRange);
+    } else if (!range) {
+      // Handle undefined case
+      setSelectedRange(undefined);
     }
   };
 
@@ -165,7 +191,7 @@ export function DatePickerDialog({
               <Calendar
                 mode="range"
                 defaultMonth={selectedRange?.from ? new Date(selectedRange.from) : new Date()}
-                selected={selectedRange as any}
+                selected={selectedRange ? { from: selectedRange.from, to: selectedRange.to } : undefined}
                 onSelect={handleCalendarSelect}
                 numberOfMonths={1}
                 showOutsideDays={true}

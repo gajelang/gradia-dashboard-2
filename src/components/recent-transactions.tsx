@@ -8,7 +8,6 @@ import {
   TableCell,
   TableRow,
 } from "@/components/ui/table"
-import { useRouter } from "next/navigation"
 import { formatRupiah } from "@/lib/formatters"
 import { Calendar } from "lucide-react"
 
@@ -32,8 +31,6 @@ interface RecentTransactionsProps {
 }
 
 export default function RecentTransactions({ transactions }: RecentTransactionsProps) {
-  const router = useRouter();
-  
   // Filter out archived transactions first
   const activeTransactions = transactions.filter(tx => !tx.isDeleted);
   

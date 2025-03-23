@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Dialog,
   DialogContent,
@@ -24,8 +24,6 @@ import {
   X, 
   Link as LinkIcon, 
   Calendar, 
-  DollarSign,
-  Tag,
   ExternalLink
 } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -39,8 +37,7 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
-  SheetFooter,
-  SheetClose
+  SheetFooter
 } from "@/components/ui/sheet";
 import { fetchWithAuth } from "@/lib/api"; // Import fetchWithAuth for authenticated requests
 import { useAuth } from "@/contexts/AuthContext"; // Import useAuth to get current user
@@ -57,7 +54,7 @@ interface Expense {
 
 // Interface for Vendor
 interface Vendor {
-  isDeleted: any;
+  isDeleted: boolean;
   id: string;
   name: string;
   serviceDesc: string;
@@ -65,9 +62,29 @@ interface Vendor {
   phone?: string;
 }
 
+// Transaction interface
+interface Transaction {
+  id: string;
+  name: string;
+  description: string;
+  projectValue?: number;
+  email?: string;
+  phone?: string;
+  startDate?: string;
+  endDate?: string;
+  paymentStatus?: string;
+  date?: string;
+  totalProfit?: number;
+  downPaymentAmount?: number;
+  remainingAmount?: number;
+  clientId?: string;
+  capitalCost?: number;
+  isDeleted?: boolean;
+}
+
 interface UpdateTransactionDialogProps {
-  transaction: any;
-  onTransactionUpdated: (updatedTransaction: any) => void;
+  transaction: Transaction;
+  onTransactionUpdated: (updatedTransaction: Transaction) => void;
 }
 
 export default function UpdateTransactionDialog({ transaction, onTransactionUpdated }: UpdateTransactionDialogProps) {
@@ -129,23 +146,8 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     "produksi",
   ];
 
-  // Load existing expenses and vendors when dialog opens
-  useEffect(() => {
-    if (open) {
-      loadTransactionExpenses();
-      fetchVendors();
-    } else {
-      // Reset state when dialog closes
-      setExistingExpenses([]);
-      setNewExpenses([]);
-      setConfirmText("");
-      setActiveTab("details");
-      setIsAddExpenseOpen(false);
-    }
-  }, [open, transaction.id]);
-
   // Function to load transaction expenses
-  const loadTransactionExpenses = async () => {
+  const loadTransactionExpenses = useCallback(async () => {
     try {
       setIsLoadingExpenses(true);
       
@@ -176,10 +178,10 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     } finally {
       setIsLoadingExpenses(false);
     }
-  };
+  }, [transaction.id]);
 
   // Fetch vendors for expense form
-  const fetchVendors = async () => {
+  const fetchVendors = useCallback(async () => {
     try {
       setLoadingVendors(true);
       const res = await fetchWithAuth("/api/vendors", { cache: "no-store" });
@@ -194,7 +196,22 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     } finally {
       setLoadingVendors(false);
     }
-  };
+  }, []);
+
+  // Load existing expenses and vendors when dialog opens
+  useEffect(() => {
+    if (open) {
+      loadTransactionExpenses();
+      fetchVendors();
+    } else {
+      // Reset state when dialog closes
+      setExistingExpenses([]);
+      setNewExpenses([]);
+      setConfirmText("");
+      setActiveTab("details");
+      setIsAddExpenseOpen(false);
+    }
+  }, [open, transaction.id, loadTransactionExpenses, fetchVendors]);
 
   // Reset new expense form
   const resetNewExpenseForm = () => {
@@ -268,7 +285,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     try {
       new URL(string);
       return true;
-    } catch (_) {
+    } catch {
       return false;
     }
   };
@@ -389,7 +406,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
       setOpen(false);
     } catch (error) {
       console.error("Error updating transaction:", error);
-      toast.error(`Error updating transaction: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      toast.error(`Error updating transaction: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsUpdating(false);
     }

@@ -1,88 +1,82 @@
-// api/expenses/softDelete/route.js
-import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { verifyAuth } from '@/lib/auth';
+import { PrismaClient } from "@prisma/client";
+import { verifyAuthToken } from "@/lib/auth";
+import { createSafeResponse } from "@/lib/api";
 
-export async function POST(request) {
+const prisma = new PrismaClient();
+
+export async function POST(req) {
+  // Verify auth token
+  const { isAuthenticated, user } = await verifyAuthToken(req);
+  
+  if (!isAuthenticated) {
+    return createSafeResponse({ message: "Unauthorized" }, 401);
+  }
+  
   try {
-    // Verify authentication
-    const authResult = await verifyAuth(request);
-    if (!authResult.authenticated) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Parse the request body
-    const body = await request.json();
-    const { id, deletedBy } = body;
-
+    const { id, deletedBy } = await req.json();
+    
     if (!id) {
-      return NextResponse.json({ error: 'Expense ID is required' }, { status: 400 });
+      return createSafeResponse({ message: "Transaction ID is required" }, 400);
     }
 
-    console.log(`Archiving expense ${id}, deletedBy=${deletedBy}`);
-
-    // Find expense to get the transactionId if it exists
-    const expense = await prisma.expense.findUnique({
-      where: { id },
-      select: { transactionId: true, amount: true }
+    // Find the transaction to ensure it exists
+    const transaction = await prisma.transaction.findUnique({
+      where: { id }
     });
+    
+    if (!transaction) {
+      return createSafeResponse({ message: "Transaction not found" }, 404);
+    }
 
-    console.log(`Expense info: ${JSON.stringify(expense)}`);
-
-    // Perform soft delete in a transaction
-    const updatedExpense = await prisma.$transaction(async (prisma) => {
-      // Soft delete the expense
-      const deletedExpense = await prisma.expense.update({
+    // Start a transaction to handle both the transaction and its expenses
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Soft delete the transaction
+      const updatedTransaction = await tx.transaction.update({
         where: { id },
         data: {
           isDeleted: true,
           deletedAt: new Date(),
-          deletedById: deletedBy || null
+          deletedById: deletedBy || user?.userId
         }
       });
-
-      console.log(`Soft deleted expense ${id}`);
-
-      // If expense is linked to a transaction, update the transaction's capitalCost
-      if (expense?.transactionId) {
-        console.log(`Expense ${id} is linked to transaction ${expense.transactionId}`);
-        
-        // Get all active expenses for this transaction
-        const activeExpenses = await prisma.expense.findMany({
-          where: {
-            transactionId: expense.transactionId,
-            isDeleted: false
+      
+      // 2. Find and soft delete all connected expenses
+      const relatedExpenses = await tx.expense.findMany({
+        where: { transactionId: id }
+      });
+      
+      // Track how many expenses were archived
+      let archivedExpensesCount = 0;
+      
+      // Update each expense if there are any
+      if (relatedExpenses.length > 0) {
+        const updateResults = await tx.expense.updateMany({
+          where: { transactionId: id },
+          data: {
+            isDeleted: true,
+            deletedAt: new Date(),
+            deletedById: deletedBy || user?.userId
           }
         });
-
-        console.log(`Found ${activeExpenses.length} active expenses for transaction ${expense.transactionId}`);
-
-        // Calculate new capital cost based only on active expenses
-        const newCapitalCost = activeExpenses.reduce(
-          (sum, exp) => sum + (exp.amount || 0), 
-          0
-        );
-
-        console.log(`New capital cost for transaction ${expense.transactionId}: ${newCapitalCost}`);
-
-        // Update the transaction with new capital cost
-        await prisma.transaction.update({
-          where: { id: expense.transactionId },
-          data: { capitalCost: newCapitalCost }
-        });
-
-        console.log(`Updated transaction ${expense.transactionId} capital cost`);
+        
+        archivedExpensesCount = updateResults.count;
       }
-
-      return deletedExpense;
+      
+      return { 
+        transaction: updatedTransaction, 
+        archivedExpensesCount 
+      };
     });
 
-    return NextResponse.json({
-      message: 'Expense archived successfully',
-      expense: updatedExpense
+    return createSafeResponse({ 
+      message: `Transaction archived successfully along with ${result.archivedExpensesCount} related expenses`,
+      transaction: result.transaction
     });
   } catch (error) {
-    console.error('Error archiving expense:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error("Error in soft delete transaction:", error);
+    return createSafeResponse({ 
+      message: "Failed to archive transaction", 
+      error: error instanceof Error ? error.message : String(error) 
+    }, 500);
   }
 }

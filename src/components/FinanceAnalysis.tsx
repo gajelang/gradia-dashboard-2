@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
   BarChart, 
@@ -12,11 +12,11 @@ import {
   PieChart,
   Pie,
   Cell,
-  LineChart,
+  // Removed unused LineChart
   Line,
   ComposedChart,
-  Area,
-  AreaChart as RechartsAreaChart
+  // Removed unused Area
+  // Removed unused RechartsAreaChart
 } from "recharts";
 import {
   Tabs,
@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Calendar,
+  // Removed unused Calendar
   CalendarIcon,
   DollarSign,
   TrendingUp,
@@ -105,6 +105,13 @@ interface DateRange {
   to: Date;
 }
 
+// Custom tooltip props
+interface CustomBarTooltipProps {
+  active?: boolean;
+  payload?: Array<any>;
+  label?: string;
+}
+
 // Payment status colors
 const STATUS_COLORS = {
   "Lunas": "#22c55e",
@@ -118,14 +125,14 @@ export default function ImprovedFinancialAnalysis() {
   const [monthFilter, setMonthFilter] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState<boolean>(false);
-  const [filtersPanelOpen, setFiltersPanelOpen] = useState<boolean>(false);
+  // Removed unused filtersPanelOpen state
   
   // Data state
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
-  const [currentView, setCurrentView] = useState<"monthly" | "yearly">("monthly");
+  // Removed unused currentView state
   const [selectedMonth, setSelectedMonth] = useState<MonthlyData | null>(null);
   
   // UI state
@@ -159,30 +166,20 @@ export default function ImprovedFinancialAnalysis() {
     });
   };
   
-  // Load financial data
-  useEffect(() => {
-    fetchFinancialData();
-  }, []);
-  
-  // Process and filter data when filters change
-  useEffect(() => {
-    processDataByMonths();
-  }, [transactions, expenses, yearFilter, monthFilter, dateRange]);
-  
-  // Fetch all financial data
-  async function fetchFinancialData() {
+  // Memoize fetchFinancialData to use in dependency array
+  const fetchFinancialData = useCallback(async () => {
     try {
       setIsLoading(true);
       
       // Fetch transactions
       const resTransactions = await fetchWithAuth("/api/transactions", { cache: "no-store" });
       if (!resTransactions.ok) throw new Error("Failed to fetch transactions");
-      let transactionsData: Transaction[] = await resTransactions.json();
+      const transactionsData: Transaction[] = await resTransactions.json();
       
       // Fetch expenses
       const resExpenses = await fetchWithAuth("/api/expenses", { cache: "no-store" });
       if (!resExpenses.ok) throw new Error("Failed to fetch expenses");
-      let expensesData: Expense[] = await resExpenses.json();
+      const expensesData: Expense[] = await resExpenses.json();
       
       // Set data
       setTransactions(transactionsData);
@@ -195,75 +192,76 @@ export default function ImprovedFinancialAnalysis() {
       ])].sort((a, b) => b - a);
       
       setAvailableYears(years);
-      
-      // Initial processing
-      processDataByMonths();
     } catch (error) {
       console.error("Error fetching financial data:", error);
       toast.error("Failed to load financial data");
     } finally {
       setIsLoading(false);
     }
-  }
+  }, []);
   
-  // Process data into monthly records
-  function processDataByMonths() {
+  // Memoize processDataByMonths to use in dependency array
+  const processDataByMonths = useCallback(() => {
     if (!transactions.length && !expenses.length) return;
 
     // Create a map to store data by year-month
     const dataByMonth: Map<string, MonthlyData> = new Map();
     
     // Filter transactions
-    let filteredTransactions = [...transactions];
+    const filteredTransactions = [...transactions];
     
     // Filter transactions by date range or year/month
+    let processedTransactions = filteredTransactions;
+    
     if (dateRange?.from && dateRange?.to) {
-      filteredTransactions = filteredTransactions.filter(tx => {
+      processedTransactions = processedTransactions.filter(tx => {
         const txDate = new Date(tx.date);
-        return txDate >= dateRange.from! && txDate <= dateRange.to!;
+        return txDate >= dateRange.from && txDate <= dateRange.to;
       });
     } else {
       // Filter by year
       if (yearFilter) {
-        filteredTransactions = filteredTransactions.filter(tx => 
+        processedTransactions = processedTransactions.filter(tx => 
           new Date(tx.date).getFullYear() === yearFilter
         );
       }
       
       // Filter by month (if selected)
       if (monthFilter !== null) {
-        filteredTransactions = filteredTransactions.filter(tx => 
+        processedTransactions = processedTransactions.filter(tx => 
           new Date(tx.date).getMonth() + 1 === monthFilter
         );
       }
     }
     
     // Filter expenses
-    let filteredExpenses = [...expenses];
+    const filteredExpenses = [...expenses];
+    
+    let processedExpenses = filteredExpenses;
     
     if (dateRange?.from && dateRange?.to) {
-      filteredExpenses = filteredExpenses.filter(exp => {
+      processedExpenses = processedExpenses.filter(exp => {
         const expDate = new Date(exp.date);
-        return expDate >= dateRange.from! && expDate <= dateRange.to!;
+        return expDate >= dateRange.from && expDate <= dateRange.to;
       });
     } else {
       // Filter by year
       if (yearFilter) {
-        filteredExpenses = filteredExpenses.filter(exp => 
+        processedExpenses = processedExpenses.filter(exp => 
           new Date(exp.date).getFullYear() === yearFilter
         );
       }
       
       // Filter by month (if selected)
       if (monthFilter !== null) {
-        filteredExpenses = filteredExpenses.filter(exp => 
+        processedExpenses = processedExpenses.filter(exp => 
           new Date(exp.date).getMonth() + 1 === monthFilter
         );
       }
     }
     
     // Process transactions into monthly data
-    filteredTransactions.forEach(tx => {
+    processedTransactions.forEach(tx => {
       const date = new Date(tx.date);
       const year = date.getFullYear();
       const monthNum = date.getMonth() + 1;
@@ -304,7 +302,7 @@ export default function ImprovedFinancialAnalysis() {
     });
     
     // Process expenses and assign them to months
-    filteredExpenses.forEach(exp => {
+    processedExpenses.forEach(exp => {
       const date = new Date(exp.date);
       const year = date.getFullYear();
       const monthNum = date.getMonth() + 1;
@@ -358,7 +356,17 @@ export default function ImprovedFinancialAnalysis() {
         setSelectedMonth(null);
       }
     }
-  }
+  }, [transactions, expenses, yearFilter, monthFilter, dateRange, selectedMonth]);
+  
+  // Load financial data
+  useEffect(() => {
+    fetchFinancialData();
+  }, [fetchFinancialData]); // Added missing dependency
+  
+  // Process and filter data when filters change
+  useEffect(() => {
+    processDataByMonths();
+  }, [processDataByMonths]); // Added missing dependency
   
   // Get chart data for monthly breakdown
   const getMonthlyChartData = () => {
@@ -431,13 +439,13 @@ export default function ImprovedFinancialAnalysis() {
   };
 
   // Custom tooltip for the chart
-  const CustomBarTooltip = ({ active, payload, label }: any) => {
+  const CustomBarTooltip = ({ active, payload, label }: CustomBarTooltipProps) => {
     if (active && payload && payload.length) {
       return (
         <div className="bg-white p-3 border rounded-lg shadow-lg text-sm">
           <p className="font-semibold text-gray-900 mb-2">{label}</p>
           <div className="grid gap-1.5">
-            {payload.map((entry: any, index: number) => (
+            {payload.map((entry, index) => (
               <div key={index} className="flex items-center justify-between">
                 <div className="flex items-center">
                   <div 
@@ -477,7 +485,7 @@ export default function ImprovedFinancialAnalysis() {
                 ? formatDateRange(dateRange)
                 : "Select Date Range"}
             </Button>
-            
+        
             <DatePickerDialog
               isOpen={isDatePickerOpen}
               setIsOpen={setIsDatePickerOpen}
@@ -532,7 +540,7 @@ export default function ImprovedFinancialAnalysis() {
         <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
           <h3 className="text-lg font-semibold mb-2">No financial data found</h3>
           <p className="text-muted-foreground max-w-md">
-            There's no financial data available for the selected filters. Try changing the date range or create some transactions.
+            There&apos;s no financial data available for the selected filters. Try changing the date range or create some transactions.
           </p>
         </div>
       ) : (

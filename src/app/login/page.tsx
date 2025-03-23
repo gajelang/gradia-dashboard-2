@@ -7,7 +7,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, AlertCircle } from "lucide-react";
 
@@ -20,17 +27,17 @@ export default function LoginPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (isAuthenticated) {
-      router.push('/dashboard');
+      router.push("/dashboard");
     }
   }, [isAuthenticated, router]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    
+
     if (!email || !password) {
       return;
     }
-    
+
     await login(email, password);
   };
 
@@ -77,14 +84,14 @@ export default function LoginPage() {
                 required
               />
             </div>
-            
+
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            
+
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
                 <>
@@ -99,8 +106,11 @@ export default function LoginPage() {
         </CardContent>
         <CardFooter>
           <div className="text-sm text-center w-full">
-            Don't have an account?{" "}
-            <Link href="/register" className="text-blue-600 hover:underline font-medium">
+            Don&apos;t have an account?{" "}
+            <Link
+              href="/register"
+              className="text-blue-600 hover:underline font-medium"
+            >
               Register
             </Link>
           </div>

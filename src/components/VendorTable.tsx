@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,7 +17,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
@@ -107,11 +106,7 @@ export default function VendorTable() {
   const [vendorToRestore, setVendorToRestore] = useState<Vendor | null>(null);
 
   // Fetch vendors
-  useEffect(() => {
-    fetchVendors();
-  }, [viewMode]);
-
-  const fetchVendors = async () => {
+  const fetchVendors = useCallback(async () => {
     try {
       setLoading(true);
       const queryParam = viewMode === "deleted" ? "?deleted=true" : "";
@@ -132,7 +127,11 @@ export default function VendorTable() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [viewMode]);
+
+  useEffect(() => {
+    fetchVendors();
+  }, [viewMode, fetchVendors]);
 
   // Search vendors
   const handleSearch = () => {
@@ -335,16 +334,6 @@ export default function VendorTable() {
     }
   };
 
-  // Format date for display
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "-";
-    return new Date(dateString).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
   // Format datetime with time
   const formatDateTime = (dateString?: string) => {
     if (!dateString) return "-";
@@ -391,7 +380,7 @@ export default function VendorTable() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 w-full"
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             />
           </div>
           <Button onClick={handleSearch}>Search</Button>
