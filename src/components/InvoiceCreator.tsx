@@ -275,10 +275,8 @@ export default function InvoiceCreator() {
       });
 
       // Calculate dimensions to fit A4
-      const imgWidth = 210; // A4 width in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+      // Gunakan ukuran A4 penuh (210 x 297 mm)
+pdf.addImage(imgData, "PNG", 0, 0, 210, 297);
       pdf.save(`${invoiceData.invoiceNumber}.pdf`);
 
       toast.success("Invoice berhasil diunduh sebagai PDF!");
@@ -543,13 +541,14 @@ export default function InvoiceCreator() {
                         <SelectValue placeholder="Select existing client" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Create new client</SelectItem>
-                        {clients.map(client => (
-                          <SelectItem key={client.id} value={client.id}>
-                            {client.name} ({client.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
+  <SelectItem value="new">Create new client</SelectItem>
+  {clients.map(client => (
+    <SelectItem key={client.id} value={client.id}>
+      {client.name} ({client.code})
+    </SelectItem>
+  ))}
+</SelectContent>
+
                     </Select>
                   )}
                 </div>

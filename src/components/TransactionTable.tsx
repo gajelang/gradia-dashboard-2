@@ -113,6 +113,7 @@ interface Transaction {
 
 // Interface Expense
 interface Expense {
+  vendorId: string;
   id: string;
   category: string;
   amount: number;
@@ -1041,485 +1042,472 @@ export default function TransactionTable() {
       </Table>
 
       {/* Transaction Detail Modal */}
-      <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-          <DialogHeader>
-            <DialogTitle>Detail Transaksi</DialogTitle>
-          </DialogHeader>
+<Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
+  <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+    <DialogHeader>
+      <DialogTitle>Detail Transaksi</DialogTitle>
+    </DialogHeader>
 
-          {selectedDetailTransaction && (
-            <div className="flex flex-col h-full">
-              <Tabs value={detailViewTab} onValueChange={setDetailViewTab}>
-                <TabsList className="grid grid-cols-2">
-                  <TabsTrigger value="details">Informasi Transaksi</TabsTrigger>
-                  <TabsTrigger value="expenses">
-                    Biaya Modal
-                    {(activeExpenses?.length > 0 || archivedExpenses?.length > 0) && (
-                      <span className="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full">
-                        Rp{formatRupiah(selectedDetailTransaction.capitalCost || 0)}
-                      </span>
-                    )}
-                  </TabsTrigger>
-                </TabsList>
+    {selectedDetailTransaction && (
+      <div className="flex flex-col h-full">
+        <Tabs value={detailViewTab} onValueChange={setDetailViewTab}>
+          <TabsList className="grid grid-cols-2">
+            <TabsTrigger value="details">Informasi Transaksi</TabsTrigger>
+            <TabsTrigger value="expenses">
+              Biaya Modal
+              {(activeExpenses?.length > 0 || archivedExpenses?.length > 0) && (
+                <span className="ml-2 bg-blue-100 text-blue-800 text-xs px-2 py-0.5 rounded-full">
+                  Rp{formatRupiah(selectedDetailTransaction.capitalCost || 0)}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
 
-                <div className="max-h-[calc(90vh-150px)] overflow-y-auto py-4">
-                  <TabsContent value="details">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {/* Left Column */}
-                      <div className="space-y-6">
-                        {/* Basic Information */}
-                        <div className="space-y-2">
-                          <h3 className="text-lg font-bold flex items-center">
-                            <Info className="h-5 w-5 mr-2 text-primary" />
-                            Informasi Dasar
-                          </h3>
-                          <div className="grid grid-cols-3 gap-1">
-                            <div className="text-sm font-medium">Nama:</div>
-                            <div className="text-sm col-span-2">
-                              {selectedDetailTransaction.name}
-                            </div>
-
-                            <div className="text-sm font-medium">Deskripsi:</div>
-                            <div className="text-sm col-span-2">
-                              {selectedDetailTransaction.description || "-"}
-                            </div>
-
-                            <div className="text-sm font-medium">Tanggal:</div>
-                            <div className="text-sm col-span-2">
-                              {formatDate(selectedDetailTransaction.date)}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Financial Information */}
-                        <div className="space-y-2">
-                          <h3 className="text-lg font-bold flex items-center">
-                            <DollarSign className="h-5 w-5 mr-2 text-primary" />
-                            Informasi Keuangan
-                          </h3>
-                          <div className="grid grid-cols-3 gap-1">
-                            <div className="text-sm font-medium">Nilai Proyek:</div>
-                            <div className="text-sm col-span-2">
-                              Rp{formatRupiah(selectedDetailTransaction.projectValue || 0)}
-                            </div>
-
-                            <div className="text-sm font-medium">Biaya Modal:</div>
-                            <div className="text-sm col-span-2">
-                              Rp{formatRupiah(selectedDetailTransaction.capitalCost || 0)}
-                            </div>
-
-                            <div className="text-sm font-medium">Net Profit:</div>
-                            <div className="text-sm col-span-2">
-                              Rp{formatRupiah(
-                                calculateNetProfit(selectedDetailTransaction)
-                              )}
-                            </div>
-
-                            <div className="text-sm font-medium">
-                              Status Pembayaran:
-                            </div>
-                            <div className="text-sm col-span-2">
-                              <span
-                                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getPaymentStatusColor(
-                                  selectedDetailTransaction.paymentStatus
-                                )}`}
-                              >
-                                {selectedDetailTransaction.paymentStatus}
-                              </span>
-                            </div>
-
-                            {selectedDetailTransaction.paymentStatus === "DP" && (
-                              <>
-                                <div className="text-sm font-medium">DP Amount:</div>
-                                <div className="text-sm col-span-2">
-                                  Rp{formatRupiah(
-                                    selectedDetailTransaction.downPaymentAmount || 0
-                                  )}
-                                </div>
-
-                                <div className="text-sm font-medium">
-                                  Remaining Amount:
-                                </div>
-                                <div className="text-sm col-span-2">
-                                  Rp{formatRupiah(
-                                    selectedDetailTransaction.remainingAmount || 0
-                                  )}
-                                </div>
-                              </>
-                            )}
-
-                            <div className="text-sm font-medium">Dibayarkan:</div>
-                            <div className="text-sm col-span-2 text-green-600 font-semibold">
-                              Rp
-                              {formatRupiah(
-                                selectedDetailTransaction.paymentStatus === "Lunas"
-                                  ? selectedDetailTransaction.projectValue || 0
-                                  : selectedDetailTransaction.paymentStatus === "DP"
-                                  ? selectedDetailTransaction.downPaymentAmount || 0
-                                  : 0
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Client Information */}
-                        <div className="space-y-2">
-                          <h3 className="text-lg font-bold flex items-center">
-                            <User className="h-5 w-5 mr-2 text-primary" />
-                            Informasi Kontak
-                          </h3>
-                          <div className="grid grid-cols-3 gap-1">
-                            {selectedDetailTransaction.client ? (
-                              <>
-                                <div className="text-sm font-medium">Client:</div>
-                                <div className="text-sm col-span-2">
-                                  {selectedDetailTransaction.client.name} (
-                                  {selectedDetailTransaction.client.code})
-                                </div>
-                              </>
-                            ) : null}
-
-                            {selectedDetailTransaction.email && (
-                              <>
-                                <div className="text-sm font-medium">Email:</div>
-                                <div className="text-sm col-span-2">
-                                  {selectedDetailTransaction.email}
-                                </div>
-                              </>
-                            )}
-
-                            {selectedDetailTransaction.phone && (
-                              <>
-                                <div className="text-sm font-medium">Phone:</div>
-                                <div className="text-sm col-span-2">
-                                  {selectedDetailTransaction.phone}
-                                </div>
-                              </>
-                            )}
-
-                            {selectedDetailTransaction.pic && (
-                              <>
-                                <div className="text-sm font-medium">PIC:</div>
-                                <div className="text-sm col-span-2">
-                                  {selectedDetailTransaction.pic.name}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
+          <div className="max-h-[calc(90vh-150px)] overflow-y-auto py-4">
+            <TabsContent value="details">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Column */}
+                <div className="space-y-6">
+                  {/* Basic Information */}
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-bold flex items-center">
+                      <Info className="h-5 w-5 mr-2 text-primary" />
+                      Informasi Dasar
+                    </h3>
+                    <div className="grid grid-cols-3 gap-1">
+                      <div className="text-sm font-medium">Nama:</div>
+                      <div className="text-sm col-span-2">
+                        {selectedDetailTransaction.name}
                       </div>
 
-                      {/* Right Column */}
-                      <div className="space-y-6">
-                        {/* Broadcast Information */}
-                        <div className="space-y-2">
-                          <h3 className="text-lg font-bold flex items-center">
-                            <Calendar className="h-5 w-5 mr-2 text-primary" />
-                            Informasi Periode Siar
-                          </h3>
-                          <div className="grid grid-cols-3 gap-1">
-                            <div className="text-sm font-medium">
-                              Tanggal Mulai:
-                            </div>
-                            <div className="text-sm col-span-2">
-                              {formatDate(selectedDetailTransaction.startDate)}
-                            </div>
+                      <div className="text-sm font-medium">Deskripsi:</div>
+                      <div className="text-sm col-span-2">
+                        {selectedDetailTransaction.description || "-"}
+                      </div>
 
-                            <div className="text-sm font-medium">
-                              Tanggal Berakhir:
-                            </div>
-                            <div className="text-sm col-span-2">
-                              {formatDate(selectedDetailTransaction.endDate)}
-                            </div>
-
-                            <div className="text-sm font-medium">Status Siar:</div>
-                            <div className="text-sm col-span-2">
-                              <BroadcastIndicator
-                                startDate={selectedDetailTransaction.startDate}
-                                endDate={selectedDetailTransaction.endDate}
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Vendor Information */}
-                        {selectedDetailTransaction.vendors &&
-                          selectedDetailTransaction.vendors.length > 0 && (
-                            <div className="space-y-2">
-                              <h3 className="text-lg font-bold flex items-center">
-                                <Store className="h-5 w-5 mr-2 text-primary" />
-                                Vendor/Subcon
-                              </h3>
-                              <div className="grid grid-cols-1 gap-1 pl-2">
-                                {selectedDetailTransaction.vendors.map(
-                                  (vendor, index) => (
-                                    <div key={vendor.id} className="text-sm">
-                                      {index + 1}. {vendor.name} -{" "}
-                                      {vendor.serviceDesc}
-                                    </div>
-                                  )
-                                )}
-                              </div>
-                            </div>
-                          )}
-
-                        {/* Payment Proof Link */}
-                        {selectedDetailTransaction.paymentProofLink && (
-                          <div className="space-y-2">
-                            <h3 className="text-lg font-bold flex items-center">
-                              <LinkIcon className="h-5 w-5 mr-2 text-primary" />
-                              Bukti Pembayaran
-                            </h3>
-                            <div className="pl-2">
-                              <a
-                                href={selectedDetailTransaction.paymentProofLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 hover:underline flex items-center text-sm"
-                              >
-                                <ExternalLink className="h-4 w-4 mr-1" />
-                                Lihat Bukti Pembayaran
-                              </a>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Audit Information */}
-                        <div className="space-y-2">
-                          <h3 className="text-lg font-bold">Informasi Audit</h3>
-                          <div className="grid grid-cols-3 gap-1">
-                            {selectedDetailTransaction.createdBy && (
-                              <>
-                                <div className="text-sm font-medium">
-                                  Dibuat Oleh:
-                                </div>
-                                <div className="text-sm col-span-2">
-                                  {selectedDetailTransaction.createdBy.name}
-                                </div>
-
-                                <div className="text-sm font-medium">
-                                  Dibuat Pada:
-                                </div>
-                                <div className="text-sm col-span-2">
-                                  {formatDateTime(
-                                    selectedDetailTransaction.createdAt
-                                  )}
-                                </div>
-                              </>
-                            )}
-
-                            {selectedDetailTransaction.updatedBy && (
-                              <>
-                                <div className="text-sm font-medium">
-                                  Diperbarui Oleh:
-                                </div>
-                                <div className="text-sm col-span-2">
-                                  {selectedDetailTransaction.updatedBy.name}
-                                </div>
-
-                                <div className="text-sm font-medium">
-                                  Diperbarui Pada:
-                                </div>
-                                <div className="text-sm col-span-2">
-                                  {formatDateTime(
-                                    selectedDetailTransaction.updatedAt
-                                  )}
-                                </div>
-                              </>
-                            )}
-
-                            {selectedDetailTransaction.deletedBy && (
-                              <>
-                                <div className="text-sm font-medium">
-                                  Diarsipkan Oleh:
-                                </div>
-                                <div className="text-sm col-span-2">
-                                  {selectedDetailTransaction.deletedBy.name}
-                                </div>
-
-                                <div className="text-sm font-medium">
-                                  Diarsipkan Pada:
-                                </div>
-                                <div className="text-sm col-span-2">
-                                  {formatDateTime(
-                                    selectedDetailTransaction.deletedAt
-                                  )}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </div>
+                      <div className="text-sm font-medium">Tanggal:</div>
+                      <div className="text-sm col-span-2">
+                        {formatDate(selectedDetailTransaction.date)}
                       </div>
                     </div>
-                  </TabsContent>
+                  </div>
 
-                  <TabsContent value="expenses">
-                    {loadingExpenses ? (
-                      <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                        <span className="ml-2">Memuat data expense...</span>
+                  {/* Financial Information */}
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-bold flex items-center">
+                      <DollarSign className="h-5 w-5 mr-2 text-primary" />
+                      Informasi Keuangan
+                    </h3>
+                    <div className="grid grid-cols-3 gap-1">
+                      <div className="text-sm font-medium">Nilai Proyek:</div>
+                      <div className="text-sm col-span-2">
+                        Rp{formatRupiah(selectedDetailTransaction.projectValue || 0)}
                       </div>
-                    ) : (
-                      <div className="space-y-6">
-                        <Tabs defaultValue="active" className="w-full">
-                          <TabsList className="grid w-full grid-cols-2 mb-4">
-                            <TabsTrigger value="active">
-                              Expenses Aktif ({activeExpenses.length})
-                            </TabsTrigger>
-                            <TabsTrigger value="archived">
-                              Expenses Diarsipkan ({archivedExpenses.length})
-                            </TabsTrigger>
-                          </TabsList>
 
-                          <TabsContent value="active">
-                            {activeExpenses.length > 0 ? (
-                              <div>
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead>Kategori</TableHead>
-                                      <TableHead>Jumlah</TableHead>
-                                      <TableHead>Deskripsi</TableHead>
-                                      <TableHead>Tanggal</TableHead>
-                                      <TableHead>Dibuat Oleh</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {activeExpenses.map((expense) => (
-                                      <TableRow key={expense.id}>
-                                        <TableCell className="font-medium">
-                                          {expense.category}
-                                        </TableCell>
-                                        <TableCell>
-                                          Rp{formatRupiah(expense.amount)}
-                                        </TableCell>
-                                        <TableCell>
-                                          {expense.description || "-"}
-                                        </TableCell>
-                                        <TableCell>
-                                          {formatDate(expense.date)}
-                                        </TableCell>
-                                        <TableCell>
-                                          {expense.createdBy?.name || "Unknown"}
-                                        </TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
+                      <div className="text-sm font-medium">Biaya Modal:</div>
+                      <div className="text-sm col-span-2">
+                        Rp{formatRupiah(selectedDetailTransaction.capitalCost || 0)}
+                      </div>
 
-                                <div className="mt-4 text-right font-bold">
-                                  Total: Rp
-                                  {formatRupiah(
-                                    selectedDetailTransaction.capitalCost || 0
-                                  )}
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="py-8 text-center text-muted-foreground">
-                                Tidak ada expense aktif untuk transaksi ini
-                              </div>
+                      <div className="text-sm font-medium">Net Profit:</div>
+                      <div className="text-sm col-span-2">
+                        Rp{formatRupiah(
+                          calculateNetProfit(selectedDetailTransaction)
+                        )}
+                      </div>
+
+                      <div className="text-sm font-medium">Status Pembayaran:</div>
+                      <div className="text-sm col-span-2">
+                        <span
+                          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getPaymentStatusColor(
+                            selectedDetailTransaction.paymentStatus
+                          )}`}
+                        >
+                          {selectedDetailTransaction.paymentStatus}
+                        </span>
+                      </div>
+
+                      {selectedDetailTransaction.paymentStatus === "DP" && (
+                        <>
+                          <div className="text-sm font-medium">DP Amount:</div>
+                          <div className="text-sm col-span-2">
+                            Rp{formatRupiah(
+                              selectedDetailTransaction.downPaymentAmount || 0
                             )}
-                          </TabsContent>
+                          </div>
 
-                          <TabsContent value="archived">
-                            {archivedExpenses.length > 0 ? (
-                              <div>
-                                <Table>
-                                  <TableHeader>
-                                    <TableRow>
-                                      <TableHead>Kategori</TableHead>
-                                      <TableHead>Jumlah</TableHead>
-                                      <TableHead>Deskripsi</TableHead>
-                                      <TableHead>Tanggal</TableHead>
-                                      <TableHead>Diarsipkan Oleh</TableHead>
-                                    </TableRow>
-                                  </TableHeader>
-                                  <TableBody>
-                                    {archivedExpenses.map((expense) => (
-                                      <TableRow
-                                        key={expense.id}
-                                        className="bg-gray-50"
-                                      >
-                                        <TableCell className="font-medium">
-                                          {expense.category}
-                                        </TableCell>
-                                        <TableCell>
-                                          Rp{formatRupiah(expense.amount)}
-                                        </TableCell>
-                                        <TableCell>
-                                          {expense.description || "-"}
-                                        </TableCell>
-                                        <TableCell>
-                                          {formatDate(expense.date)}
-                                        </TableCell>
-                                        <TableCell>
-                                          {expense.deletedBy?.name || "Unknown"}
-                                        </TableCell>
-                                      </TableRow>
-                                    ))}
-                                  </TableBody>
-                                </Table>
-
-                                <div className="mt-4 text-right">
-                                  <p className="text-sm text-muted-foreground">
-                                    Expense yang diarsipkan tidak termasuk dalam
-                                    perhitungan biaya modal
-                                  </p>
-                                  <p className="font-medium mt-1">
-                                    Total Diarsipkan: Rp
-                                    {formatRupiah(
-                                      archivedExpenses.reduce(
-                                        (sum, exp) => sum + exp.amount,
-                                        0
-                                      )
-                                    )}
-                                  </p>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="py-8 text-center text-muted-foreground">
-                                Tidak ada expense yang diarsipkan untuk transaksi ini
-                              </div>
+                          <div className="text-sm font-medium">Remaining Amount:</div>
+                          <div className="text-sm col-span-2">
+                            Rp{formatRupiah(
+                              selectedDetailTransaction.remainingAmount || 0
                             )}
-                          </TabsContent>
-                        </Tabs>
+                          </div>
+                        </>
+                      )}
+
+                      <div className="text-sm font-medium">Dibayarkan:</div>
+                      <div className="text-sm col-span-2 text-green-600 font-semibold">
+                        Rp{formatRupiah(
+                          selectedDetailTransaction.paymentStatus === "Lunas"
+                            ? selectedDetailTransaction.projectValue || 0
+                            : selectedDetailTransaction.paymentStatus === "DP"
+                            ? selectedDetailTransaction.downPaymentAmount || 0
+                            : 0
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Client Information */}
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-bold flex items-center">
+                      <User className="h-5 w-5 mr-2 text-primary" />
+                      Informasi Kontak
+                    </h3>
+                    <div className="grid grid-cols-3 gap-1">
+                      <div className="text-sm font-medium">Client:</div>
+                      <div className="text-sm col-span-2">
+                        {selectedDetailTransaction.client
+                          ? `${selectedDetailTransaction.client.name} (${selectedDetailTransaction.client.code})`
+                          : "-"}
+                      </div>
+
+                      {selectedDetailTransaction.email && (
+                        <>
+                          <div className="text-sm font-medium">Email:</div>
+                          <div className="text-sm col-span-2">
+                            {selectedDetailTransaction.email}
+                          </div>
+                        </>
+                      )}
+
+                      {selectedDetailTransaction.phone && (
+                        <>
+                          <div className="text-sm font-medium">Phone:</div>
+                          <div className="text-sm col-span-2">
+                            {selectedDetailTransaction.phone}
+                          </div>
+                        </>
+                      )}
+
+                      {selectedDetailTransaction.pic && (
+                        <>
+                          <div className="text-sm font-medium">PIC:</div>
+                          <div className="text-sm col-span-2">
+                            {selectedDetailTransaction.pic.name}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Column */}
+                <div className="space-y-6">
+                  {/* Broadcast Information */}
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-bold flex items-center">
+                      <Calendar className="h-5 w-5 mr-2 text-primary" />
+                      Informasi Periode Siar
+                    </h3>
+                    <div className="grid grid-cols-3 gap-1">
+                      <div className="text-sm font-medium">Tanggal Mulai:</div>
+                      <div className="text-sm col-span-2">
+                        {formatDate(selectedDetailTransaction.startDate)}
+                      </div>
+
+                      <div className="text-sm font-medium">Tanggal Berakhir:</div>
+                      <div className="text-sm col-span-2">
+                        {formatDate(selectedDetailTransaction.endDate)}
+                      </div>
+
+                      <div className="text-sm font-medium">Status Siar:</div>
+                      <div className="text-sm col-span-2">
+                        <BroadcastIndicator
+                          startDate={selectedDetailTransaction.startDate}
+                          endDate={selectedDetailTransaction.endDate}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Vendor Information */}
+                  {selectedDetailTransaction.vendors &&
+                    selectedDetailTransaction.vendors.length > 0 && (
+                      <div className="space-y-2">
+                        <h3 className="text-lg font-bold flex items-center">
+                          <Store className="h-5 w-5 mr-2 text-primary" />
+                          Vendor/Subcon
+                        </h3>
+                        <div className="grid grid-cols-1 gap-1 pl-2">
+                          {selectedDetailTransaction.vendors.map((vendor, index) => (
+                            <div key={vendor.id} className="text-sm">
+                              {index + 1}. {vendor.name} - {vendor.serviceDesc}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
-                  </TabsContent>
-                </div>
-              </Tabs>
 
-              <div className="pt-4 mt-auto border-t flex justify-between items-center">
-                {viewMode === "active" ? (
-                  <div className="flex gap-2">
-                    <UpdateStatusDialog
-                      transaction={selectedDetailTransaction}
-                      onStatusUpdated={() => {
-                        // Refresh data after status update
-                        fetchTransactionsAndExpenses();
-                      }}
-                    />
+                  {/* Payment Proof Link */}
+                  {selectedDetailTransaction.paymentProofLink && (
+                    <div className="space-y-2">
+                      <h3 className="text-lg font-bold flex items-center">
+                        <LinkIcon className="h-5 w-5 mr-2 text-primary" />
+                        Bukti Pembayaran
+                      </h3>
+                      <div className="pl-2">
+                        <a
+                          href={selectedDetailTransaction.paymentProofLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline flex items-center text-sm"
+                        >
+                          <ExternalLink className="h-4 w-4 mr-1" />
+                          Lihat Bukti Pembayaran
+                        </a>
+                      </div>
+                    </div>
+                  )}
 
-                    <UpdateTransactionDialog
-                      transaction={selectedDetailTransaction}
-                      onTransactionUpdated={() => {
-                        setDetailModalOpen(false);
-                        fetchTransactionsAndExpenses();
-                      }}
-                    />
+                  {/* Audit Information */}
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-bold">Informasi Audit</h3>
+                    <div className="grid grid-cols-3 gap-1">
+                      {selectedDetailTransaction.createdBy && (
+                        <>
+                          <div className="text-sm font-medium">
+                            Dibuat Oleh:
+                          </div>
+                          <div className="text-sm col-span-2">
+                            {selectedDetailTransaction.createdBy.name}
+                          </div>
+
+                          <div className="text-sm font-medium">
+                            Dibuat Pada:
+                          </div>
+                          <div className="text-sm col-span-2">
+                            {formatDateTime(selectedDetailTransaction.createdAt)}
+                          </div>
+                        </>
+                      )}
+
+                      {selectedDetailTransaction.updatedBy && (
+                        <>
+                          <div className="text-sm font-medium">
+                            Diperbarui Oleh:
+                          </div>
+                          <div className="text-sm col-span-2">
+                            {selectedDetailTransaction.updatedBy.name}
+                          </div>
+
+                          <div className="text-sm font-medium">
+                            Diperbarui Pada:
+                          </div>
+                          <div className="text-sm col-span-2">
+                            {formatDateTime(selectedDetailTransaction.updatedAt)}
+                          </div>
+                        </>
+                      )}
+
+                      {selectedDetailTransaction.deletedBy && (
+                        <>
+                          <div className="text-sm font-medium">
+                            Diarsipkan Oleh:
+                          </div>
+                          <div className="text-sm col-span-2">
+                            {selectedDetailTransaction.deletedBy.name}
+                          </div>
+
+                          <div className="text-sm font-medium">
+                            Diarsipkan Pada:
+                          </div>
+                          <div className="text-sm col-span-2">
+                            {formatDateTime(selectedDetailTransaction.deletedAt)}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <div />
-                )}
-
-                <Button variant="outline" onClick={() => setDetailModalOpen(false)}>
-                  Tutup
-                </Button>
+                </div>
               </div>
+            </TabsContent>
+
+            <TabsContent value="expenses">
+              {loadingExpenses ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <span className="ml-2">Memuat data expense...</span>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <Tabs defaultValue="active" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 mb-4">
+                      <TabsTrigger value="active">
+                        Expenses Aktif ({activeExpenses.length})
+                      </TabsTrigger>
+                      <TabsTrigger value="archived">
+                        Expenses Diarsipkan ({archivedExpenses.length})
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="active">
+                      {activeExpenses.length > 0 ? (
+                        <div>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Kategori</TableHead>
+                                <TableHead>Vendor</TableHead>
+                                <TableHead>Jumlah</TableHead>
+                                <TableHead>Deskripsi</TableHead>
+                                <TableHead>Tanggal</TableHead>
+                                <TableHead>Dibuat Oleh</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {activeExpenses.map((expense) => {
+                                // Cari vendor berdasarkan expense.vendorId.
+                                const vendorName =
+                                  expense.vendorId &&
+                                  selectedDetailTransaction.vendors?.find(
+                                    (v) => v.id === expense.vendorId
+                                  )?.name;
+                                return (
+                                  <TableRow key={expense.id}>
+                                    <TableCell className="font-medium">
+                                      {expense.category}
+                                    </TableCell>
+                                    <TableCell>{vendorName || "N/A"}</TableCell>
+                                    <TableCell>
+                                      Rp{formatRupiah(expense.amount)}
+                                    </TableCell>
+                                    <TableCell>
+                                      {expense.description || "-"}
+                                    </TableCell>
+                                    <TableCell>
+                                      {formatDate(expense.date)}
+                                    </TableCell>
+                                    <TableCell>
+                                      {expense.createdBy?.name || "Unknown"}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+
+                          <div className="mt-4 text-right font-bold">
+                            Total: Rp{formatRupiah(selectedDetailTransaction.capitalCost || 0)}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="py-8 text-center text-muted-foreground">
+                          Tidak ada expense aktif untuk transaksi ini
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="archived">
+                      {archivedExpenses.length > 0 ? (
+                        <div>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Kategori</TableHead>
+                                <TableHead>Vendor</TableHead>
+                                <TableHead>Jumlah</TableHead>
+                                <TableHead>Deskripsi</TableHead>
+                                <TableHead>Tanggal</TableHead>
+                                <TableHead>Diarsipkan Oleh</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {archivedExpenses.map((expense) => {
+                                const vendorName =
+                                  expense.vendorId &&
+                                  selectedDetailTransaction.vendors?.find(
+                                    (v) => v.id === expense.vendorId
+                                  )?.name;
+                                return (
+                                  <TableRow key={expense.id} className="bg-gray-50">
+                                    <TableCell className="font-medium">
+                                      {expense.category}
+                                    </TableCell>
+                                    <TableCell>{vendorName || "N/A"}</TableCell>
+                                    <TableCell>
+                                      Rp{formatRupiah(expense.amount)}
+                                    </TableCell>
+                                    <TableCell>
+                                      {expense.description || "-"}
+                                    </TableCell>
+                                    <TableCell>
+                                      {formatDate(expense.date)}
+                                    </TableCell>
+                                    <TableCell>
+                                      {expense.deletedBy?.name || "Unknown"}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+
+                          <div className="mt-4 text-right">
+                            <p className="text-sm text-muted-foreground">
+                              Expense yang diarsipkan tidak termasuk dalam perhitungan biaya modal
+                            </p>
+                            <p className="font-medium mt-1">
+                              Total Diarsipkan: Rp
+                              {formatRupiah(
+                                archivedExpenses.reduce((sum, exp) => sum + exp.amount, 0)
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="py-8 text-center text-muted-foreground">
+                          Tidak ada expense yang diarsipkan untuk transaksi ini
+                        </div>
+                      )}
+                    </TabsContent>
+                  </Tabs>
+                </div>
+              )}
+            </TabsContent>
+          </div>
+        </Tabs>
+
+        <div className="pt-4 mt-auto border-t flex justify-between items-center">
+          {viewMode === "active" ? (
+            <div className="flex gap-2">
+              <UpdateStatusDialog
+                transaction={selectedDetailTransaction}
+                onStatusUpdated={() => {
+                  fetchTransactionsAndExpenses();
+                }}
+              />
+
+              <UpdateTransactionDialog
+                transaction={selectedDetailTransaction}
+                onTransactionUpdated={() => {
+                  setDetailModalOpen(false);
+                  fetchTransactionsAndExpenses();
+                }}
+              />
             </div>
+          ) : (
+            <div />
           )}
-        </DialogContent>
-      </Dialog>
+
+          <Button variant="outline" onClick={() => setDetailModalOpen(false)}>
+            Tutup
+          </Button>
+        </div>
+      </div>
+     )}</DialogContent>
+  </Dialog>
+
 
       {/* Soft Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

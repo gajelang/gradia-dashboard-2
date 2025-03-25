@@ -17,23 +17,18 @@ model User {
   createdAt              DateTime      @default(now())
   updatedAt              DateTime      @updatedAt
   
-  // User profile relation
   profile                UserProfile?
   
-  // Original relations
   transactions           Transaction[] @relation("CreatedBy")
   expenses               Expense[]     @relation("ExpenseCreatedBy")
   
-  // New relations for soft delete
   updatedTransactions    Transaction[] @relation("TransactionUpdatedBy")
   deletedTransactions    Transaction[] @relation("TransactionDeletedBy")
   updatedExpenses        Expense[]     @relation("ExpenseUpdatedBy")
   deletedExpenses        Expense[]     @relation("ExpenseDeletedBy")
   
-  // New relations for PIC
   picTransactions        Transaction[] @relation("TransactionPIC")
   
-  // Relations for managing vendors and clients
   createdVendors         Vendor[]      @relation("VendorCreatedBy")
   updatedVendors         Vendor[]      @relation("VendorUpdatedBy")
   deletedVendors         Vendor[]      @relation("VendorDeletedBy")
@@ -42,29 +37,21 @@ model User {
   updatedClients         Client[]      @relation("ClientUpdatedBy")
   deletedClients         Client[]      @relation("ClientDeletedBy")
   
-  // Invoice relation
   createdInvoices        Invoice[]     @relation("InvoiceCreatedBy")
 }
 
-// New model for storing extended user profile data
 model UserProfile {
   id                String    @id @default(uuid())
   userId            String    @unique
   user              User      @relation(fields: [userId], references: [id])
-  
-  // Personal information
   fullName          String?
   phoneNumber       String?
   position          String?
   department        String?
   address           String?
-  
-  // Professional information
   bio               String?   @db.Text
   skills            String?
   experience        String?   @db.Text
-  
-  // Timestamps
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 }
@@ -96,21 +83,17 @@ model Transaction {
   expenses          Expense[]
   capitalCost       Float?
   
-  // Existing tracking fields
   createdById       String?
   createdBy         User?      @relation("CreatedBy", fields: [createdById], references: [id])
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
   updatedById       String?
-  
-  // New soft delete fields
   isDeleted         Boolean    @default(false)
   deletedAt         DateTime?
   deletedById       String?
   updatedBy         User?      @relation("TransactionUpdatedBy", fields: [updatedById], references: [id])
   deletedBy         User?      @relation("TransactionDeletedBy", fields: [deletedById], references: [id])
   
-  // New relations
   clientId          String?
   client            Client?    @relation(fields: [clientId], references: [id])
   
@@ -120,7 +103,6 @@ model Transaction {
   picId             String?
   pic               User?      @relation("TransactionPIC", fields: [picId], references: [id])
   
-  // Invoices related to this transaction
   invoices          Invoice[]
 }
 
@@ -133,15 +115,13 @@ model Expense {
   paymentProofLink String?
   transactionId    String?
   transaction      Transaction? @relation(fields: [transactionId], references: [id])
+  fundType         String       @default("petty_cash") // NEW: Menandai sumber dana (petty_cash atau profit_bank)
   
-  // Existing tracking fields
   createdById      String?
   createdBy        User?        @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   updatedById      String?
-  
-  // New soft delete fields
   isDeleted        Boolean      @default(false)
   deletedAt        DateTime?
   deletedById      String?
@@ -156,11 +136,9 @@ model Budget {
   actual   Float
 }
 
-// New models
-
 model Client {
   id              String        @id @default(uuid())
-  code            String        @unique  // Unique code for client
+  code            String        @unique
   name            String
   email           String?
   phone           String?
@@ -169,7 +147,6 @@ model Client {
   transactions    Transaction[]
   invoices        Invoice[]
   
-  // Tracking fields
   createdById     String?
   createdBy       User?         @relation("ClientCreatedBy", fields: [createdById], references: [id])
   createdAt       DateTime      @default(now())
@@ -177,7 +154,6 @@ model Client {
   updatedById     String?
   updatedBy       User?         @relation("ClientUpdatedBy", fields: [updatedById], references: [id])
   
-  // Soft delete fields
   isDeleted       Boolean       @default(false)
   deletedAt       DateTime?
   deletedById     String?
@@ -187,13 +163,12 @@ model Client {
 model Vendor {
   id              String        @id @default(uuid())
   name            String
-  serviceDesc     String        // Description of services provided
+  serviceDesc     String
   email           String?
   phone           String?
   address         String?
   transactions    Transaction[]
   
-  // Tracking fields
   createdById     String?
   createdBy       User?         @relation("VendorCreatedBy", fields: [createdById], references: [id])
   createdAt       DateTime      @default(now())
@@ -201,14 +176,12 @@ model Vendor {
   updatedById     String?
   updatedBy       User?         @relation("VendorUpdatedBy", fields: [updatedById], references: [id])
   
-  // Soft delete fields
   isDeleted       Boolean       @default(false)
   deletedAt       DateTime?
   deletedById     String?
   deletedBy       User?         @relation("VendorDeletedBy", fields: [deletedById], references: [id])
 }
 
-// New model for invoices
 model Invoice {
   id                String      @id @default(uuid())
   invoiceNumber     String      @unique
@@ -219,15 +192,11 @@ model Invoice {
   totalAmount       Float
   paymentStatus     String      @default("Belum Bayar")
   description       String?
-  
-  // Relations
   transactionId     String?
   transaction       Transaction? @relation(fields: [transactionId], references: [id])
-  
   clientId          String?
   client            Client?     @relation(fields: [clientId], references: [id])
   
-  // Tracking fields
   createdById       String?
   createdBy         User?       @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
   createdAt         DateTime    @default(now())

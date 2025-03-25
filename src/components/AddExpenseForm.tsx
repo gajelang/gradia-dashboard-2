@@ -1,14 +1,16 @@
 "use client";
+
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -16,246 +18,318 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Edit2, Loader2, Link as LinkIcon, Save } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { Plus } from "lucide-react";
-import { prisma } from "@/lib/prisma";
+import { fetchWithAuth } from "@/lib/api";
 
-// Define types for the Prisma transaction context
-interface TransactionContext {
-  expense: {
-    create: (arg0: {
-      data: {
-        category: string;
-        amount: number;
-        description: string | null;
-        date: Date;
-      };
-    }) => Promise<ExpenseRecord>;
-  };
-  companyFinance: {
-    update: (arg0: {
-      where: {
-        id: string;
-      };
-      data: {
-        totalFunds: {
-          decrement: number;
-        };
-      };
-    }) => Promise<CompanyFinanceRecord>;
-  };
-}
-
-// Define result types
-interface ExpenseRecord {
+interface Expense {
   id: string;
   category: string;
   amount: number;
   description: string | null;
-  date: Date;
+  date: string;
+  paymentProofLink?: string | null;
+  // Field tambahan (tidak disimpan ke DB) untuk pengelolaan fund
+  fundType?: string;
 }
 
-interface CompanyFinanceRecord {
-  id: string;
-  totalFunds: number;
+interface UpdateExpenseDialogProps {
+  expense: Expense;
+  onExpenseUpdated: (updatedExpense: Expense) => void;
 }
 
-interface AddExpenseFormProps {
-  currentTotalFunds: number;
-  onExpenseAdded: (updatedFunds: number) => void;
-}
+const expenseCategories: string[] = [
+  "Gaji",
+  "Bonus",
+  "Inventaris",
+  "Operasional",
+  "Lembur",
+  "Biaya Produksi",
+];
 
-export default function AddExpenseForm({ 
-  currentTotalFunds, 
-  onExpenseAdded 
-}: AddExpenseFormProps) {
-  const [showAddExpense, setShowAddExpense] = useState(false);
-  const [newExpense, setNewExpense] = useState({
-    category: "",
-    amount: "",
-    description: "",
-    date: "",
+const fundTypeOptions: { value: string; label: string }[] = [
+  { value: "petty_cash", label: "Petty Cash" },
+  { value: "profit_bank", label: "Profit Bank" },
+];
+
+// Simple URL validator
+const isValidURL = (url: string) => {
+  if (!url) return true; // optional field
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+export default function UpdateExpenseDialog({
+  expense,
+  onExpenseUpdated,
+}: UpdateExpenseDialogProps) {
+  const [open, setOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    category: expense.category,
+    amount: expense.amount.toString(),
+    description: expense.description || "",
+    date: new Date(expense.date).toISOString().split("T")[0],
+    paymentProofLink: expense.paymentProofLink || "",
+    fundType: expense.fundType || "petty_cash", // default fund type
   });
+  const [confirmText, setConfirmText] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
-  const expenseCategories: string[] = [
-    "gaji",
-    "bonus",
-    "Pembelian",
-    "lembur",
-    "produksi",
-  ];
-
-  const handleAddExpense = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate required fields
-    if (!newExpense.category || !newExpense.amount || !newExpense.date) {
-      toast.error("Please fill all required fields");
-      return;
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (!formData.category) {
+      errors.category = "Category is required";
     }
-
-    // Convert amount to number
-    const expenseAmount = parseFloat(newExpense.amount);
-
-    // Check if sufficient funds
-    if (expenseAmount > currentTotalFunds) {
-      toast.error("Insufficient funds");
-      return;
+    if (!formData.amount || parseFloat(formData.amount) <= 0) {
+      errors.amount = "Valid expense amount is required";
     }
+    if (!formData.date) {
+      errors.date = "Date is required";
+    }
+    if (formData.paymentProofLink && !isValidURL(formData.paymentProofLink)) {
+      errors.paymentProofLink = "Please enter a valid URL";
+    }
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
-    try {
-      // Start a transaction to create expense and update funds
-      const result = await prisma.$transaction(async (tx: TransactionContext) => {
-        // Create expense record
-        const expense = await tx.expense.create({
-          data: {
-            category: newExpense.category,
-            amount: expenseAmount,
-            description: newExpense.description || null,
-            date: new Date(newExpense.date)
-          }
-        });
-
-        // Find and update company finance (reduce total funds)
-        // Assuming there's only one record or we're updating all records
-        const updatedFinance = await tx.companyFinance.update({
-          where: {
-            // Using string ID as the Prisma schema expects a string
-            id: "1" // Replace with the actual identifier from your database
-          },
-          data: {
-            totalFunds: {
-              decrement: expenseAmount
-            }
-          }
-        });
-
-        return { 
-          expense, 
-          updatedTotalFunds: updatedFinance.totalFunds 
-        };
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (formErrors[name]) {
+      setFormErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
       });
-
-      // Reset form and close dialog
-      setNewExpense({
-        category: "",
-        amount: "",
-        description: "",
-        date: "",
-      });
-      setShowAddExpense(false);
-
-      // Callback to parent component with updated funds
-      onExpenseAdded(result.updatedTotalFunds);
-
-      // Success toast
-      toast.success("Expense added successfully");
-
-    } catch (error) {
-      console.error("Error adding expense:", error);
-      toast.error("Failed to add expense");
     }
   };
 
-  const handleExpenseChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) => {
-    const { name, value } = e.target;
-    setNewExpense((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+  const handleCategoryChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, category: value }));
+    if (formErrors.category) {
+      setFormErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.category;
+        return newErrors;
+      });
+    }
+  };
+
+  const handleFundTypeChange = (value: string) => {
+    setFormData((prev) => ({ ...prev, fundType: value }));
+  };
+
+  const confirmUpdateExpense = async () => {
+    if (confirmText !== "UPDATE") {
+      toast.error("Please type UPDATE to confirm");
+      return;
+    }
+    if (!validateForm()) {
+      toast.error("Please correct the errors in the form");
+      return;
+    }
+    setIsUpdating(true);
+    try {
+      // Siapkan payload untuk update expense.
+      // Perhatikan: field "fundType" hanya untuk kebutuhan UI dan tidak dikirim ke API,
+      // karena model Expense belum memiliki field fundType.
+      const payload = {
+        id: expense.id,
+        category: formData.category,
+        amount: parseFloat(formData.amount),
+        description: formData.description || null,
+        date: new Date(formData.date).toISOString(),
+        paymentProofLink: formData.paymentProofLink || null,
+      };
+      const res = await fetchWithAuth("/api/expenses/update", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to update expense");
+      }
+      const updated = await res.json();
+      toast.success("Expense updated successfully");
+      onExpenseUpdated(updated.expense);
+      setOpen(false);
+    } catch (error) {
+      console.error("Error updating expense:", error);
+      toast.error(
+        `Error updating expense: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   return (
-    <Dialog open={showAddExpense} onOpenChange={setShowAddExpense}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button onClick={() => setShowAddExpense(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add New Expense
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          <Edit2 className="h-4 w-4 mr-1" />
+          Edit
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add New Expense</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            Current Available Funds: Rp {currentTotalFunds.toLocaleString()}
-          </p>
+          <DialogTitle>Update Expense</DialogTitle>
+          <DialogDescription>
+            Modify the expense details below.
+          </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleAddExpense} className="space-y-4 mt-2">
-          <div className="space-y-2">
-            <label htmlFor="category" className="text-sm font-medium">
-              Category
-            </label>
-            <Select
-              name="category"
-              value={newExpense.category}
-              onValueChange={(value) =>
-                setNewExpense((prev) => ({ ...prev, category: value }))
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select category" />
+        <div className="space-y-4 mt-2">
+          {/* Category */}
+          <div>
+            <label className="text-sm font-medium mb-1 block">Category</label>
+            <Select value={formData.category} onValueChange={handleCategoryChange}>
+              <SelectTrigger className={formErrors.category ? "border-red-500" : ""}>
+                <SelectValue placeholder="Select Expense Category" />
               </SelectTrigger>
               <SelectContent>
-                {expenseCategories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
+                {expenseCategories.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {formErrors.category && (
+              <p className="text-red-500 text-xs mt-1">{formErrors.category}</p>
+            )}
+          </div>
+
+          {/* Amount */}
+          <div>
+            <label className="text-sm font-medium mb-1 block">Amount</label>
+            <Input
+              name="amount"
+              type="number"
+              min="0"
+              value={formData.amount}
+              onChange={handleChange}
+              placeholder="Expense Amount"
+              required
+              className={formErrors.amount ? "border-red-500" : ""}
+            />
+            {formErrors.amount && (
+              <p className="text-red-500 text-xs mt-1">{formErrors.amount}</p>
+            )}
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="text-sm font-medium mb-1 block">Description</label>
+            <Input
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              placeholder="Enter description"
+            />
+          </div>
+
+          {/* Date */}
+          <div>
+            <label className="text-sm font-medium mb-1 block">Date</label>
+            <Input
+              name="date"
+              type="date"
+              value={formData.date}
+              onChange={handleChange}
+              required
+              className={formErrors.date ? "border-red-500" : ""}
+            />
+            {formErrors.date && (
+              <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>
+            )}
+          </div>
+
+          {/* Fund Type - Field tambahan untuk expense */}
+          <div>
+            <label className="text-sm font-medium mb-1 block">Fund Type</label>
+            <Select value={formData.fundType} onValueChange={handleFundTypeChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Fund Type" />
+              </SelectTrigger>
+              <SelectContent>
+                {fundTypeOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <label htmlFor="amount" className="text-sm font-medium">
-              Amount (Rp)
-            </label>
+
+          {/* Payment Proof Link */}
+          <div>
+            <div className="flex items-center">
+              <LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+              <label className="text-sm font-medium">
+                Payment Proof Link (Optional)
+              </label>
+            </div>
             <Input
-              id="amount"
-              name="amount"
-              type="number"
-              value={newExpense.amount}
-              onChange={handleExpenseChange}
-              placeholder="Enter amount"
-              required
+              name="paymentProofLink"
+              type="url"
+              value={formData.paymentProofLink}
+              onChange={handleChange}
+              placeholder="https://drive.google.com/file/your-receipt"
+              className={formErrors.paymentProofLink ? "border-red-500" : ""}
+            />
+            {formErrors.paymentProofLink && (
+              <p className="text-red-500 text-xs mt-1">{formErrors.paymentProofLink}</p>
+            )}
+          </div>
+
+          {/* Confirmation Input */}
+          <div className="mt-4">
+            <p className="mb-2">Type "UPDATE" to confirm expense changes.</p>
+            <Input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder='Type "UPDATE" to confirm'
             />
           </div>
-          <div className="space-y-2">
-            <label htmlFor="description" className="text-sm font-medium">
-              Description
-            </label>
-            <Input
-              id="description"
-              name="description"
-              value={newExpense.description}
-              onChange={handleExpenseChange}
-              placeholder="Enter description"
-            />
-          </div>
-          <div className="space-y-2">
-            <label htmlFor="date" className="text-sm font-medium">
-              Date
-            </label>
-            <Input
-              id="date"
-              name="date"
-              type="date"
-              value={newExpense.date}
-              onChange={handleExpenseChange}
-              required
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => setShowAddExpense(false)}
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setOpen(false)}
+              disabled={isUpdating}
             >
               Cancel
             </Button>
-            <Button type="submit">Save Expense</Button>
+            <Button
+              onClick={confirmUpdateExpense}
+              disabled={confirmText !== "UPDATE" || isUpdating}
+            >
+              {isUpdating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Update
+                </>
+              )}
+            </Button>
           </div>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -139,11 +139,12 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
 
   // Available expense categories
   const expenseCategories: string[] = [
-    "gaji",
-    "bonus",
-    "Pembelian",
-    "lembur",
-    "produksi",
+    "Gaji",
+    "Bonus",
+    "Inventaris",
+    "Operasional",
+    "Lembur",
+    "Biaya Produksi",
   ];
 
   // Function to load transaction expenses

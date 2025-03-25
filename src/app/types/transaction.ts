@@ -25,6 +25,11 @@ export interface TransactionData {
 // certain fields (like paymentStatus, description, and email) are
 // definitely strings in this final shape.
 export interface Transaction {
+  client: any;
+  remainingAmount: number;
+  isDeleted: any;
+  projectValue: number;
+  downPaymentAmount: number;
   id: string;
   name: string;
   description: string;    // definitely a string here

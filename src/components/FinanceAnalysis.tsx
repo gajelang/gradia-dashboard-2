@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -9,14 +11,8 @@ import {
   Tooltip, 
   Legend,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  // Removed unused LineChart
-  Line,
   ComposedChart,
-  // Removed unused Area
-  // Removed unused RechartsAreaChart
+  Line,
 } from "recharts";
 import {
   Tabs,
@@ -32,7 +28,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  // Removed unused Calendar
   CalendarIcon,
   DollarSign,
   TrendingUp,
@@ -53,50 +48,31 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// Transaction interface
+// Transaction interface (hanya field yang relevan untuk project)
 interface Transaction {
   id: string;
   name: string;
   description: string;
   amount: number;
   projectValue?: number;
-  totalProfit?: number;
   downPaymentAmount?: number;
   remainingAmount?: number;
   paymentStatus: string;
   date: string;
-  email?: string;
-  phone?: string;
-  startDate?: string;
-  endDate?: string;
-  clientId?: string;
-  vendorIds?: string[];
-  capitalCost?: number; // Added field for expense tracking
+  isDeleted?: boolean;
+  // Field lain yang tidak digunakan untuk analisis project bisa diabaikan
 }
 
-// Expense interface
-interface Expense {
-  id: string;
-  category: string;
-  amount: number;
-  description: string | null;
-  date: string;
-  transactionId?: string;
-}
-
-// Monthly financial data
+// Monthly data khusus project
 interface MonthlyData {
   month: string;
   monthNum: number;
   year: number;
   transactions: Transaction[];
-  expenses: Expense[];
   totalExpectedValue: number;
   totalPaid: number;
-  totalExpenses: number;
-  expectedProfit: number;
-  realProfit: number;
   remainingPayments: number;
+  collectionRate: number; // Persentase = (totalPaid / totalExpectedValue) * 100
 }
 
 // Date range type
@@ -115,160 +91,109 @@ interface CustomBarTooltipProps {
   label?: string;
 }
 
-// Payment status colors
-const STATUS_COLORS = {
+// Warna untuk status pembayaran
+const STATUS_COLORS: Record<string, string> = {
   "Lunas": "#22c55e",
   "DP": "#eab308",
   "Belum Bayar": "#ef4444"
 };
 
-export default function ImprovedFinancialAnalysis() {
-  // State for filters
+export default function FinancialAnalysis() {
+  // State untuk filter
   const [yearFilter, setYearFilter] = useState<number>(new Date().getFullYear());
   const [monthFilter, setMonthFilter] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState<boolean>(false);
-  // Removed unused filtersPanelOpen state
   
   // Data state
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
-  // Removed unused currentView state
   const [selectedMonth, setSelectedMonth] = useState<MonthlyData | null>(null);
   
   // UI state
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<string>("overview");
   
-  // Format date range for display
+  // Fungsi untuk memformat range tanggal
   const formatDateRange = (range: DateRange | undefined): string => {
     if (range?.from && range?.to) {
       if (range.from.toDateString() === range.to.toDateString()) {
-        return range.from.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+        return range.from.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
       } else {
-        return `${range.from.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} - ${range.to.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+        return `${range.from.toLocaleDateString("id-ID", { day: "numeric", month: "short" })} - ${range.to.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}`;
       }
     }
     return "All time";
   };
 
-  // Get month name from number
+  // Mendapatkan nama bulan dari nomor
   const getMonthName = (monthNum: number): string => {
-    return new Date(2000, monthNum - 1, 1).toLocaleString('id-ID', { month: 'long' });
+    return new Date(2000, monthNum - 1, 1).toLocaleString("id-ID", { month: "long" });
   };
-  
-  // Format date for display
+
+  // Memformat tanggal
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('id-ID', { 
-      day: 'numeric', 
-      month: 'short', 
-      year: 'numeric' 
-    });
+    return date.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
   };
-  
-  // Memoize fetchFinancialData to use in dependency array
+
+  // Fetch data project (hanya transaksi)
   const fetchFinancialData = useCallback(async () => {
     try {
       setIsLoading(true);
       
-      // Fetch transactions
+      // Fetch transactions dari API
       const resTransactions = await fetchWithAuth("/api/transactions", { cache: "no-store" });
       if (!resTransactions.ok) throw new Error("Failed to fetch transactions");
       const transactionsData: Transaction[] = await resTransactions.json();
       
-      // Fetch expenses
-      const resExpenses = await fetchWithAuth("/api/expenses", { cache: "no-store" });
-      if (!resExpenses.ok) throw new Error("Failed to fetch expenses");
-      const expensesData: Expense[] = await resExpenses.json();
+      // Filter transaksi yang tidak dihapus
+      const activeTransactions = transactionsData.filter(tx => tx.isDeleted !== true);
+      setTransactions(activeTransactions);
       
-      // Set data
-      setTransactions(transactionsData);
-      setExpenses(expensesData);
-      
-      // Extract unique years
-      const years = [...new Set([
-        ...transactionsData.map(t => new Date(t.date).getFullYear()),
-        ...expensesData.map(e => new Date(e.date).getFullYear())
-      ])].sort((a, b) => b - a);
-      
+      // Ekstrak tahun unik dari tanggal transaksi
+      const years = [
+        ...new Set(activeTransactions.map(t => new Date(t.date).getFullYear()))
+      ].sort((a, b) => b - a);
       setAvailableYears(years);
     } catch (error) {
-      console.error("Error fetching financial data:", error);
-      toast.error("Failed to load financial data");
+      console.error("Error fetching project data:", error);
+      toast.error("Failed to load project data");
     } finally {
       setIsLoading(false);
     }
   }, []);
   
-  // Memoize processDataByMonths to use in dependency array
+  // Memproses transaksi menjadi data bulanan (project)
   const processDataByMonths = useCallback(() => {
-    if (!transactions.length && !expenses.length) return;
-
-    // Create a map to store data by year-month
+    if (!transactions.length) return;
+    
+    // Map untuk menyimpan data per bulan
     const dataByMonth: Map<string, MonthlyData> = new Map();
     
-    // Filter transactions
-    const filteredTransactions = [...transactions];
-    
-    // Filter transactions by date range or year/month
-    let processedTransactions = filteredTransactions;
-    
+    // Filter transaksi berdasarkan range tanggal atau filter tahun/bulan
+    let processedTransactions = [...transactions];
     if (dateRange?.from && dateRange?.to) {
       processedTransactions = processedTransactions.filter(tx => {
         const txDate = new Date(tx.date);
         return txDate >= dateRange.from && txDate <= dateRange.to;
       });
     } else {
-      // Filter by year
       if (yearFilter) {
-        processedTransactions = processedTransactions.filter(tx => 
-          new Date(tx.date).getFullYear() === yearFilter
-        );
+        processedTransactions = processedTransactions.filter(tx => new Date(tx.date).getFullYear() === yearFilter);
       }
-      
-      // Filter by month (if selected)
       if (monthFilter !== null) {
-        processedTransactions = processedTransactions.filter(tx => 
-          new Date(tx.date).getMonth() + 1 === monthFilter
-        );
+        processedTransactions = processedTransactions.filter(tx => new Date(tx.date).getMonth() + 1 === monthFilter);
       }
     }
     
-    // Filter expenses
-    const filteredExpenses = [...expenses];
-    
-    let processedExpenses = filteredExpenses;
-    
-    if (dateRange?.from && dateRange?.to) {
-      processedExpenses = processedExpenses.filter(exp => {
-        const expDate = new Date(exp.date);
-        return expDate >= dateRange.from && expDate <= dateRange.to;
-      });
-    } else {
-      // Filter by year
-      if (yearFilter) {
-        processedExpenses = processedExpenses.filter(exp => 
-          new Date(exp.date).getFullYear() === yearFilter
-        );
-      }
-      
-      // Filter by month (if selected)
-      if (monthFilter !== null) {
-        processedExpenses = processedExpenses.filter(exp => 
-          new Date(exp.date).getMonth() + 1 === monthFilter
-        );
-      }
-    }
-    
-    // Process transactions into monthly data
+    // Proses tiap transaksi ke dalam data bulanan
     processedTransactions.forEach(tx => {
       const date = new Date(tx.date);
       const year = date.getFullYear();
       const monthNum = date.getMonth() + 1;
-      const key = `${year}-${monthNum.toString().padStart(2, '0')}`;
+      const key = `${year}-${monthNum.toString().padStart(2, "0")}`;
       
       if (!dataByMonth.has(key)) {
         dataByMonth.set(key, {
@@ -276,172 +201,91 @@ export default function ImprovedFinancialAnalysis() {
           monthNum,
           year,
           transactions: [],
-          expenses: [],
           totalExpectedValue: 0,
           totalPaid: 0,
-          totalExpenses: 0,
-          expectedProfit: 0,
-          realProfit: 0,
-          remainingPayments: 0
+          remainingPayments: 0,
+          collectionRate: 0
         });
       }
       
       const monthData = dataByMonth.get(key)!;
       monthData.transactions.push(tx);
       
-      // Add to financial totals - using projectValue as the true value
       const projectValue = tx.projectValue || 0;
       monthData.totalExpectedValue += projectValue;
       
-      // Calculate paid amount based on payment status
       if (tx.paymentStatus === "Lunas") {
         monthData.totalPaid += projectValue;
       } else if (tx.paymentStatus === "DP") {
         monthData.totalPaid += (tx.downPaymentAmount || 0);
-        monthData.remainingPayments += (tx.remainingAmount || 0);
+        monthData.remainingPayments += (tx.remainingAmount || (projectValue - (tx.downPaymentAmount || 0)));
       } else {
         monthData.remainingPayments += projectValue;
       }
     });
     
-    // Process expenses and assign them to months
-    processedExpenses.forEach(exp => {
-      const date = new Date(exp.date);
-      const year = date.getFullYear();
-      const monthNum = date.getMonth() + 1;
-      const key = `${year}-${monthNum.toString().padStart(2, '0')}`;
-      
-      if (!dataByMonth.has(key)) {
-        dataByMonth.set(key, {
-          month: getMonthName(monthNum),
-          monthNum,
-          year,
-          transactions: [],
-          expenses: [],
-          totalExpectedValue: 0,
-          totalPaid: 0,
-          totalExpenses: 0,
-          expectedProfit: 0,
-          realProfit: 0,
-          remainingPayments: 0
-        });
-      }
-      
-      const monthData = dataByMonth.get(key)!;
-      monthData.expenses.push(exp);
-      monthData.totalExpenses += exp.amount;
-    });
-    
-    // Calculate expected and real profit for each month
+    // Hitung collection rate tiap bulan
     dataByMonth.forEach(data => {
-      // Expected profit = total project values - expenses
-      data.expectedProfit = data.totalExpectedValue - data.totalExpenses;
-      
-      // Real profit = actual paid amount - expenses
-      data.realProfit = data.totalPaid - data.totalExpenses;
+      data.collectionRate = data.totalExpectedValue > 0 ? (data.totalPaid / data.totalExpectedValue) * 100 : 0;
     });
     
-    // Convert map to array and sort by date
-    const dataArray = Array.from(dataByMonth.values())
-      .sort((a, b) => {
-        if (a.year !== b.year) return a.year - b.year;
-        return a.monthNum - b.monthNum;
-      });
+    const dataArray = Array.from(dataByMonth.values()).sort((a, b) => {
+      if (a.year !== b.year) return a.year - b.year;
+      return a.monthNum - b.monthNum;
+    });
     
     setMonthlyData(dataArray);
     
-    // Reset selected month if it's no longer in the data
     if (selectedMonth) {
-      const stillExists = dataArray.some(
-        d => d.year === selectedMonth.year && d.monthNum === selectedMonth.monthNum
-      );
-      if (!stillExists) {
-        setSelectedMonth(null);
-      }
+      const stillExists = dataArray.some(d => d.year === selectedMonth.year && d.monthNum === selectedMonth.monthNum);
+      if (!stillExists) setSelectedMonth(null);
     }
-  }, [transactions, expenses, yearFilter, monthFilter, dateRange, selectedMonth]);
+  }, [transactions, yearFilter, monthFilter, dateRange, selectedMonth]);
   
-  // Load financial data
   useEffect(() => {
     fetchFinancialData();
-  }, [fetchFinancialData]); // Added missing dependency
+  }, [fetchFinancialData]);
   
-  // Process and filter data when filters change
   useEffect(() => {
     processDataByMonths();
-  }, [processDataByMonths]); // Added missing dependency
+  }, [processDataByMonths]);
   
-  // Get chart data for monthly breakdown
+  // Data chart bulanan
   const getMonthlyChartData = () => {
     return monthlyData.map(data => ({
       name: `${data.month.substring(0, 3)} ${data.year}`,
       expected: data.totalExpectedValue,
       paid: data.totalPaid,
-      expenses: data.totalExpenses,
-      expectedProfit: data.expectedProfit,
-      realProfit: data.realProfit
+      remaining: data.remainingPayments
     }));
   };
   
-  // Get payment status breakdown data
-  const getPaymentStatusData = () => {
-    if (!selectedMonth) return [];
-    
-    const statusCounts = selectedMonth.transactions.reduce((acc, tx) => {
-      const status = tx.paymentStatus;
-      if (!acc[status]) acc[status] = { name: status, value: 0, count: 0 };
-      acc[status].value += (tx.projectValue || 0);
-      acc[status].count += 1;
-      return acc;
-    }, {} as Record<string, {name: string, value: number, count: number}>);
-    
-    return Object.values(statusCounts);
-  };
-  
-  // Get expense categories breakdown
-  const getExpenseCategoriesData = () => {
-    if (!selectedMonth) return [];
-    
-    const categoryTotals = selectedMonth.expenses.reduce((acc, exp) => {
-      const category = exp.category;
-      if (!acc[category]) acc[category] = { name: category, value: 0 };
-      acc[category].value += exp.amount;
-      return acc;
-    }, {} as Record<string, {name: string, value: number}>);
-    
-    return Object.values(categoryTotals);
-  };
-  
-  // Month filter handler
+  // Handler filter
   const handleMonthChange = (value: string) => {
     setDateRange(undefined);
     setMonthFilter(value === "all" ? null : parseInt(value));
   };
-
-  // Year filter handler
+  
   const handleYearChange = (value: string) => {
     setDateRange(undefined);
     setYearFilter(value === "all" ? new Date().getFullYear() : parseInt(value));
   };
-
-  // Date range change handler
+  
   const handleDateRangeChange = (range: DateRange | undefined) => {
     if (range?.from && range?.to) {
-      // Clear month and year filters when using date range
       setMonthFilter(null);
       setYearFilter(new Date().getFullYear());
     }
     setDateRange(range);
   };
-
-  // Clear all filters
+  
   const clearFilters = () => {
     setDateRange(undefined);
     setYearFilter(new Date().getFullYear());
     setMonthFilter(null);
   };
-
-  // Custom tooltip for the chart
+  
+  // Custom tooltip untuk chart
   const CustomBarTooltip = ({ active, payload, label }: CustomBarTooltipProps) => {
     if (active && payload && payload.length) {
       return (
@@ -472,7 +316,7 @@ export default function ImprovedFinancialAnalysis() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Financial Analysis</h2>
+        <h2 className="text-xl font-bold">Project Analysis</h2>
       </div>
       
       <div className="flex flex-col sm:flex-row gap-4 mb-4">
@@ -488,7 +332,6 @@ export default function ImprovedFinancialAnalysis() {
                 ? formatDateRange(dateRange)
                 : "Select Date Range"}
             </Button>
-        
             <DatePickerDialog
               isOpen={isDatePickerOpen}
               setIsOpen={setIsDatePickerOpen}
@@ -513,7 +356,7 @@ export default function ImprovedFinancialAnalysis() {
               ))}
             </SelectContent>
           </Select>
-
+  
           <Select onValueChange={handleYearChange} value={yearFilter.toString()}>
             <SelectTrigger className="w-[120px]">
               <SelectValue placeholder="Year" />
@@ -526,29 +369,29 @@ export default function ImprovedFinancialAnalysis() {
               ))}
             </SelectContent>
           </Select>
-
+  
           <Button variant="outline" size="icon" onClick={clearFilters} title="Clear filters">
             <span className="sr-only">Clear filters</span>
             ×
           </Button>
         </div>
       </div>
-
+  
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-          <p className="ml-2">Loading financial data...</p>
+          <p className="ml-2">Loading project data...</p>
         </div>
       ) : monthlyData.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
-          <h3 className="text-lg font-semibold mb-2">No financial data found</h3>
+          <h3 className="text-lg font-semibold mb-2">No project data found</h3>
           <p className="text-muted-foreground max-w-md">
-            There&apos;s no financial data available for the selected filters. Try changing the date range or create some transactions.
+            There's no project data available for the selected filters. Try changing the date range or create some transactions.
           </p>
         </div>
       ) : (
         <>
-          {/* Financial Summary Cards */}
+          {/* Summary Cards */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -564,81 +407,59 @@ export default function ImprovedFinancialAnalysis() {
                 </p>
               </CardContent>
             </Card>
-            
+  
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Total Expenses</CardTitle>
+                <CardTitle className="text-sm font-medium">Total Paid</CardTitle>
+                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-green-600">
+                  Rp{formatRupiah(monthlyData.reduce((sum, data) => sum + data.totalPaid, 0))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Amount received
+                </p>
+              </CardContent>
+            </Card>
+  
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Remaining Payments</CardTitle>
                 <CreditCard className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-rose-600">
-                  Rp{formatRupiah(monthlyData.reduce((sum, data) => sum + data.totalExpenses, 0))}
+                <div className="text-2xl font-bold text-amber-600">
+                  Rp{formatRupiah(monthlyData.reduce((sum, data) => sum + data.remainingPayments, 0))}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {monthlyData.reduce((sum, data) => sum + data.expenses.length, 0)} expense entries
+                  Pending collections
                 </p>
               </CardContent>
             </Card>
-            
+  
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <TooltipProvider>
-                  <UITooltip>
-                    <TooltipTrigger asChild>
-                      <CardTitle className="text-sm font-medium flex items-center">
-                        Expected Profit
-                        <AlertTriangle className="h-3.5 w-3.5 ml-1 text-amber-500" />
-                      </CardTitle>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs">Expected profit based on total project values minus expenses</p>
-                    </TooltipContent>
-                  </UITooltip>
-                </TooltipProvider>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-emerald-600">
-                  Rp{formatRupiah(monthlyData.reduce((sum, data) => sum + data.expectedProfit, 0))}
-                </div>
-                <p className="text-xs text-amber-600">
-                  Pending: Rp{formatRupiah(monthlyData.reduce((sum, data) => sum + data.remainingPayments, 0))}
-                </p>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <TooltipProvider>
-                  <UITooltip>
-                    <TooltipTrigger asChild>
-                      <CardTitle className="text-sm font-medium flex items-center">
-                        Real Profit
-                        <AlertTriangle className="h-3.5 w-3.5 ml-1 text-amber-500" />
-                      </CardTitle>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-xs">Actual profit based on payments received minus expenses</p>
-                    </TooltipContent>
-                  </UITooltip>
-                </TooltipProvider>
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-sm font-medium">Collection Rate</CardTitle>
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-blue-600">
-                  Rp{formatRupiah(monthlyData.reduce((sum, data) => sum + data.realProfit, 0))}
+                  {monthlyData.reduce((sum, data) => sum + data.totalExpectedValue, 0) > 0 
+                    ? ((monthlyData.reduce((sum, data) => sum + data.totalPaid, 0) / monthlyData.reduce((sum, data) => sum + data.totalExpectedValue, 0)) * 100).toFixed(1)
+                    : "0"}%
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Based on payments received
+                  Collection efficiency
                 </p>
               </CardContent>
             </Card>
           </div>
-          
+  
           {/* Monthly Chart */}
           <Card className="mt-4">
             <CardHeader>
-              <CardTitle className="text-lg">Monthly Financial Breakdown</CardTitle>
+              <CardTitle className="text-lg">Monthly Project Breakdown</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="h-80">
@@ -646,41 +467,21 @@ export default function ImprovedFinancialAnalysis() {
                   <ComposedChart data={getMonthlyChartData()}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="name" />
-                    <YAxis 
-                      tickFormatter={(value) => `Rp${formatRupiah(value)}`}
-                      width={100}
-                    />
+                    <YAxis tickFormatter={(value) => `Rp${formatRupiah(value)}`} width={100} />
                     <Tooltip content={<CustomBarTooltip />} />
                     <Legend />
                     <Bar dataKey="expected" name="Expected Value" fill="#94a3b8" barSize={20} />
                     <Bar dataKey="paid" name="Paid" fill="#10b981" barSize={20} />
-                    <Bar dataKey="expenses" name="Expenses" fill="#ef4444" barSize={20} />
-                    <Line 
-                      type="monotone" 
-                      dataKey="expectedProfit" 
-                      name="Expected Profit" 
-                      stroke="#6366f1" 
-                      strokeWidth={2}
-                      dot={{ r: 5 }}
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="realProfit" 
-                      name="Real Profit" 
-                      stroke="#f97316" 
-                      strokeWidth={2}
-                      dot={{ r: 5 }}
-                      strokeDasharray="5 5"
-                    />
+                    <Bar dataKey="remaining" name="Remaining" fill="#ef4444" barSize={20} />
                   </ComposedChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>
           </Card>
-          
-          {/* Monthly data cards */}
+  
+          {/* Data per Bulan */}
           <div className="mt-6">
-            <h3 className="text-lg font-semibold mb-3">Financial Data by Month</h3>
+            <h3 className="text-lg font-semibold mb-3">Project Data by Month</h3>
             <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {monthlyData.map((data) => (
                 <Card 
@@ -695,17 +496,15 @@ export default function ImprovedFinancialAnalysis() {
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex justify-between items-center">
                       <span>{data.month} {data.year}</span>
-                      {data.realProfit >= 0 ? (
-                        <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Profit</Badge>
-                      ) : (
-                        <Badge className="bg-red-100 text-red-800 hover:bg-red-100">Loss</Badge>
-                      )}
+                      <Badge className={data.collectionRate >= 100 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                        {data.collectionRate.toFixed(0)}%
+                      </Badge>
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-1 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Expected Value:</span>
+                        <span className="text-muted-foreground">Expected:</span>
                         <span className="font-medium">Rp{formatRupiah(data.totalExpectedValue)}</span>
                       </div>
                       <div className="flex justify-between">
@@ -713,33 +512,20 @@ export default function ImprovedFinancialAnalysis() {
                         <span className="font-medium text-green-600">Rp{formatRupiah(data.totalPaid)}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-muted-foreground">Expenses:</span>
-                        <span className="font-medium text-red-500">Rp{formatRupiah(data.totalExpenses)}</span>
-                      </div>
-                      <div className="h-px w-full bg-gray-200 my-1.5" />
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Expected Profit:</span>
-                        <span className={data.expectedProfit >= 0 ? "text-emerald-600 font-medium" : "text-rose-600 font-medium"}>
-                          Rp{formatRupiah(Math.abs(data.expectedProfit))}
-                        </span>
-                      </div>
-                      <div className="flex justify-between font-medium">
-                        <span>Real Profit:</span>
-                        <span className={data.realProfit >= 0 ? "text-blue-600" : "text-red-500"}>
-                          Rp{formatRupiah(Math.abs(data.realProfit))}
-                        </span>
+                        <span className="text-muted-foreground">Remaining:</span>
+                        <span className="font-medium text-red-500">Rp{formatRupiah(data.remainingPayments)}</span>
                       </div>
                     </div>
                     <div className="mt-2 text-xs text-muted-foreground">
-                      {data.transactions.length} project{data.transactions.length !== 1 ? 's' : ''}, {data.expenses.length} expense{data.expenses.length !== 1 ? 's' : ''}
+                      {data.transactions.length} project{data.transactions.length !== 1 ? "s" : ""}
                     </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
           </div>
-          
-          {/* Selected month detail */}
+  
+          {/* Detail Bulan Terpilih */}
           {selectedMonth && (
             <Card className="mt-6">
               <CardHeader>
@@ -749,30 +535,24 @@ export default function ImprovedFinancialAnalysis() {
               </CardHeader>
               <CardContent>
                 <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab}>
-                  <TabsList className="grid w-full grid-cols-4">
+                  <TabsList className="grid w-full grid-cols-3">
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="transactions">Transactions</TabsTrigger>
-                    <TabsTrigger value="expenses">Expenses</TabsTrigger>
                     <TabsTrigger value="profitAnalysis">Profit Analysis</TabsTrigger>
                   </TabsList>
                   
                   {/* Overview Tab */}
                   <TabsContent value="overview" className="pt-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {/* Financial Summary */}
                       <div className="space-y-4">
-                        <h3 className="font-bold text-gray-800 mb-1">Financial Summary</h3>
+                        <h3 className="font-bold text-gray-800 mb-1">Project Summary</h3>
                         <div className="space-y-2">
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Total Projects:</span>
                             <span className="font-medium">{selectedMonth.transactions.length}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Total Expenses:</span>
-                            <span className="font-medium">{selectedMonth.expenses.length}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Expected Revenue:</span>
+                            <span className="text-muted-foreground">Total Value:</span>
                             <span className="font-medium">Rp{formatRupiah(selectedMonth.totalExpectedValue)}</span>
                           </div>
                           <div className="flex justify-between">
@@ -780,94 +560,63 @@ export default function ImprovedFinancialAnalysis() {
                             <span className="font-medium text-green-600">Rp{formatRupiah(selectedMonth.totalPaid)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Remaining Payments:</span>
+                            <span className="text-muted-foreground">Remaining:</span>
                             <span className="font-medium text-amber-600">Rp{formatRupiah(selectedMonth.remainingPayments)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Total Expenses:</span>
-                            <span className="font-medium text-red-500">Rp{formatRupiah(selectedMonth.totalExpenses)}</span>
-                          </div>
-                          <div className="h-px w-full bg-gray-200 my-2" />
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Expected Profit:</span>
-                            <span className={`font-medium ${selectedMonth.expectedProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                              Rp{formatRupiah(Math.abs(selectedMonth.expectedProfit))}
-                              {selectedMonth.expectedProfit < 0 && " (Loss)"}
-                            </span>
-                          </div>
-                          <div className="flex justify-between pt-2">
-                            <span className="font-medium">Real Profit:</span>
-                            <span className={`font-medium ${selectedMonth.realProfit >= 0 ? "text-blue-600" : "text-red-600"}`}>
-                              Rp{formatRupiah(Math.abs(selectedMonth.realProfit))}
-                              {selectedMonth.realProfit < 0 && " (Loss)"}
-                            </span>
+                            <span className="text-muted-foreground">Collection Rate:</span>
+                            <span className="font-medium">{selectedMonth.collectionRate.toFixed(1)}%</span>
                           </div>
                         </div>
                       </div>
-                      
-                      {/* Payment Status Chart */}
+  
+                      {/* Payment Status Placeholder */}
                       <div>
                         <h3 className="font-bold text-gray-800 mb-4">Payment Status</h3>
-                        <div className="h-64">
-                          {getPaymentStatusData().length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                              <PieChart>
-                                <Pie
-                                  data={getPaymentStatusData()}
-                                  dataKey="value"
-                                  nameKey="name"
-                                  cx="50%"
-                                  cy="50%"
-                                  outerRadius={80}
-                                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                                >
-                                  {getPaymentStatusData().map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={STATUS_COLORS[entry.name as keyof typeof STATUS_COLORS] || "#9ca3af"} />
-                                  ))}
-                                </Pie>
-                                <Tooltip 
-                                  formatter={(value) => `Rp${formatRupiah(value as number)}`}
-                                />
-                              </PieChart>
-                            </ResponsiveContainer>
-                          ) : (
-                            <div className="flex items-center justify-center h-full text-muted-foreground">
-                              No transaction data available
-                            </div>
-                          )}
+                        <div className="h-64 flex items-center justify-center text-muted-foreground">
+                          Payment status chart can be added here.
                         </div>
                       </div>
-                      
-                      {/* Expense Categories */}
+  
+                      {/* Profit Analysis Tab */}
                       <div>
-                        <h3 className="font-bold text-gray-800 mb-4">Expense Categories</h3>
+                        <h3 className="font-bold text-gray-800 mb-4">Profit Analysis</h3>
                         <div className="h-64">
-                          {getExpenseCategoriesData().length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                              <PieChart>
-                                <Pie
-                                  data={getExpenseCategoriesData()}
-                                  dataKey="value"
-                                  nameKey="name"
-                                  cx="50%"
-                                  cy="50%"
-                                  outerRadius={80}
-                                  label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                                >
-                                  {getExpenseCategoriesData().map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 60%)`} />
-                                  ))}
-                                </Pie>
-                                <Tooltip 
-                                  formatter={(value) => `Rp${formatRupiah(value as number)}`}
-                                />
-                              </PieChart>
-                            </ResponsiveContainer>
-                          ) : (
-                            <div className="flex items-center justify-center h-full text-muted-foreground">
-                              No expense data available
-                            </div>
-                          )}
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart
+                              data={[
+                                {
+                                  name: "Comparison",
+                                  expected: selectedMonth.totalExpectedValue,
+                                  paid: selectedMonth.totalPaid
+                                }
+                              ]}
+                              margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                            >
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="name" />
+                              <YAxis tickFormatter={(value) => `Rp${formatRupiah(value)}`} />
+                              <Tooltip formatter={(value) => `Rp${formatRupiah(value as number)}`} />
+                              <Legend />
+                              <Bar 
+                                dataKey="expected" 
+                                name="Expected Value" 
+                                fill="#6366f1"
+                                radius={[4, 4, 0, 0]}
+                              />
+                              <Bar 
+                                dataKey="paid" 
+                                name="Collected" 
+                                fill="#10b981" 
+                                radius={[4, 4, 0, 0]}
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="mt-4 text-sm">
+                          <p>
+                            The collection rate for this month is <strong>{selectedMonth.collectionRate.toFixed(1)}%</strong>.
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -879,13 +628,12 @@ export default function ImprovedFinancialAnalysis() {
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Value</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid Amount</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expenses</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Profit</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project Value</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid Amount</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -893,16 +641,11 @@ export default function ImprovedFinancialAnalysis() {
                             selectedMonth.transactions
                               .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
                               .map((tx) => {
-                                // Calculate expenses for this transaction
-                                const txExpenses = selectedMonth.expenses.filter(exp => exp.transactionId === tx.id);
-                                const expenseTotal = txExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-                                
-                                // Calculate the real profit for this transaction
-                                const realProfit = tx.paymentStatus === "Lunas" 
-                                  ? (tx.projectValue || 0) - expenseTotal
-                                  : tx.paymentStatus === "DP"
-                                    ? (tx.downPaymentAmount || 0) - expenseTotal
-                                    : -expenseTotal;
+                                const remaining = tx.paymentStatus === "Lunas" 
+                                  ? 0 
+                                  : tx.paymentStatus === "DP" 
+                                    ? (tx.remainingAmount || 0) 
+                                    : tx.projectValue || 0;
                                 
                                 return (
                                   <tr key={tx.id}>
@@ -918,6 +661,9 @@ export default function ImprovedFinancialAnalysis() {
                                             : 0
                                       )}
                                     </td>
+                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-amber-600 font-medium">
+                                      Rp{formatRupiah(remaining)}
+                                    </td>
                                     <td className="px-4 py-2 whitespace-nowrap">
                                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                                         tx.paymentStatus === "Lunas"
@@ -929,73 +675,13 @@ export default function ImprovedFinancialAnalysis() {
                                         {tx.paymentStatus}
                                       </span>
                                     </td>
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-red-600 font-medium">
-                                      Rp{formatRupiah(expenseTotal)}
-                                    </td>
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm font-medium">
-                                      <span className={realProfit >= 0 ? "text-blue-600" : "text-red-600"}>
-                                        Rp{formatRupiah(Math.abs(realProfit))}
-                                        {realProfit < 0 && " (Loss)"}
-                                      </span>
-                                    </td>
                                   </tr>
                                 );
                               })
                           ) : (
                             <tr>
-                              <td colSpan={7} className="text-center py-4 text-muted-foreground">
+                              <td colSpan={6} className="text-center py-4 text-muted-foreground">
                                 No transactions found for this month
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </TabsContent>
-                  
-                  {/* Expenses Tab */}
-                  <TabsContent value="expenses" className="pt-4">
-                    <div className="border rounded-md overflow-hidden">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                            <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Related Project</th>
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {selectedMonth.expenses.length > 0 ? (
-                            selectedMonth.expenses
-                              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-                              .map((exp) => {
-                                // Find related transaction name if any
-                                const relatedTx = selectedMonth.transactions.find(tx => tx.id === exp.transactionId);
-                                
-                                return (
-                                  <tr key={exp.id}>
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{formatDate(exp.date)}</td>
-                                    <td className="px-4 py-2 whitespace-nowrap">
-                                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                                        {exp.category}
-                                      </span>
-                                    </td>
-                                    <td className="px-4 py-2 text-sm text-gray-900">{exp.description || "-"}</td>
-                                    <td className="px-4 py-2 whitespace-nowrap text-sm text-red-600 font-medium">
-                                      Rp{formatRupiah(exp.amount)}
-                                    </td>
-                                    <td className="px-4 py-2 text-sm text-gray-900">
-                                      {relatedTx ? relatedTx.name : "Unrelated"}
-                                    </td>
-                                  </tr>
-                                );
-                              })
-                          ) : (
-                            <tr>
-                              <td colSpan={5} className="text-center py-4 text-muted-foreground">
-                                No expenses found for this month
                               </td>
                             </tr>
                           )}
@@ -1009,7 +695,7 @@ export default function ImprovedFinancialAnalysis() {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       <Card>
                         <CardHeader>
-                          <CardTitle className="text-base">Expected vs. Real Profit</CardTitle>
+                          <CardTitle className="text-base">Expected vs. Collected</CardTitle>
                         </CardHeader>
                         <CardContent>
                           <div className="h-64">
@@ -1017,11 +703,9 @@ export default function ImprovedFinancialAnalysis() {
                               <BarChart
                                 data={[
                                   {
-                                    name: "Profit Comparison",
-                                    expected: selectedMonth.expectedProfit,
-                                    real: selectedMonth.realProfit,
-                                    expectedMoney: Math.abs(selectedMonth.expectedProfit),
-                                    realMoney: Math.abs(selectedMonth.realProfit)
+                                    name: "Comparison",
+                                    expected: selectedMonth.totalExpectedValue,
+                                    paid: selectedMonth.totalPaid
                                   }
                                 ]}
                                 margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
@@ -1033,59 +717,30 @@ export default function ImprovedFinancialAnalysis() {
                                 <Legend />
                                 <Bar 
                                   dataKey="expected" 
-                                  name="Expected Profit" 
+                                  name="Expected Value" 
                                   fill="#6366f1"
                                   radius={[4, 4, 0, 0]}
                                 />
                                 <Bar 
-                                  dataKey="real" 
-                                  name="Real Profit" 
-                                  fill="#f97316" 
+                                  dataKey="paid" 
+                                  name="Collected" 
+                                  fill="#10b981" 
                                   radius={[4, 4, 0, 0]}
                                 />
                               </BarChart>
                             </ResponsiveContainer>
                           </div>
-                          
-                          <div className="mt-4 space-y-3">
-                            <div className="flex justify-between items-center py-2 border-b">
-                              <div className="flex items-center">
-                                <div className="w-3 h-3 bg-indigo-500 rounded-full mr-2"></div>
-                                <span className="text-sm font-medium">Expected Profit:</span>
-                              </div>
-                              <span className={`text-sm font-bold ${selectedMonth.expectedProfit >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                                Rp{formatRupiah(Math.abs(selectedMonth.expectedProfit))}
-                                {selectedMonth.expectedProfit < 0 && " (Loss)"}
-                              </span>
-                            </div>
-                            
-                            <div className="flex justify-between items-center py-2 border-b">
-                              <div className="flex items-center">
-                                <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>
-                                <span className="text-sm font-medium">Real Profit:</span>
-                              </div>
-                              <span className={`text-sm font-bold ${selectedMonth.realProfit >= 0 ? "text-blue-600" : "text-red-600"}`}>
-                                Rp{formatRupiah(Math.abs(selectedMonth.realProfit))}
-                                {selectedMonth.realProfit < 0 && " (Loss)"}
-                              </span>
-                            </div>
-                            
-                            <div className="flex justify-between items-center py-2">
-                              <div className="flex items-center">
-                                <div className="w-3 h-3 bg-purple-500 rounded-full mr-2"></div>
-                                <span className="text-sm font-medium">Difference:</span>
-                              </div>
-                              <span className="text-sm font-bold">
-                                Rp{formatRupiah(Math.abs(selectedMonth.expectedProfit - selectedMonth.realProfit))}
-                              </span>
-                            </div>
+                          <div className="mt-4 text-sm">
+                            <p>
+                              The collection rate for this month is <strong>{selectedMonth.collectionRate.toFixed(1)}%</strong>.
+                            </p>
                           </div>
                         </CardContent>
                       </Card>
-                      
+  
                       <Card>
                         <CardHeader>
-                          <CardTitle className="text-base">Profit Breakdown Analysis</CardTitle>
+                          <CardTitle className="text-base">Collection Breakdown</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                           <div className="space-y-1">
@@ -1096,40 +751,16 @@ export default function ImprovedFinancialAnalysis() {
                               <span className="font-medium">Rp{formatRupiah(selectedMonth.totalExpectedValue)}</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">Already Paid:</span>
+                              <span className="text-muted-foreground">Collected:</span>
                               <span className="font-medium text-green-600">Rp{formatRupiah(selectedMonth.totalPaid)}</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                              <span className="text-muted-foreground">Remaining Payments:</span>
+                              <span className="text-muted-foreground">Remaining:</span>
                               <span className="font-medium text-amber-600">Rp{formatRupiah(selectedMonth.remainingPayments)}</span>
                             </div>
                           </div>
-                          
-                          <div className="space-y-1">
-                            <h4 className="text-sm font-medium">Expense Components</h4>
-                            <div className="h-px w-full bg-gray-200 my-1"></div>
-                            
-                            {getExpenseCategoriesData().length > 0 ? (
-                              <div className="space-y-2">
-                                {getExpenseCategoriesData().map((category, index) => (
-                                  <div key={index} className="flex justify-between text-sm">
-                                    <span className="text-muted-foreground">{category.name}:</span>
-                                    <span className="font-medium text-red-500">Rp{formatRupiah(category.value)}</span>
-                                  </div>
-                                ))}
-                                <div className="h-px w-full bg-gray-200 my-1"></div>
-                                <div className="flex justify-between text-sm">
-                                  <span className="font-medium">Total Expenses:</span>
-                                  <span className="font-medium text-red-500">Rp{formatRupiah(selectedMonth.totalExpenses)}</span>
-                                </div>
-                              </div>
-                            ) : (
-                              <p className="text-sm text-muted-foreground">No expense data available</p>
-                            )}
-                          </div>
-                          
                           <div className="bg-gray-50 p-4 rounded-md mt-4">
-                            <h4 className="text-sm font-medium mb-2">Payment Completion Status</h4>
+                            <h4 className="text-sm font-medium mb-2">Payment Completion</h4>
                             <div className="flex items-center">
                               <div className="w-full bg-gray-200 rounded-full h-2.5">
                                 <div 
@@ -1142,7 +773,7 @@ export default function ImprovedFinancialAnalysis() {
                               </span>
                             </div>
                             <p className="text-xs text-muted-foreground mt-2">
-                              Payment completion rate affects the difference between expected and real profit
+                              Collection rate shows the percentage of expected revenue that has been collected.
                             </p>
                           </div>
                         </CardContent>

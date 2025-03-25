@@ -1,4 +1,4 @@
-// api/transactions/recalculateCapitalCost/route.js
+// file: app/api/transactions/recalculateCapitalCost/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuthToken } from '@/lib/auth';
@@ -20,6 +20,15 @@ export async function POST(request) {
     }
 
     console.log(`Recalculating capital cost for transaction ${transactionId}`);
+
+    // Check if transaction exists
+    const transaction = await prisma.transaction.findUnique({
+      where: { id: transactionId },
+    });
+
+    if (!transaction) {
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 });
+    }
 
     // Get all active expenses for this transaction
     const activeExpenses = await prisma.expense.findMany({

@@ -7,7 +7,6 @@ import {
   ChevronUp, 
   ChevronDown, 
   Search,
-  // Removed unused Calendar import
   X,
   ExternalLink,
   Tag,
@@ -53,7 +52,7 @@ import {
 } from "@/components/ui/tooltip"
 import { fetchWithAuth } from "@/lib/api" // Import the authentication utility
 import { useAuth } from "@/contexts/AuthContext" // Import auth context for current user
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 // Removed unused Badge import
 
 type SortDirection = "asc" | "desc" | null;
@@ -95,6 +94,8 @@ interface Expense {
   createdAt?: string;
   updatedAt?: string;
   deletedAt?: string;
+  // NEW FIELD: fundType
+  fundType?: string;
 }
 
 export default function ExpensesTable() {
@@ -139,7 +140,6 @@ export default function ExpensesTable() {
       const res = await fetchWithAuth(`/api/expenses${queryParam}`, { cache: "no-store" });
       
       if (!res.ok) {
-        // Get more detailed error information
         let errorText = "Failed to fetch expenses";
         try {
           const errorData = await res.json();
@@ -147,21 +147,18 @@ export default function ExpensesTable() {
         } catch {
           // If parsing fails, use default error message
         }
-        
         throw new Error(errorText);
       }
       
-      // Parse the response data
       let data: Expense[];
       try {
         data = await res.json();
         console.log(`Fetched ${data.length} ${viewMode} expenses`, data);
-      } catch (jsonError) { // Changed from e to jsonError to avoid using an unused variable
+      } catch (jsonError) {
         console.error("Error parsing expense data:", jsonError);
         throw new Error("Invalid data format received from server");
       }
       
-      // Log details about the fetched data
       if (viewMode === "deleted") {
         console.log("Archived expenses data:", data);
         const hasIsDeletedFlag = data.some(exp => exp.isDeleted === true);
@@ -176,11 +173,9 @@ export default function ExpensesTable() {
         setFilteredExpenses(data);
       }
       
-      // Extract and sort available years
       const years = [...new Set(data.map(exp => new Date(exp.date).getFullYear()))];
       setAvailableYears(years.sort((a, b) => b - a));
       
-      // Extract unique transactions for filtering
       const transactions = data
         .filter(exp => exp.transaction)
         .map(exp => ({
@@ -196,8 +191,6 @@ export default function ExpensesTable() {
     } catch (error) {
       console.error("Error fetching expenses:", error);
       toast.error(`Failed to load expenses: ${error instanceof Error ? error.message : "Unknown error"}`);
-      
-      // Set empty arrays as fallback
       if (viewMode === "active") {
         setExpenses([]);
         setFilteredExpenses([]);
@@ -208,11 +201,11 @@ export default function ExpensesTable() {
     } finally {
       setLoading(false);
     }
-  }, [viewMode]); // Add dependencies for useCallback
+  }, [viewMode]);
 
   useEffect(() => {
     fetchExpenses();
-  }, [viewMode, fetchExpenses]); // Added fetchExpenses to dependency array
+  }, [viewMode, fetchExpenses]);
 
   // Filtering and Sorting Logic
   useEffect(() => {
@@ -245,19 +238,19 @@ export default function ExpensesTable() {
     if (sortField && sortDirection) {
       result.sort((a, b) => {
         if (sortField === 'date') {
-          const dateA = new Date(a[sortField]);
-          const dateB = new Date(b[sortField]);
-          return sortDirection === 'asc' 
-            ? dateA.getTime() - dateB.getTime() 
+          const dateA = new Date(a.date);
+          const dateB = new Date(b.date);
+          return sortDirection === 'asc'
+            ? dateA.getTime() - dateB.getTime()
             : dateB.getTime() - dateA.getTime();
         } else if (sortField === 'amount') {
-          return sortDirection === 'asc' 
-            ? a[sortField] - b[sortField] 
+          return sortDirection === 'asc'
+            ? a[sortField] - b[sortField]
             : b[sortField] - a[sortField];
         } else if (sortField === 'transactionId') {
           const valueA = a.transaction?.name || "";
           const valueB = b.transaction?.name || "";
-          return sortDirection === 'asc' 
+          return sortDirection === 'asc'
             ? valueA.localeCompare(valueB)
             : valueB.localeCompare(valueA);
         } else if (sortField === 'createdBy') {
@@ -267,8 +260,8 @@ export default function ExpensesTable() {
         } else {
           const valueA = String(a[sortField] || "").toLowerCase();
           const valueB = String(b[sortField] || "").toLowerCase();
-          return sortDirection === 'asc' 
-            ? valueA.localeCompare(valueB) 
+          return sortDirection === 'asc'
+            ? valueA.localeCompare(valueB)
             : valueB.localeCompare(valueA);
         }
       });
@@ -277,7 +270,7 @@ export default function ExpensesTable() {
     setFilteredExpenses(result);
   }, [expenses, deletedExpenses, sortField, sortDirection, dateFilter, categoryFilter, transactionFilter, viewMode]);
 
-  // Search and Filtering Handlers
+  // Search function
   const handleSearch = () => {
     if (!searchTerm.trim()) {
       setSearchResults([]);
@@ -298,9 +291,9 @@ export default function ExpensesTable() {
     
     setSearchResults(results);
     setShowSearchResults(true);
-  }
+  };
 
-  // Utility Functions
+  // Sort handler
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       if (sortDirection === "asc") {
@@ -354,7 +347,6 @@ export default function ExpensesTable() {
     });
   };
 
-  // Format datetime for audit display
   const formatDateTime = (dateString: string | undefined) => {
     if (!dateString) return "-";
     const date = new Date(dateString);
@@ -375,7 +367,6 @@ export default function ExpensesTable() {
     }
 
     try {
-      // Show a loading message
       toast.loading("Archiving expense...", { id: "deleteExpense" });
 
       const res = await fetchWithAuth("/api/expenses/softDelete", {
@@ -394,12 +385,10 @@ export default function ExpensesTable() {
 
       toast.success("Expense moved to archive", { id: "deleteExpense" });
       
-      // Remove from active expenses list
       if (viewMode === "active") {
         setExpenses(prev => prev.filter(exp => exp.id !== expenseToDelete.id));
         setFilteredExpenses(prev => prev.filter(exp => exp.id !== expenseToDelete.id));
       } else {
-        // Refresh the deleted expenses list
         fetchExpenses();
       }
       
@@ -418,7 +407,6 @@ export default function ExpensesTable() {
     if (!expenseToRestore) return;
 
     try {
-      // Show a loading message
       toast.loading("Restoring expense...", { id: "restoreExpense" });
 
       const res = await fetchWithAuth("/api/expenses/restore", {
@@ -437,7 +425,6 @@ export default function ExpensesTable() {
 
       toast.success("Expense restored successfully", { id: "restoreExpense" });
       
-      // Remove from deleted expenses list
       setDeletedExpenses(prev => prev.filter(exp => exp.id !== expenseToRestore.id));
       setFilteredExpenses(prev => prev.filter(exp => exp.id !== expenseToRestore.id));
       
@@ -507,6 +494,7 @@ export default function ExpensesTable() {
                       <TableHead>Category</TableHead>
                       <TableHead>Description</TableHead>
                       <TableHead>Amount</TableHead>
+                      <TableHead>Fund Type</TableHead> {/* NEW column */}
                       <TableHead>Transaction</TableHead>
                       <TableHead>Date</TableHead>
                       <TableHead>Created By</TableHead>
@@ -518,6 +506,7 @@ export default function ExpensesTable() {
                         <TableCell className="font-medium">{exp.category}</TableCell>
                         <TableCell>{exp.description}</TableCell>
                         <TableCell>Rp{formatRupiah(exp.amount)}</TableCell>
+                        <TableCell>{exp.fundType || "petty_cash"}</TableCell> {/* NEW cell */}
                         <TableCell>{exp.transaction?.name || "—"}</TableCell>
                         <TableCell>{formatDate(exp.date)}</TableCell>
                         <TableCell>{exp.createdBy?.name || "Unknown"}</TableCell>
@@ -542,7 +531,7 @@ export default function ExpensesTable() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Categories</SelectItem>
-                {["gaji", "bonus", "Pembelian", "lembur", "produksi"].map(category => (
+                {["Gaji", "Bonus", "Inventaris", "Operasional", "Lembur", "Biaya Produksi"].map(category => (
                   <SelectItem key={category} value={category}>{category}</SelectItem>
                 ))}
               </SelectContent>
@@ -582,7 +571,6 @@ export default function ExpensesTable() {
         </div>
       </div>
 
-      {/* Loading indicator */}
       {loading && (
         <div className="flex items-center justify-center py-8">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -626,6 +614,7 @@ export default function ExpensesTable() {
                   Amount {getSortIcon('amount')}
                 </Button>
               </TableHead>
+              <TableHead>Fund Type</TableHead> {/* NEW header */}
               <TableHead>
                 <Button 
                   variant="ghost" 
@@ -660,13 +649,14 @@ export default function ExpensesTable() {
           <TableBody>
             {filteredExpenses.map((exp) => (
               <TableRow key={exp.id} className={exp.isDeleted ? "bg-gray-50" : ""}>
-                <TableCell>
+                <TableCell className="font-medium">
                   <span className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
                     {exp.category}
                   </span>
                 </TableCell>
                 <TableCell>{exp.description}</TableCell>
                 <TableCell className="font-medium">Rp{formatRupiah(exp.amount)}</TableCell>
+                <TableCell>{exp.fundType || "petty_cash"}</TableCell> {/* NEW cell */}
                 <TableCell>
                   {exp.transaction ? (
                     <TooltipProvider>
@@ -739,7 +729,6 @@ export default function ExpensesTable() {
                 <TableCell>
                   <div className="flex gap-1">
                     {viewMode === "active" ? (
-                      // Actions for active expenses
                       <>
                         <UpdateExpenseDialog
                           expense={exp}
@@ -759,7 +748,6 @@ export default function ExpensesTable() {
                         </Button>
                       </>
                     ) : (
-                      // Actions for archived expenses
                       <Button
                         variant="outline"
                         size="sm"
@@ -779,7 +767,7 @@ export default function ExpensesTable() {
             ))}
             {filteredExpenses.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-6">
+                <TableCell colSpan={9} className="text-center py-6">
                   {(dateFilter.year !== null || categoryFilter !== null || transactionFilter !== null) 
                     ? "No expenses found for the selected filters." 
                     : viewMode === "active"
@@ -798,11 +786,11 @@ export default function ExpensesTable() {
           <DialogHeader>
             <DialogTitle>Confirm Archive</DialogTitle>
             <DialogDescription>
-              This expense will be archived and won&apos;t appear in the active expenses list.
+              This expense will be archived and won't appear in the active expenses list.
               You can restore it from the archive view if needed.
             </DialogDescription>
           </DialogHeader>
-          <p className="mb-2">Type &quot;DELETE&quot; to confirm.</p>
+          <p className="mb-2">Type "DELETE" to confirm.</p>
           <Input
             value={confirmDeleteText}
             onChange={(e) => setConfirmDeleteText(e.target.value)}

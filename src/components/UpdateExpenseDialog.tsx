@@ -6,7 +6,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Edit2, Loader2, Link as LinkIcon, Save } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { fetchWithAuth } from "@/lib/api"; // Import the authentication utility
+import { fetchWithAuth } from "@/lib/api";
 
 interface Expense {
   id: string;
@@ -28,6 +28,7 @@ interface Expense {
   description: string | null;
   date: string;
   paymentProofLink?: string | null;
+  fundType?: string;
 }
 
 interface UpdateExpenseDialogProps {
@@ -41,24 +42,32 @@ export default function UpdateExpenseDialog({ expense, onExpenseUpdated }: Updat
     category: expense.category,
     amount: expense.amount.toString(),
     description: expense.description || "",
-    date: new Date(expense.date).toISOString().split('T')[0],
+    date: new Date(expense.date).toISOString().split("T")[0],
     paymentProofLink: expense.paymentProofLink || "",
+    fundType: expense.fundType || "petty_cash", // Field baru: fundType
   });
   const [confirmText, setConfirmText] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   const expenseCategories: string[] = [
-    "gaji",
-    "bonus",
-    "Pembelian",
-    "lembur",
-    "produksi",
+    "Gaji",
+    "Bonus",
+    "Inventaris",
+    "Operasional",
+    "Lembur",
+    "Biaya Produksi",
   ];
 
-  // Simple URL validator
+  // Opsi untuk Fund Type
+  const fundTypeOptions = [
+    { label: "Petty Cash", value: "petty_cash" },
+    { label: "Profit Bank", value: "profit_bank" },
+  ];
+
+  // Validator URL sederhana
   const isValidURL = (string: string) => {
-    if (!string) return true; // Empty is valid (optional field)
+    if (!string) return true; // Kosong dianggap valid (opsional)
     try {
       new URL(string);
       return true;
@@ -82,7 +91,6 @@ export default function UpdateExpenseDialog({ expense, onExpenseUpdated }: Updat
       errors.date = "Date is required";
     }
     
-    // Validate payment proof link format if provided
     if (formData.paymentProofLink && !isValidURL(formData.paymentProofLink)) {
       errors.paymentProofLink = "Please enter a valid URL";
     }
@@ -94,8 +102,6 @@ export default function UpdateExpenseDialog({ expense, onExpenseUpdated }: Updat
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    
-    // Clear any error for this field
     if (formErrors[name]) {
       setFormErrors(prev => {
         const newErrors = { ...prev };
@@ -114,6 +120,10 @@ export default function UpdateExpenseDialog({ expense, onExpenseUpdated }: Updat
         return newErrors;
       });
     }
+  };
+
+  const handleFundTypeChange = (value: string) => {
+    setFormData(prev => ({ ...prev, fundType: value }));
   };
 
   const confirmUpdateExpense = async () => {
@@ -136,9 +146,9 @@ export default function UpdateExpenseDialog({ expense, onExpenseUpdated }: Updat
         description: formData.description || null,
         date: new Date(formData.date).toISOString(),
         paymentProofLink: formData.paymentProofLink || null,
+        fundType: formData.fundType, // Sertakan field baru ini
       };
 
-      // Use fetchWithAuth instead of fetch
       const res = await fetchWithAuth("/api/expenses/update", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -177,10 +187,7 @@ export default function UpdateExpenseDialog({ expense, onExpenseUpdated }: Updat
         <div className="space-y-4 mt-2">
           <div>
             <label className="text-sm font-medium">Category</label>
-            <Select 
-              value={formData.category} 
-              onValueChange={handleCategoryChange}
-            >
+            <Select value={formData.category} onValueChange={handleCategoryChange}>
               <SelectTrigger className={formErrors.category ? "border-red-500" : ""}>
                 <SelectValue placeholder="Select Expense Category" />
               </SelectTrigger>
@@ -231,7 +238,6 @@ export default function UpdateExpenseDialog({ expense, onExpenseUpdated }: Updat
             {formErrors.date && <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>}
           </div>
           
-          {/* Payment Proof Link Field */}
           <div>
             <div className="flex items-center">
               <LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -253,8 +259,25 @@ export default function UpdateExpenseDialog({ expense, onExpenseUpdated }: Updat
             </p>
           </div>
           
+          {/* NEW: Field untuk Fund Type */}
+          <div>
+            <label className="text-sm font-medium">Fund Type</label>
+            <Select value={formData.fundType} onValueChange={handleFundTypeChange}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select Fund Type" />
+              </SelectTrigger>
+              <SelectContent>
+                {fundTypeOptions.map(option => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
           <div className="mt-4">
-            <p className="mb-2">Type &quot;UPDATE&quot; to confirm expense changes.</p>
+            <p className="mb-2">Type "UPDATE" to confirm expense changes.</p>
             <Input
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}

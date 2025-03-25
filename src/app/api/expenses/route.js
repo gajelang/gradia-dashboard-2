@@ -68,30 +68,26 @@ export async function GET(request) {
 // Handler for creating expenses
 export async function POST(request) {
   try {
-    // Verify authentication
     const authResult = await verifyAuthToken(request);
     if (!authResult.isAuthenticated) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
-    
-    // Extract expense data
     const { 
       category, 
       amount, 
       description, 
       date, 
       paymentProofLink,
-      transactionId
+      transactionId,
+      fundType  // NEW field
     } = body;
 
-    // Validate required fields
     if (!category || !amount || !date) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Create the expense
     const expense = await prisma.expense.create({
       data: {
         category,
@@ -99,29 +95,23 @@ export async function POST(request) {
         description: description || null,
         date: new Date(date),
         paymentProofLink: paymentProofLink || null,
+        fundType: fundType || undefined,  // if not provided, default in schema is used
         isDeleted: false,
         transactionId: transactionId || null,
         createdById: authResult.user?.userId || null
       }
     });
     
-    // If expense is linked to a transaction, update the transaction's capitalCost
     if (transactionId) {
-      // Find all expenses for this transaction
       const transactionExpenses = await prisma.expense.findMany({
         where: {
           transactionId: transactionId,
-          isDeleted: false // Only count active expenses
+          isDeleted: false
         }
       });
       
-      // Calculate total expenses
-      const totalExpenses = transactionExpenses.reduce(
-        (sum, exp) => sum + (exp.amount || 0), 
-        0
-      );
+      const totalExpenses = transactionExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
       
-      // Update transaction with new capitalCost
       await prisma.transaction.update({
         where: { id: transactionId },
         data: { capitalCost: totalExpenses }
@@ -141,7 +131,6 @@ export async function POST(request) {
 // Update expense handler
 export async function PATCH(request) {
   try {
-    // Verify authentication
     const authResult = await verifyAuthToken(request);
     if (!authResult.isAuthenticated) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -153,45 +142,49 @@ export async function PATCH(request) {
     if (!id) {
       return NextResponse.json({ error: 'Expense ID is required' }, { status: 400 });
     }
-
-    // Get original expense to check if it was linked to a transaction
+    
     const originalExpense = await prisma.expense.findUnique({
       where: { id },
       select: { transactionId: true, amount: true }
     });
 
-    // Add updatedById and updatedAt to the update data
     updateData.updatedById = authResult.user?.userId || null;
     updateData.updatedAt = new Date();
 
-    // Make sure amount is parsed if provided
     if (updateData.amount) {
       updateData.amount = parseFloat(updateData.amount);
     }
+    
+    if (updateData.fundType !== undefined) {
+      updateData.fundType = updateData.fundType;
+    }
 
-    // Update the expense
     const updatedExpense = await prisma.expense.update({
       where: { id },
-      data: updateData
+      data: updateData,
+      include: {
+        transaction: {
+          select: { id: true, name: true }
+        },
+        createdBy: {
+          select: { id: true, name: true, email: true }
+        },
+        updatedBy: {
+          select: { id: true, name: true, email: true }
+        }
+      }
     });
-
-    // If expense is linked to a transaction, update the transaction's capitalCost
+    
     if (originalExpense?.transactionId) {
-      // Find all expenses for this transaction
       const transactionExpenses = await prisma.expense.findMany({
         where: {
           transactionId: originalExpense.transactionId,
-          isDeleted: false // Only count active expenses
+          isDeleted: false
         }
       });
       
-      // Calculate total expenses
-      const totalExpenses = transactionExpenses.reduce(
-        (sum, exp) => sum + (exp.amount || 0), 
-        0
-      );
+      const totalExpenses = transactionExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
       
-      // Update transaction with new capitalCost
       await prisma.transaction.update({
         where: { id: originalExpense.transactionId },
         data: { capitalCost: totalExpenses }

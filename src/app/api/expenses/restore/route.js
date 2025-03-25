@@ -1,98 +1,94 @@
+// file: app/api/expenses/restore/route.js
 import { PrismaClient } from "@prisma/client";
 import { verifyAuthToken } from "@/lib/auth";
 import { createSafeResponse } from "@/lib/api";
 
 const prisma = new PrismaClient();
 
-export async function POST(req) {
-  // Verify auth token
-  const { isAuthenticated, user } = await verifyAuthToken(req);
+export async function POST(request) {
+  // Verify the auth token
+  const { isAuthenticated, user } = await verifyAuthToken(request);
   
   if (!isAuthenticated) {
     return createSafeResponse({ message: "Unauthorized" }, 401);
   }
   
   try {
-    const { id, restoredBy } = await req.json();
+    const { id, restoredBy } = await request.json();
     
     if (!id) {
-      return createSafeResponse({ message: "Transaction ID is required" }, 400);
+      return createSafeResponse({ message: "Expense ID is required" }, 400);
     }
 
-    // Find the transaction to ensure it exists and is deleted
-    const transaction = await prisma.transaction.findUnique({
+    // Find the expense to ensure it exists and is deleted
+    const expense = await prisma.expense.findUnique({
       where: { id }
     });
     
-    if (!transaction) {
-      return createSafeResponse({ message: "Transaction not found" }, 404);
+    if (!expense) {
+      return createSafeResponse({ message: "Expense not found" }, 404);
     }
     
-    if (!transaction.isDeleted) {
-      return createSafeResponse({ message: "Transaction is not archived" }, 400);
+    // Check if the expense is already active
+    if (!expense.isDeleted) {
+      return createSafeResponse({ message: "Expense is already active" }, 400);
     }
 
-    // Start a transaction to handle both the transaction and its expenses
-    const result = await prisma.$transaction(async (tx) => {
-      // 1. Restore the transaction
-      const updatedTransaction = await tx.transaction.update({
-        where: { id },
-        data: {
-          isDeleted: false,
-          deletedAt: null,
-          deletedById: null,
-          updatedAt: new Date(),
-          updatedById: restoredBy || user?.userId
-        }
-      });
-      
-      // 2. Find and restore all connected expenses that were deleted at the same time
-      // Note: This will only restore expenses that were archived with the transaction
-      const transactionDeletedAt = transaction.deletedAt;
-      
-      if (transactionDeletedAt) {
-        // Get the timestamp minus/plus 1 second to account for slight timing differences
-        const minTime = new Date(transactionDeletedAt.getTime() - 1000);
-        const maxTime = new Date(transactionDeletedAt.getTime() + 1000);
-        
-        const restoredExpenses = await tx.expense.updateMany({
-          where: { 
-            transactionId: id,
-            isDeleted: true,
-            deletedAt: {
-              gte: minTime,
-              lte: maxTime
-            }
-          },
-          data: {
-            isDeleted: false,
-            deletedAt: null,
-            deletedById: null,
-            updatedAt: new Date(),
-            updatedById: restoredBy || user?.userId
-          }
+    // Restore the expense
+    const updatedExpense = await prisma.expense.update({
+      where: { id },
+      data: {
+        isDeleted: false,
+        deletedAt: null,
+        deletedById: null,
+        updatedAt: new Date(),
+        updatedById: restoredBy || user?.userId
+      }
+    });
+    
+    // If the expense is associated with a transaction, recalculate the capital cost
+    if (expense.transactionId) {
+      try {
+        // Check if the transaction exists
+        const transaction = await prisma.transaction.findUnique({
+          where: { id: expense.transactionId }
         });
         
-        return { 
-          transaction: updatedTransaction, 
-          restoredExpensesCount: restoredExpenses.count 
-        };
+        if (transaction) {
+          // Find all active expenses for this transaction (including the newly restored one)
+          const activeExpenses = await prisma.expense.findMany({
+            where: {
+              transactionId: expense.transactionId,
+              isDeleted: false
+            }
+          });
+          
+          // Calculate the new total expenses (capital cost)
+          const newCapitalCost = activeExpenses.reduce(
+            (sum, exp) => sum + (exp.amount || 0), 
+            0
+          );
+          
+          // Update the transaction with the new capital cost
+          await prisma.transaction.update({
+            where: { id: expense.transactionId },
+            data: { capitalCost: newCapitalCost }
+          });
+        }
+      } catch (transactionError) {
+        console.error("Error updating transaction capital cost:", transactionError);
+        // Continue even if transaction update fails - don't block the expense restoration
       }
-      
-      return { 
-        transaction: updatedTransaction, 
-        restoredExpensesCount: 0 
-      };
-    });
+    }
 
     return createSafeResponse({ 
-      message: `Transaction restored successfully along with ${result.restoredExpensesCount} related expenses`,
-      transaction: result.transaction
+      message: "Expense restored successfully",
+      expense: updatedExpense
     });
   } catch (error) {
-    console.error("Error in restore transaction:", error);
+    console.error("Error in expense restore:", error);
     return createSafeResponse({ 
-      message: "Failed to restore transaction", 
+      message: "Failed to restore expense", 
       error: error instanceof Error ? error.message : String(error) 
     }, 500);
   }

@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import AddTransactionModal from "@/components/AddTransactionModal"
 import InsightCards from "@/components/InsightCards"
-import { IncomeExpensesChart } from "@/components/charts/income-expenses-chart"
-import RecentTransactions from "@/components/recent-transactions"
+import { TransactionProfitabilityCard } from "@/components/TransactionProfitabilityCard"
+import OperationalCostAnalysis from "@/components/OperationalCostAnalysis"
+import TopExpenseCategories from "@/components/TopExpenseCategories"
 import TransactionTable from "@/components/TransactionTable"
 import ExpensesTable from "@/components/ExpensesTable"
 import ResourcesTab from "@/components/ResourceTab"
@@ -16,6 +17,7 @@ import InvoiceCreator from "@/components/InvoiceCreator"
 import ProjectCalendar from "@/components/ProjectCalendar"
 import DashboardHeader from "@/components/dashboard-header"
 import FinancialAnalysis from "@/components/FinanceAnalysis"
+import CompanyFinance from "@/components/CompanyFinance"
 import { useAuth } from "@/contexts/AuthContext"
 import { fetchWithAuth } from "@/lib/api"
 import { toast } from "react-hot-toast"
@@ -116,40 +118,58 @@ export default function Dashboard() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
-            <TabsTrigger value="analysis">Financial Analysis</TabsTrigger>
+            <TabsTrigger value="analysis">Project Financial</TabsTrigger>
+            <TabsTrigger value="company-finance">Company Finance</TabsTrigger>
             <TabsTrigger value="resources">Resources</TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="space-y-4">
             <InsightCards onDateRangeChange={handleDateRangeChange} />
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-              <div className="col-span-4">
-                <h3 className="text-lg font-semibold mb-2">Income vs Expenses</h3>
-                <IncomeExpensesChart selectedRange={getChartDateRange()} />
+            
+            {/* Transaction Profitability Card (Full Width) */}
+            <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-1">
+              <TransactionProfitabilityCard />
+            </div>
+            
+            {/* TopExpenseCategories and OperationalCostAnalysis Side by Side */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+              <div>
+                <TopExpenseCategories 
+                  currentPeriod={getChartDateRange()} 
+                  limit={5} 
+                />
               </div>
-              <div className="col-span-3">
-                <h3 className="text-lg font-semibold mb-2">Recent Transactions</h3>
-                {isLoading ? (
-                  <div className="flex items-center justify-center h-56 bg-gray-50 rounded-md">
-                    <div className="text-gray-500">Loading transactions...</div>
-                  </div>
-                ) : (
-                  <RecentTransactions transactions={transactions} />
-                )}
+              <div>
+                <OperationalCostAnalysis 
+                  currentPeriod={getChartDateRange()} 
+                />
               </div>
             </div>
-            <div className="mt-6">
+            
+            {/* ProjectCalendar Full Width Below */}
+            <div className="mt-4">
               <ProjectCalendar />
             </div>
           </TabsContent>
+          
           <TabsContent value="projects" className="space-y-4">
             <TransactionTable />
           </TabsContent>
+          
           <TabsContent value="expenses" className="space-y-4">
             <ExpensesTable />
           </TabsContent>
+          
           <TabsContent value="analysis" className="space-y-4">
             <FinancialAnalysis />
+            <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-1">
+              <TransactionProfitabilityCard />
+            </div>
           </TabsContent>
+          
+          <TabsContent value="company-finance" className="space-y-4">
+            <CompanyFinance />
+          </TabsContent>
+          
           <TabsContent value="resources" className="space-y-4">
             <ResourcesTab />
           </TabsContent>

@@ -41,7 +41,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-type TransactionType = 'transaction' | 'expense';
+type TransactionType = "transaction" | "expense";
 
 interface AddTransactionModalProps {
   onTransactionAdded: (transaction: TransactionData) => void;
@@ -105,6 +105,8 @@ interface FormData {
   vendorId: string;
   picId: string;
   transactionId: string;
+  // Field baru untuk expense: fundType
+  fundType: string;
 }
 
 // Interface for new client data
@@ -138,19 +140,21 @@ interface ApiPayload {
   category?: string;
   vendorId?: string | null;
   transactionId?: string | null;
+  // Sertakan field baru jika expense
+  fundType?: string;
 }
 
 export default function AddTransactionModal({ onTransactionAdded }: AddTransactionModalProps) {
   const router = useRouter();
   const { user } = useAuth();
-  const [transactionType, setTransactionType] = useState<TransactionType>('transaction');
+  const [transactionType, setTransactionType] = useState<TransactionType>("transaction");
   const [formData, setFormData] = useState<FormData>({
     name: "",
     projectValue: "",
     email: "",
     phone: "",
     description: "",
-    date: new Date().toISOString().split('T')[0],
+    date: new Date().toISOString().split("T")[0],
     category: "",
     amount: "",
     paymentStatus: "Belum Bayar",
@@ -162,6 +166,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     vendorId: "",
     picId: "",
     transactionId: "",
+    fundType: "petty_cash", // Default untuk expense, meskipun tidak digunakan untuk transaction
   });
   const [profit, setProfit] = useState(0);
   const [remainingAmount, setRemainingAmount] = useState(0);
@@ -169,7 +174,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [showPaymentProofField, setShowPaymentProofField] = useState(true);
-  
+
   // State for clients, vendors, PICs, and transactions
   const [clients, setClients] = useState<Client[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -179,7 +184,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   const [loadingVendors, setLoadingVendors] = useState(false);
   const [loadingPics, setLoadingPics] = useState(false);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
-  
+
   // State for new client creation
   const [isNewClientSheetOpen, setIsNewClientSheetOpen] = useState(false);
   const [newClientData, setNewClientData] = useState<NewClientData>({
@@ -192,18 +197,15 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   });
 
   const expenseCategories: string[] = [
-    "gaji",
-    "bonus",
-    "Pembelian",
-    "lembur",
-    "produksi",
+    "Gaji",
+    "Bonus",
+    "Inventaris",
+    "Operasional",
+    "Lembur",
+    "Biaya Produksi",
   ];
 
-  const paymentStatusOptions: string[] = [
-    "Belum Bayar",
-    "DP",
-    "Lunas",
-  ];
+  const paymentStatusOptions: string[] = ["Belum Bayar", "DP", "Lunas"];
 
   // Calculate profit and remaining amount
   useEffect(() => {
@@ -224,7 +226,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
         const res = await fetchWithAuth("/api/expenses", { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
-          if (data.length === 0 || data.some((exp: Record<string, unknown>) => 'paymentProofLink' in exp)) {
+          if (data.length === 0 || data.some((exp: Record<string, unknown>) => "paymentProofLink" in exp)) {
             setShowPaymentProofField(true);
           } else {
             console.log("paymentProofLink field not found in expenses, hiding field");
@@ -244,7 +246,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       fetchClients();
       fetchVendors();
       fetchPics();
-      if (transactionType === 'expense') {
+      if (transactionType === "expense") {
         fetchTransactions();
       }
     }
@@ -327,7 +329,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       email: "",
       phone: "",
       description: "",
-      date: new Date().toISOString().split('T')[0],
+      date: new Date().toISOString().split("T")[0],
       category: "",
       amount: "",
       paymentStatus: "Belum Bayar",
@@ -339,6 +341,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       vendorId: "",
       picId: "",
       transactionId: "",
+      fundType: "petty_cash", // Reset fundType to default
     });
     setProfit(0);
     setRemainingAmount(0);
@@ -360,7 +363,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (formErrors[name]) {
-      setFormErrors(prev => {
+      setFormErrors((prev) => {
         const newErrors = { ...prev };
         delete newErrors[name];
         return newErrors;
@@ -369,19 +372,21 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   };
 
   const handlePaymentStatusChange = (value: string) => {
-    setFormData(prev => ({ ...prev, paymentStatus: value }));
+    setFormData((prev) => ({ ...prev, paymentStatus: value }));
     if (value !== "DP") {
-      setFormData(prev => ({ ...prev, downPaymentAmount: "" }));
+      setFormData((prev) => ({ ...prev, downPaymentAmount: "" }));
     }
   };
 
   const handleClientChange = (value: string) => {
-    setFormData(prev => ({ ...prev, clientId: value === "none" ? "" : value }));
+    setFormData((prev) => ({ ...prev, clientId: value === "none" ? "" : value }));
     if (value && value !== "none") {
-      const selectedClient = clients.find(client => client.id === value);
+      const selectedClient = clients.find((client) => client.id === value);
       if (selectedClient) {
-        setFormData(prev => ({
+        setFormData((prev) => ({
           ...prev,
+          // Otomatis isi Transaction Name dengan nama client
+          name: selectedClient.name,
           email: selectedClient.email || prev.email,
           phone: selectedClient.phone || prev.phone,
         }));
@@ -390,21 +395,21 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   };
 
   const handleVendorChange = (value: string) => {
-    setFormData(prev => ({ ...prev, vendorId: value === "none" ? "" : value }));
+    setFormData((prev) => ({ ...prev, vendorId: value === "none" ? "" : value }));
   };
 
   const handlePicChange = (value: string) => {
-    setFormData(prev => ({ ...prev, picId: value === "none" ? "" : value }));
+    setFormData((prev) => ({ ...prev, picId: value === "none" ? "" : value }));
   };
 
   const handleTransactionChange = (value: string) => {
-    setFormData(prev => ({ ...prev, transactionId: value === "none" ? "" : value }));
+    setFormData((prev) => ({ ...prev, transactionId: value === "none" ? "" : value }));
   };
 
   const handleCategoryChange = (value: string) => {
-    setFormData(prev => ({ ...prev, category: value }));
+    setFormData((prev) => ({ ...prev, category: value }));
     if (formErrors.category) {
-      setFormErrors(prev => {
+      setFormErrors((prev) => {
         const newErrors = { ...prev };
         delete newErrors.category;
         return newErrors;
@@ -414,7 +419,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
 
   const handleNewClientChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setNewClientData(prev => ({ ...prev, [name]: value }));
+    setNewClientData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleCreateClient = async () => {
@@ -427,15 +432,15 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
         method: "POST",
         body: JSON.stringify({
           ...newClientData,
-          createdById: user?.userId
+          createdById: user?.userId,
         }),
       });
       if (!res.ok) {
         throw new Error("Failed to create client");
       }
       const newClient = await res.json();
-      setClients(prev => [...prev, newClient]);
-      setFormData(prev => ({
+      setClients((prev) => [...prev, newClient]);
+      setFormData((prev) => ({
         ...prev,
         clientId: newClient.id,
         email: newClientData.email || prev.email,
@@ -452,7 +457,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
-    if (transactionType === 'transaction') {
+    if (transactionType === "transaction") {
       if (!formData.name.trim()) errors.name = "Transaction name is required";
       if (!formData.projectValue) errors.projectValue = "Project value is required";
       if (!formData.date) errors.date = "Date is required";
@@ -468,7 +473,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       }
     } else {
       if (!formData.category) errors.category = "Category is required";
-      if (!formData.amount || parseFloat(formData.amount) <= 0) 
+      if (!formData.amount || parseFloat(formData.amount) <= 0)
         errors.amount = "Valid expense amount is required";
       if (!formData.date) errors.date = "Date is required";
     }
@@ -499,7 +504,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     try {
       let payload: ApiPayload = {};
       let apiEndpoint;
-      if (transactionType === 'transaction') {
+      if (transactionType === "transaction") {
         let revenueAmount = 0;
         if (formData.paymentStatus === "Lunas") {
           revenueAmount = profit;
@@ -507,7 +512,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           revenueAmount = parseFloat(formData.downPaymentAmount) || 0;
         }
         payload = {
-          name: formData.name || "Transaction", 
+          name: formData.name || "Transaction",
           projectValue: parseFloat(formData.projectValue) || 0,
           totalProfit: profit,
           amount: revenueAmount,
@@ -535,6 +540,8 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
           vendorId: formData.vendorId || null,
           transactionId: formData.transactionId || null,
+          // Sertakan field fundType untuk expense
+          fundType: formData.fundType || "petty_cash",
         };
         if (showPaymentProofField && formData.paymentProofLink) {
           payload.paymentProofLink = formData.paymentProofLink;
@@ -547,7 +554,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       const res = await fetchWithAuth(apiEndpoint, {
         method: "POST",
         body: JSON.stringify(payload),
-        signal: controller.signal
+        signal: controller.signal,
       });
       clearTimeout(timeoutId);
       if (!res.ok) {
@@ -568,25 +575,25 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       } catch (jsonError) {
         console.error("Failed to parse server response:", jsonError);
       }
-      const transactionData = 
-        (responseData?.transaction as TransactionData) || 
-        (responseData?.expense as TransactionData) || 
-        responseData as unknown as TransactionData || 
-        payload as unknown as TransactionData;
+      const transactionData =
+        (responseData?.transaction as TransactionData) ||
+        (responseData?.expense as TransactionData) ||
+        (responseData as unknown as TransactionData) ||
+        (payload as unknown as TransactionData);
       if (user) {
         transactionData.createdBy = {
           id: user.userId,
           name: user.name,
-          email: user.email
+          email: user.email,
         };
       }
       onTransactionAdded(transactionData);
-      toast.success(`${transactionType === 'transaction' ? 'Transaction' : 'Expense'} added successfully!`);
+      toast.success(`${transactionType === "transaction" ? "Transaction" : "Expense"} added successfully!`);
       resetForm();
       setIsOpen(false);
     } catch (error) {
-      console.error('Error adding transaction/expense:', error);
-      toast.error(`Failed to add ${transactionType}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error("Error adding transaction/expense:", error);
+      toast.error(`Failed to add ${transactionType}: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -596,22 +603,26 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     <>
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogTrigger asChild>
-          <Button onClick={() => {
-            resetForm();
-            setIsOpen(true);
-          }}>Add New Entry</Button>
+          <Button
+            onClick={() => {
+              resetForm();
+              setIsOpen(true);
+            }}
+          >
+            Add New Entry
+          </Button>
         </DialogTrigger>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden">
           <DialogTitle>Add New Entry</DialogTitle>
           <DialogDescription>Choose entry type and fill in details.</DialogDescription>
-          
+
           <div className="mb-4">
-            <Select 
-              value={transactionType} 
+            <Select
+              value={transactionType}
               onValueChange={(value: TransactionType) => {
                 setTransactionType(value);
                 resetForm();
-                if (value === 'expense') {
+                if (value === "expense") {
                   fetchTransactions();
                 }
               }}
@@ -627,450 +638,515 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           </div>
 
           <ScrollArea className="h-[calc(90vh-180px)] pr-4">
-            <form onSubmit={handleSubmit}>
-              {transactionType === 'transaction' ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium mb-1 block">Transaction Name</label>
-                        <Input
-                          name="name"
-                          value={formData.name}
-                          onChange={handleChange}
-                          placeholder="Transaction Name"
-                          required
-                          className={formErrors.name ? "border-red-500" : ""}
-                        />
-                        {formErrors.name && <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>}
-                      </div>
-                      
-                      <div>
-                        <label className="text-sm font-medium mb-1 block">Project Value</label>
-                        <Input
-                          name="projectValue"
-                          type="number"
-                          min="0"
-                          value={formData.projectValue}
-                          onChange={handleChange}
-                          placeholder="Total Project Value"
-                          required
-                          className={formErrors.projectValue ? "border-red-500" : ""}
-                        />
-                        {formErrors.projectValue && <p className="text-red-500 text-xs mt-1">{formErrors.projectValue}</p>}
-                      </div>
-                      
-                      <div className={formErrors.profit ? "text-red-500" : ""}>
-                        <label className="text-sm font-medium mb-1 block">Total Profit</label>
-                        <div className="p-2 bg-gray-50 rounded border">
-                          Rp{formatRupiah(profit)}
-                        </div>
-                        {formErrors.profit && <p className="text-red-500 text-xs mt-1">{formErrors.profit}</p>}
-                      </div>
-                      
-                      <div>
-                        <label className="text-sm font-medium mb-1 block">Payment Status</label>
-                        <Select
-                          name="paymentStatus"
-                          value={formData.paymentStatus}
-                          onValueChange={handlePaymentStatusChange}
-                          required
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select Payment Status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {paymentStatusOptions.map((status) => (
-                              <SelectItem key={status} value={status}>
-                                {status}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      {formData.paymentStatus === "DP" && (
-                        <div>
-                          <label className="text-sm font-medium mb-1 block">Down Payment Amount</label>
-                          <Input
-                            name="downPaymentAmount"
-                            type="number"
-                            min="0"
-                            max={profit.toString()}
-                            value={formData.downPaymentAmount}
-                            onChange={handleChange}
-                            placeholder="Down Payment Amount"
-                            required
-                            className={formErrors.downPaymentAmount ? "border-red-500" : ""}
-                          />
-                          {formErrors.downPaymentAmount && <p className="text-red-500 text-xs mt-1">{formErrors.downPaymentAmount}</p>}
-                          
-                          {parseFloat(formData.downPaymentAmount) > 0 && (
-                            <div className="mt-2 text-sm">
-                              <p>Remaining Amount: Rp{formatRupiah(remainingAmount)}</p>
-                            </div>
-                          )}
-                        </div>
-                      )}
+  {/* Mulai form */}
+  <form onSubmit={handleSubmit}>
+    {transactionType === "transaction" ? (
+      // ---------------------
+      // FORM UNTUK TRANSACTION
+      // ---------------------
+      <div className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Kolom kiri */}
+          <div className="space-y-4">
+            {/* Transaction Name */}
+            <div>
+              <label className="text-sm font-medium mb-1 block">Transaction Name</label>
+              <Input
+                name="name"
+                value={formData.name}
+                onChange={handleChange}
+                placeholder="Transaction Name"
+                required
+                className={formErrors.name ? "border-red-500" : ""}
+              />
+              {formErrors.name && (
+                <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>
+              )}
+            </div>
 
-                      <div>
-                        <label className="text-sm font-medium mb-1 block">Client Email</label>
-                        <Input
-                          name="email"
-                          type="email"
-                          value={formData.email}
-                          onChange={handleChange}
-                          placeholder="Client Email (Optional)"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="text-sm font-medium mb-1 block">Client Phone</label>
-                        <Input
-                          name="phone"
-                          value={formData.phone}
-                          onChange={handleChange}
-                          placeholder="Client Phone Number (Optional)"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium flex justify-between items-center">
-                          <span>Client</span>
-                          <Button 
-                            type="button" 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => setIsNewClientSheetOpen(true)}
-                            className="text-blue-600 h-7 px-2"
-                          >
-                            <UserPlus className="h-4 w-4 mr-1" />
-                            New Client
-                          </Button>
-                        </label>
-                        <Select value={formData.clientId} onValueChange={handleClientChange}>
-                          <SelectTrigger>
-                            {loadingClients ? (
-                              <div className="flex items-center">
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                <span>Loading clients...</span>
-                              </div>
-                            ) : (
-                              <SelectValue placeholder="Select client" />
-                            )}
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">No client</SelectItem>
-                            {clients.map(client => (
-                              <SelectItem key={client.id} value={client.id}>
-                                {client.name} ({client.code})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium flex justify-between items-center">
-                          <span>Person In Charge (PIC)</span>
-                          <Button 
-                            type="button" 
-                            variant="ghost" 
-                            size="sm" 
-                            onClick={() => router.push('/register')}
-                            className="text-blue-600 h-7 px-2"
-                          >
-                            <User className="h-4 w-4 mr-1" />
-                            Register New User
-                          </Button>
-                        </label>
-                        <Select 
-                          value={formData.picId} 
-                          onValueChange={handlePicChange}
-                          disabled={loadingPics}
-                        >
-                          <SelectTrigger>
-                            {loadingPics ? (
-                              <div className="flex items-center">
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                <span>Loading users...</span>
-                              </div>
-                            ) : (
-                              <SelectValue placeholder="Select PIC" />
-                            )}
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">No PIC assigned</SelectItem>
-                            {pics.length > 0 ? (
-                              pics.map(pic => (
-                                <SelectItem key={pic.id} value={pic.id}>
-                                  {pic.name} {pic.role ? `(${pic.role})` : ""}
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <div className="px-2 py-1 text-sm text-muted-foreground">
-                                No eligible users found
-                              </div>
-                            )}
-                          </SelectContent>
-                        </Select>
-                        {pics.length === 0 && !loadingPics && (
-                          <p className="text-xs text-muted-foreground">
-                            No users with PIC role found. Register new users or ask an admin to assign PIC roles.
-                          </p>
-                        )}
-                      </div>
-                      
-                      <div>
-                        <label className="text-sm font-medium mb-1 block">Description</label>
-                        <Textarea
-                          name="description"
-                          value={formData.description}
-                          onChange={handleChange}
-                          placeholder="Enter transaction description"
-                          rows={3}
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="text-sm font-medium mb-1 block">Transaction Date</label>
-                        <Input
-                          name="date"
-                          type="date"
-                          value={formData.date}
-                          onChange={handleChange}
-                          required
-                          className={formErrors.date ? "border-red-500" : ""}
-                        />
-                        {formErrors.date && <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>}
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <label className="text-sm text-muted-foreground mb-1 block">Start Date</label>
-                          <Input
-                            name="startDate"
-                            type="date"
-                            value={formData.startDate}
-                            onChange={handleChange}
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <label className="text-sm text-muted-foreground mb-1 block">End Date</label>
-                          <Input
-                            name="endDate"
-                            type="date"
-                            value={formData.endDate}
-                            onChange={handleChange}
-                          />
-                        </div>
-                      </div>
-                    </div>
+            {/* Project Value */}
+            <div>
+              <label className="text-sm font-medium mb-1 block">Project Value</label>
+              <Input
+                name="projectValue"
+                type="number"
+                min="0"
+                value={formData.projectValue}
+                onChange={handleChange}
+                placeholder="Total Project Value"
+                required
+                className={formErrors.projectValue ? "border-red-500" : ""}
+              />
+              {formErrors.projectValue && (
+                <p className="text-red-500 text-xs mt-1">{formErrors.projectValue}</p>
+              )}
+            </div>
+
+            {/* Total Profit */}
+            <div className={formErrors.profit ? "text-red-500" : ""}>
+              <label className="text-sm font-medium mb-1 block">Total Profit</label>
+              <div className="p-2 bg-gray-50 rounded border">
+                Rp{formatRupiah(profit)}
+              </div>
+              {formErrors.profit && (
+                <p className="text-red-500 text-xs mt-1">{formErrors.profit}</p>
+              )}
+            </div>
+
+            {/* Payment Status */}
+            <div>
+              <label className="text-sm font-medium mb-1 block">Payment Status</label>
+              <Select
+                name="paymentStatus"
+                value={formData.paymentStatus}
+                onValueChange={handlePaymentStatusChange}
+                required
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Payment Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {paymentStatusOptions.map((status) => (
+                    <SelectItem key={status} value={status}>
+                      {status}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Down Payment (jika DP) */}
+            {formData.paymentStatus === "DP" && (
+              <div>
+                <label className="text-sm font-medium mb-1 block">Down Payment Amount</label>
+                <Input
+                  name="downPaymentAmount"
+                  type="number"
+                  min="0"
+                  max={profit.toString()}
+                  value={formData.downPaymentAmount}
+                  onChange={handleChange}
+                  placeholder="Down Payment Amount"
+                  required
+                  className={formErrors.downPaymentAmount ? "border-red-500" : ""}
+                />
+                {formErrors.downPaymentAmount && (
+                  <p className="text-red-500 text-xs mt-1">
+                    {formErrors.downPaymentAmount}
+                  </p>
+                )}
+                {parseFloat(formData.downPaymentAmount) > 0 && (
+                  <div className="mt-2 text-sm">
+                    <p>Remaining Amount: Rp{formatRupiah(remainingAmount)}</p>
                   </div>
-                  
-                  {showPaymentProofField && (
-                    <div className="space-y-2 mt-2">
-                      <div className="flex items-center">
-                        <LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-                        <label className="text-sm font-medium">Payment Proof Link (Optional)</label>
-                      </div>
-                      <Input
-                        name="paymentProofLink"
-                        type="url"
-                        value={formData.paymentProofLink}
-                        onChange={handleChange}
-                        placeholder="https://drive.google.com/file/your-receipt"
-                        className={formErrors.paymentProofLink ? "border-red-500" : ""}
-                      />
-                      {formErrors.paymentProofLink && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.paymentProofLink}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        Add link to receipt or payment confirmation (Google Drive, Dropbox, etc.)
-                      </p>
+                )}
+              </div>
+            )}
+
+            {/* Client Email */}
+            <div>
+              <label className="text-sm font-medium mb-1 block">Client Email</label>
+              <Input
+                name="email"
+                type="email"
+                value={formData.email}
+                onChange={handleChange}
+                placeholder="Client Email (Optional)"
+              />
+            </div>
+
+            {/* Client Phone */}
+            <div>
+              <label className="text-sm font-medium mb-1 block">Client Phone</label>
+              <Input
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                placeholder="Client Phone Number (Optional)"
+              />
+            </div>
+          </div>
+
+          {/* Kolom kanan */}
+          <div className="space-y-4">
+            {/* Pilih Client */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex justify-between items-center">
+                <span>Client</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsNewClientSheetOpen(true)}
+                  className="text-blue-600 h-7 px-2"
+                >
+                  <UserPlus className="h-4 w-4 mr-1" />
+                  New Client
+                </Button>
+              </label>
+              <Select value={formData.clientId} onValueChange={handleClientChange}>
+                <SelectTrigger>
+                  {loadingClients ? (
+                    <div className="flex items-center">
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <span>Loading clients...</span>
+                    </div>
+                  ) : (
+                    <SelectValue placeholder="Select client" />
+                  )}
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No client</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.name} ({client.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* PIC */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium flex justify-between items-center">
+                <span>Person In Charge (PIC)</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => router.push("/register")}
+                  className="text-blue-600 h-7 px-2"
+                >
+                  <User className="h-4 w-4 mr-1" />
+                  Register New User
+                </Button>
+              </label>
+              <Select
+                value={formData.picId}
+                onValueChange={handlePicChange}
+                disabled={loadingPics}
+              >
+                <SelectTrigger>
+                  {loadingPics ? (
+                    <div className="flex items-center">
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      <span>Loading users...</span>
+                    </div>
+                  ) : (
+                    <SelectValue placeholder="Select PIC" />
+                  )}
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No PIC assigned</SelectItem>
+                  {pics.length > 0 ? (
+                    pics.map((pic) => (
+                      <SelectItem key={pic.id} value={pic.id}>
+                        {pic.name} {pic.role ? `(${pic.role})` : ""}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="px-2 py-1 text-sm text-muted-foreground">
+                      No eligible users found
                     </div>
                   )}
+                </SelectContent>
+              </Select>
+              {pics.length === 0 && !loadingPics && (
+                <p className="text-xs text-muted-foreground">
+                  No users with PIC role found. Register new users or ask an admin to assign PIC roles.
+                </p>
+              )}
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="text-sm font-medium mb-1 block">Description</label>
+              <Textarea
+                name="description"
+                value={formData.description}
+                onChange={handleChange}
+                placeholder="Enter transaction description"
+                rows={3}
+              />
+            </div>
+
+            {/* Transaction Date */}
+            <div>
+              <label className="text-sm font-medium mb-1 block">Transaction Date</label>
+              <Input
+                name="date"
+                type="date"
+                value={formData.date}
+                onChange={handleChange}
+                required
+                className={formErrors.date ? "border-red-500" : ""}
+              />
+              {formErrors.date && (
+                <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>
+              )}
+            </div>
+
+            {/* Start / End Date */}
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-sm text-muted-foreground mb-1 block">Start Date</label>
+                <Input
+                  name="startDate"
+                  type="date"
+                  value={formData.startDate}
+                  onChange={handleChange}
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-sm text-muted-foreground mb-1 block">End Date</label>
+                <Input
+                  name="endDate"
+                  type="date"
+                  value={formData.endDate}
+                  onChange={handleChange}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Payment Proof (hanya kalau showPaymentProofField = true) */}
+        {showPaymentProofField && (
+          <div className="space-y-2 mt-2">
+            <div className="flex items-center">
+              <LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+              <label className="text-sm font-medium">Payment Proof Link (Optional)</label>
+            </div>
+            <Input
+              name="paymentProofLink"
+              type="url"
+              value={formData.paymentProofLink}
+              onChange={handleChange}
+              placeholder="https://drive.google.com/file/your-receipt"
+              className={formErrors.paymentProofLink ? "border-red-500" : ""}
+            />
+            {formErrors.paymentProofLink && (
+              <p className="text-red-500 text-xs mt-1">{formErrors.paymentProofLink}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Add link to receipt or payment confirmation (Google Drive, Dropbox, etc.)
+            </p>
+          </div>
+        )}
+      </div>
+    ) : (
+      // ------------------
+      // FORM UNTUK EXPENSE
+      // ------------------
+      <div className="space-y-4">
+        {/* Category */}
+        <div>
+          <label className="text-sm font-medium mb-1 block">Category</label>
+          <Select
+            name="category"
+            value={formData.category}
+            onValueChange={handleCategoryChange}
+            required
+          >
+            <SelectTrigger className={formErrors.category ? "border-red-500" : ""}>
+              <SelectValue placeholder="Select Expense Category" />
+            </SelectTrigger>
+            <SelectContent>
+              {expenseCategories.map((category) => (
+                <SelectItem key={category} value={category}>
+                  {category}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {formErrors.category && (
+            <p className="text-red-500 text-xs mt-1">{formErrors.category}</p>
+          )}
+        </div>
+
+        {/* Amount */}
+        <div>
+          <label className="text-sm font-medium mb-1 block">Amount</label>
+          <Input
+            name="amount"
+            type="number"
+            min="0"
+            value={formData.amount}
+            onChange={handleChange}
+            placeholder="Expense Amount"
+            required
+            className={formErrors.amount ? "border-red-500" : ""}
+          />
+          {formErrors.amount && (
+            <p className="text-red-500 text-xs mt-1">{formErrors.amount}</p>
+          )}
+        </div>
+
+        {/* Link to Transaction */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium mb-1 block">
+            Link to Transaction/Project
+          </label>
+          <Select
+            value={formData.transactionId}
+            onValueChange={handleTransactionChange}
+            disabled={loadingTransactions}
+          >
+            <SelectTrigger>
+              {loadingTransactions ? (
+                <div className="flex items-center">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <span>Loading transactions...</span>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Category</label>
-                    <Select
-                      name="category"
-                      value={formData.category}
-                      onValueChange={handleCategoryChange}
-                      required
-                    >
-                      <SelectTrigger className={formErrors.category ? "border-red-500" : ""}>
-                        <SelectValue placeholder="Select Expense Category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {expenseCategories.map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {formErrors.category && <p className="text-red-500 text-xs mt-1">{formErrors.category}</p>}
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Amount</label>
-                    <Input
-                      name="amount"
-                      type="number"
-                      min="0"
-                      value={formData.amount}
-                      onChange={handleChange}
-                      placeholder="Expense Amount"
-                      required
-                      className={formErrors.amount ? "border-red-500" : ""}
-                    />
-                    {formErrors.amount && <p className="text-red-500 text-xs mt-1">{formErrors.amount}</p>}
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium mb-1 block">Link to Transaction/Project</label>
-                    <Select
-                      value={formData.transactionId} 
-                      onValueChange={handleTransactionChange}
-                      disabled={loadingTransactions}
-                    >
-                      <SelectTrigger>
-                        {loadingTransactions ? (
-                          <div className="flex items-center">
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            <span>Loading transactions...</span>
-                          </div>
-                        ) : (
-                          <SelectValue placeholder="Select transaction (optional)" />
-                        )}
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No transaction</SelectItem>
-                        {transactions.map(transaction => (
-                          <SelectItem key={transaction.id} value={transaction.id}>
-                            {transaction.name} - Rp{formatRupiah(transaction.projectValue || 0)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Link this expense to an existing transaction/project for proper project expense tracking
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium mb-1 block">Vendor/Subcontractor</label>
-                    <Select
-                      value={formData.vendorId} 
-                      onValueChange={handleVendorChange}
-                      disabled={loadingVendors}
-                    >
-                      <SelectTrigger>
-                        {loadingVendors ? (
-                          <div className="flex items-center">
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            <span>Loading vendors...</span>
-                          </div>
-                        ) : (
-                          <SelectValue placeholder="Select vendor (optional)" />
-                        )}
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No vendor</SelectItem>
-                        {vendors.map(vendor => (
-                          <SelectItem key={vendor.id} value={vendor.id}>
-                            {vendor.name} - {vendor.serviceDesc}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Select a vendor that this expense is associated with
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Description</label>
-                    <Textarea
-                      name="description"
-                      value={formData.description}
-                      onChange={handleChange}
-                      placeholder="Enter expense description"
-                      rows={3}
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Date</label>
-                    <Input
-                      name="date"
-                      type="date"
-                      value={formData.date}
-                      onChange={handleChange}
-                      required
-                      className={formErrors.date ? "border-red-500" : ""}
-                    />
-                    {formErrors.date && <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>}
-                  </div>
-                  
-                  {showPaymentProofField && (
-                    <div className="space-y-2">
-                      <div className="flex items-center">
-                        <LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-                        <label className="text-sm font-medium">Payment Proof Link (Optional)</label>
-                      </div>
-                      <Input
-                        name="paymentProofLink"
-                        type="url"
-                        value={formData.paymentProofLink}
-                        onChange={handleChange}
-                        placeholder="https://drive.google.com/file/your-receipt"
-                        className={formErrors.paymentProofLink ? "border-red-500" : ""}
-                      />
-                      {formErrors.paymentProofLink && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.paymentProofLink}</p>
-                      )}
-                      <p className="text-xs text-muted-foreground">
-                        Add link to receipt or payment confirmation (Google Drive, Dropbox, etc.)
-                      </p>
-                    </div>
-                  )}
-                </div>
+                <SelectValue placeholder="Select transaction (optional)" />
               )}
-            </form>
-          </ScrollArea>
-          
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No transaction</SelectItem>
+              {transactions.map((transaction) => (
+                <SelectItem key={transaction.id} value={transaction.id}>
+                  {transaction.name} - Rp{formatRupiah(transaction.projectValue || 0)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Link this expense to an existing transaction/project for proper
+            project expense tracking
+          </p>
+        </div>
+
+        {/* Vendor */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium mb-1 block">Vendor/Subcontractor</label>
+          <Select
+            value={formData.vendorId}
+            onValueChange={handleVendorChange}
+            disabled={loadingVendors}
+          >
+            <SelectTrigger>
+              {loadingVendors ? (
+                <div className="flex items-center">
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <span>Loading vendors...</span>
+                </div>
+              ) : (
+                <SelectValue placeholder="Select vendor (optional)" />
+              )}
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No vendor</SelectItem>
+              {vendors.map((vendor) => (
+                <SelectItem key={vendor.id} value={vendor.id}>
+                  {vendor.name} - {vendor.serviceDesc}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Select a vendor that this expense is associated with
+          </p>
+        </div>
+
+        {/* Description */}
+        <div>
+          <label className="text-sm font-medium mb-1 block">Description</label>
+          <Textarea
+            name="description"
+            value={formData.description}
+            onChange={handleChange}
+            placeholder="Enter expense description"
+            rows={3}
+          />
+        </div>
+
+        {/* Date */}
+        <div>
+          <label className="text-sm font-medium mb-1 block">Date</label>
+          <Input
+            name="date"
+            type="date"
+            value={formData.date}
+            onChange={handleChange}
+            required
+            className={formErrors.date ? "border-red-500" : ""}
+          />
+          {formErrors.date && (
+            <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>
+          )}
+        </div>
+
+        {/* Fund Type (khusus expense) */}
+        <div className="mt-4">
+          <label className="text-sm font-medium mb-1 block">Fund Type</label>
+          <Select
+            value={formData.fundType}
+            onValueChange={(value: string) =>
+              setFormData((prev) => ({ ...prev, fundType: value }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select Fund Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="petty_cash">Petty Cash</SelectItem>
+              <SelectItem value="profit_bank">Profit Bank</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Payment Proof */}
+        {showPaymentProofField && (
+          <div className="space-y-2">
+            <div className="flex items-center">
+              <LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+              <label className="text-sm font-medium">
+                Payment Proof Link (Optional)
+              </label>
+            </div>
+            <Input
+              name="paymentProofLink"
+              type="url"
+              value={formData.paymentProofLink}
+              onChange={handleChange}
+              placeholder="https://drive.google.com/file/your-receipt"
+              className={formErrors.paymentProofLink ? "border-red-500" : ""}
+            />
+            {formErrors.paymentProofLink && (
+              <p className="text-red-500 text-xs mt-1">
+                {formErrors.paymentProofLink}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Add link to receipt or payment confirmation (Google Drive, Dropbox, etc.)
+            </p>
+          </div>
+        )}
+      </div>
+    )}
+  </form>
+  {/* Jangan lupa menutup ScrollArea */}
+</ScrollArea>
+
           <div className="flex justify-end gap-2 mt-4 pt-2 border-t">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => setIsOpen(false)}
-              disabled={isSubmitting}
-            >
+            <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isSubmitting}>
               Cancel
             </Button>
-            <Button 
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-            >
+            <Button onClick={handleSubmit} disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Submitting...
                 </>
               ) : (
-                'Submit'
+                "Submit"
               )}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
-      
+
       <Sheet open={isNewClientSheetOpen} onOpenChange={setIsNewClientSheetOpen}>
         <SheetContent className="w-full sm:max-w-md">
           <SheetHeader>
@@ -1079,7 +1155,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
               Create a new client to use in your transactions.
             </SheetDescription>
           </SheetHeader>
-          
+
           <div className="space-y-4 mt-6">
             <div className="space-y-2">
               <label className="text-sm font-medium">Client Code</label>
@@ -1091,7 +1167,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                 required
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Client Name</label>
               <Input
@@ -1102,7 +1178,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                 required
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Email</label>
               <Input
@@ -1113,7 +1189,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                 placeholder="Enter client email"
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Phone</label>
               <Input
@@ -1123,7 +1199,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                 placeholder="Enter client phone"
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Address</label>
               <Input
@@ -1133,7 +1209,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                 placeholder="Enter client address"
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Description</label>
               <Textarea
@@ -1145,12 +1221,9 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
               />
             </div>
           </div>
-          
+
           <div className="flex justify-end gap-2 mt-6">
-            <Button 
-              variant="outline" 
-              onClick={() => setIsNewClientSheetOpen(false)}
-            >
+            <Button variant="outline" onClick={() => setIsNewClientSheetOpen(false)}>
               Cancel
             </Button>
             <Button onClick={handleCreateClient}>
