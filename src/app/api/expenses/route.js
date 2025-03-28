@@ -66,6 +66,10 @@ export async function GET(request) {
 }
 
 // Handler for creating expenses
+// Modified app/api/expenses/route.js (extending existing route)
+// Add inventory integration to the expenses POST handler
+
+// Add to the existing POST handler
 export async function POST(request) {
   try {
     const authResult = await verifyAuthToken(request);
@@ -81,13 +85,15 @@ export async function POST(request) {
       date, 
       paymentProofLink,
       transactionId,
-      fundType  // NEW field
+      inventoryId, // New field for connecting to inventory
+      fundType
     } = body;
 
     if (!category || !amount || !date) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
+    // Create expense with possible inventory connection
     const expense = await prisma.expense.create({
       data: {
         category,
@@ -95,27 +101,74 @@ export async function POST(request) {
         description: description || null,
         date: new Date(date),
         paymentProofLink: paymentProofLink || null,
-        fundType: fundType || undefined,  // if not provided, default in schema is used
+        fundType: fundType || undefined,
         isDeleted: false,
         transactionId: transactionId || null,
+        inventoryId: inventoryId || null, // Link to inventory if provided
         createdById: authResult.user?.userId || null
       }
     });
     
-    if (transactionId) {
-      const transactionExpenses = await prisma.expense.findMany({
-        where: {
-          transactionId: transactionId,
-          isDeleted: false
+    // If connected to inventory, update inventory payment status if needed
+    if (inventoryId) {
+      try {
+        const inventory = await prisma.inventory.findUnique({
+          where: { id: inventoryId }
+        });
+        
+        if (inventory) {
+          // Update inventory if this was a payment
+          if (inventory.paymentStatus === "BELUM_BAYAR") {
+            // If this is a first payment, check if it's the full amount
+            if (Math.abs(parseFloat(amount) - inventory.cost) < 0.01) {
+              await prisma.inventory.update({
+                where: { id: inventoryId },
+                data: {
+                  paymentStatus: "LUNAS",
+                  updatedById: authResult.user?.userId || null
+                }
+              });
+            } else if (parseFloat(amount) > 0) {
+              // It's a partial payment
+              await prisma.inventory.update({
+                where: { id: inventoryId },
+                data: {
+                  paymentStatus: "DP",
+                  downPaymentAmount: parseFloat(amount),
+                  remainingAmount: inventory.cost - parseFloat(amount),
+                  updatedById: authResult.user?.userId || null
+                }
+              });
+            }
+          } else if (inventory.paymentStatus === "DP") {
+            // Check if this payment completes the total
+            const totalPaid = (inventory.downPaymentAmount || 0) + parseFloat(amount);
+            
+            if (Math.abs(totalPaid - inventory.cost) < 0.01) {
+              await prisma.inventory.update({
+                where: { id: inventoryId },
+                data: {
+                  paymentStatus: "LUNAS",
+                  remainingAmount: 0,
+                  updatedById: authResult.user?.userId || null
+                }
+              });
+            } else {
+              // Update the remaining amount
+              await prisma.inventory.update({
+                where: { id: inventoryId },
+                data: {
+                  remainingAmount: inventory.cost - totalPaid,
+                  updatedById: authResult.user?.userId || null
+                }
+              });
+            }
+          }
         }
-      });
-      
-      const totalExpenses = transactionExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
-      
-      await prisma.transaction.update({
-        where: { id: transactionId },
-        data: { capitalCost: totalExpenses }
-      });
+      } catch (inventoryError) {
+        console.error("Error updating inventory payment status:", inventoryError);
+        // Continue even if inventory update fails
+      }
     }
 
     return NextResponse.json({

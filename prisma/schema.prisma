@@ -18,6 +18,7 @@ model User {
   updatedAt              DateTime      @updatedAt
   
   profile                UserProfile?
+  notifications          Notification[]
   
   transactions           Transaction[] @relation("CreatedBy")
   expenses               Expense[]     @relation("ExpenseCreatedBy")
@@ -38,22 +39,48 @@ model User {
   deletedClients         Client[]      @relation("ClientDeletedBy")
   
   createdInvoices        Invoice[]     @relation("InvoiceCreatedBy")
+  
+  // Inventory relations
+  createdInventories     Inventory[]   @relation("InventoryCreatedBy")
+  updatedInventories     Inventory[]   @relation("InventoryUpdatedBy")
+  deletedInventories     Inventory[]   @relation("InventoryDeletedBy")
+  inventoryAdjustments   InventoryAdjustment[] @relation("AdjustmentBy")
 }
 
 model UserProfile {
-  id                String    @id @default(uuid())
-  userId            String    @unique
-  user              User      @relation(fields: [userId], references: [id])
-  fullName          String?
-  phoneNumber       String?
-  position          String?
-  department        String?
-  address           String?
-  bio               String?   @db.Text
-  skills            String?
-  experience        String?   @db.Text
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                      String    @id @default(uuid())
+  userId                  String    @unique
+  user                    User      @relation(fields: [userId], references: [id])
+  fullName                String?
+  phoneNumber             String?
+  position                String?
+  department              String?
+  address                 String?
+  bio                     String?   @db.Text
+  skills                  String?
+  experience              String?   @db.Text
+  enableEmailNotifications Boolean   @default(true)
+  enablePushNotifications  Boolean   @default(false)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+}
+
+model Notification {
+  id          String    @id @default(uuid())
+  type        String    // e.g., "SUBSCRIPTION_REMINDER", "SUBSCRIPTION_PAYMENT", etc.
+  title       String
+  message     String    @db.Text
+  isRead      Boolean   @default(false)
+  readAt      DateTime?
+  dueDate     DateTime?
+  entityId    String?   // ID of related entity (e.g., inventory ID)
+  entityType  String?   // Type of related entity (e.g., "INVENTORY")
+  
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }
 
 model CompanyFinance {
@@ -115,7 +142,9 @@ model Expense {
   paymentProofLink String?
   transactionId    String?
   transaction      Transaction? @relation(fields: [transactionId], references: [id])
-  fundType         String       @default("petty_cash") // NEW: Menandai sumber dana (petty_cash atau profit_bank)
+  fundType         String       @default("petty_cash") // Indicates fund source (petty_cash or profit_bank)
+  inventoryId      String?
+  inventory        Inventory?   @relation(fields: [inventoryId], references: [id])
   
   createdById      String?
   createdBy        User?        @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
@@ -168,6 +197,7 @@ model Vendor {
   phone           String?
   address         String?
   transactions    Transaction[]
+  inventories     Inventory[]
   
   createdById     String?
   createdBy       User?         @relation("VendorCreatedBy", fields: [createdById], references: [id])
@@ -201,4 +231,72 @@ model Invoice {
   createdBy         User?       @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
+}
+
+model Inventory {
+  id                String               @id @default(uuid())
+  name              String
+  type              String    // "EQUIPMENT", "SUBSCRIPTION", "OTHER"
+  description       String?
+  status            String    @default("ACTIVE") // "ACTIVE", "INACTIVE", "MAINTENANCE"
+  purchaseDate      DateTime
+  expiryDate        DateTime?
+  expiryType        String?   // "fixed" or "continuous"
+  cost              Decimal
+  currentValue      Decimal?
+  paymentStatus     String    @default("BELUM_BAYAR") // "LUNAS", "DP", "BELUM_BAYAR"
+  downPaymentAmount Decimal?
+  remainingAmount   Decimal?
+  category          String?
+  quantity          Int       @default(0)
+  unitPrice         Decimal   @default(0)
+  totalValue        Decimal   @default(0)
+  location          String?
+  minimumStock      Int?
+  supplier          String?
+  
+  // Subscription fields
+  isRecurring       Boolean   @default(false)
+  recurringType     String?   // "MONTHLY", "QUARTERLY", "ANNUALLY"
+  nextBillingDate   DateTime?
+  reminderDays      Int?      // Days before to send reminder
+  
+  // Relationships
+  vendorId          String?
+  vendor            Vendor?   @relation(fields: [vendorId], references: [id])
+  expenses          Expense[]
+  adjustments       InventoryAdjustment[]
+  
+  // Tracking and soft delete
+  createdById       String?
+  createdBy         User?     @relation("InventoryCreatedBy", fields: [createdById], references: [id])
+  updatedById       String?
+  updatedBy         User?     @relation("InventoryUpdatedBy", fields: [updatedById], references: [id])
+  deletedById       String?
+  deletedBy         User?     @relation("InventoryDeletedBy", fields: [deletedById], references: [id])
+  isDeleted         Boolean   @default(false)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  @@index([category])
+  @@index([isDeleted])
+}
+
+model InventoryAdjustment {
+  id                String     @id @default(uuid())
+  inventoryId       String
+  adjustmentType    String     // 'increase' or 'decrease'
+  quantity          Int
+  previousQuantity  Int
+  newQuantity       Int
+  reason            String?    // e.g., 'purchase', 'sales', 'damaged', 'correction'
+  notes             String?
+  adjustedAt        DateTime   @default(now())
+  adjustedById      String?
+  inventory         Inventory  @relation(fields: [inventoryId], references: [id])
+  adjustedBy        User?      @relation("AdjustmentBy", fields: [adjustedById], references: [id])
+
+  @@index([inventoryId])
+  @@index([adjustedAt])
 }

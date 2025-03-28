@@ -1,35 +1,23 @@
+// File: app/api/auth/register/route.ts
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { createSafeResponse } from "@/lib/api";
 import { NextRequest } from "next/server";
+import { generateToken } from "@/lib/auth";
 
 const prisma = new PrismaClient();
 
 export async function POST(req: NextRequest) {
   try {
-    // Parse request body
-    const body = await req.json();
+    const { name, email, password } = await req.json();
     
-    // Extract required fields
-    const { 
-      name, 
-      email, 
-      password,
-      // Extract additional fields without using them directly in Prisma
-      fullName,
-      phoneNumber,
-      position,
-      department,
-      address,
-      bio,
-      skills,
-      experience,
-      role = 'guest', // Default role
-    } = body;
-    
-    // Validate required inputs
+    // Validate inputs
     if (!name || !email || !password) {
-      return createSafeResponse({ message: "All fields are required" }, 400);
+      return new Response(JSON.stringify({ 
+        message: "Name, email and password are required" 
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
     
     // Check if user already exists
@@ -38,50 +26,58 @@ export async function POST(req: NextRequest) {
     });
     
     if (existingUser) {
-      return createSafeResponse({ message: "User already exists" }, 400);
+      return new Response(JSON.stringify({ 
+        message: "User with this email already exists" 
+      }), {
+        status: 409,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
     
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Hash the password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
     
-    // Create user with only the fields that exist in your schema
+    // Create new user
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
-        role: role || "guest", // Default role
-        // Remove metadata field from here
-      },
+        role: 'user' // Default role
+      }
     });
     
-    // Don't return the password
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { password: passwordField, ...userWithoutPassword } = user;
+    // Generate JWT token
+    const userForToken = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role || 'user'
+    };
     
-    // Store additional data somewhere else if needed
-    // For now we'll just log it
-    console.log("Additional user data:", {
-      fullName: fullName || name,
-      phoneNumber,
-      position,
-      department,
-      address,
-      bio,
-      skills,
-      experience,
-      preferredRole: role
+    const token = generateToken(userForToken);
+    
+    // Remove the password
+    const { password: _, ...userWithoutPassword } = user;
+    
+    return new Response(JSON.stringify({ 
+      user: userWithoutPassword,
+      token 
+    }), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' }
     });
-    
-    return createSafeResponse({ 
-      message: "Registration successful", 
-      user: userWithoutPassword 
-    }, 201);
   } catch (error) {
     console.error("Registration error:", error);
-    return createSafeResponse({ 
+    return new Response(JSON.stringify({ 
       message: "Registration failed", 
       error: (error as Error).message 
-    }, 500);
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } finally {
+    await prisma.$disconnect();
   }
 }
