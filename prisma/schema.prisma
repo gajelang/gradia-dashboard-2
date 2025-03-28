@@ -134,28 +134,38 @@ model Transaction {
 }
 
 model Expense {
-  id               String       @id @default(uuid())
-  category         String
-  amount           Float
-  description      String?
-  date             DateTime     @default(now())
-  paymentProofLink String?
-  transactionId    String?
-  transaction      Transaction? @relation(fields: [transactionId], references: [id])
-  fundType         String       @default("petty_cash") // Indicates fund source (petty_cash or profit_bank)
-  inventoryId      String?
-  inventory        Inventory?   @relation(fields: [inventoryId], references: [id])
+  id                 String       @id @default(uuid())
+  category           String
+  amount             Float
+  description        String?
+  date               DateTime     @default(now())
+  paymentProofLink   String?
+  transactionId      String?
+  transaction        Transaction? @relation(fields: [transactionId], references: [id])
+  fundType           String       @default("petty_cash") // Indicates fund source (petty_cash or profit_bank)
+  inventoryId        String?
+  inventory          Inventory?   @relation(fields: [inventoryId], references: [id])
   
-  createdById      String?
-  createdBy        User?        @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  updatedById      String?
-  isDeleted        Boolean      @default(false)
-  deletedAt        DateTime?
-  deletedById      String?
-  updatedBy        User?        @relation("ExpenseUpdatedBy", fields: [updatedById], references: [id])
-  deletedBy        User?        @relation("ExpenseDeletedBy", fields: [deletedById], references: [id])
+  // New fields for recurring expenses
+  isRecurringExpense Boolean      @default(false)
+  recurringFrequency String?      // "MONTHLY", "QUARTERLY", "ANNUALLY"
+  nextBillingDate    DateTime?
+  lastProcessedDate  DateTime?
+  isActive           Boolean      @default(true) // Used to disable recurring expenses without deleting
+  
+  createdById        String?
+  createdBy          User?        @relation("ExpenseCreatedBy", fields: [createdById], references: [id])
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  updatedById        String?
+  isDeleted          Boolean      @default(false)
+  deletedAt          DateTime?
+  deletedById        String?
+  updatedBy          User?        @relation("ExpenseUpdatedBy", fields: [updatedById], references: [id])
+  deletedBy          User?        @relation("ExpenseDeletedBy", fields: [deletedById], references: [id])
+  
+  @@index([isRecurringExpense, isActive])
+  @@index([nextBillingDate])
 }
 
 model Budget {
@@ -260,6 +270,8 @@ model Inventory {
   recurringType     String?   // "MONTHLY", "QUARTERLY", "ANNUALLY"
   nextBillingDate   DateTime?
   reminderDays      Int?      // Days before to send reminder
+  lastBillingDate   DateTime? // Track last time a payment was processed
+  autoRenew         Boolean   @default(true) // Whether to auto-renew subscription
   
   // Relationships
   vendorId          String?
@@ -281,6 +293,8 @@ model Inventory {
 
   @@index([category])
   @@index([isDeleted])
+  @@index([nextBillingDate])
+  @@index([type, isRecurring])
 }
 
 model InventoryAdjustment {
