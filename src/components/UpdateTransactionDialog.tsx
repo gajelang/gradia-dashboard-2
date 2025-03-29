@@ -24,7 +24,12 @@ import {
   X, 
   Link as LinkIcon, 
   Calendar, 
-  ExternalLink
+  ExternalLink,
+  Wallet,
+  CreditCard,
+  DollarSign,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { formatRupiah } from "@/lib/formatters";
@@ -43,6 +48,7 @@ import { fetchWithAuth } from "@/lib/api"; // Import fetchWithAuth for authentic
 import { useAuth } from "@/contexts/AuthContext"; // Import useAuth to get current user
 
 interface Expense {
+  fundType: string;
   id?: string;
   category: string;
   amount: number | string;
@@ -80,6 +86,7 @@ interface Transaction {
   clientId?: string;
   capitalCost?: number;
   isDeleted?: boolean;
+  fundType?: string; // Added fund type field
 }
 
 interface UpdateTransactionDialogProps {
@@ -98,7 +105,18 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     phone: transaction.phone || "",
     startDate: transaction.startDate ? new Date(transaction.startDate).toISOString().split('T')[0] : "",
     endDate: transaction.endDate ? new Date(transaction.endDate).toISOString().split('T')[0] : "",
+    fundType: transaction.fundType || "petty_cash", // Use existing fund type or default to petty cash
   });
+  
+  // Fund balances state
+  const [fundBalances, setFundBalances] = useState<{
+    petty_cash: number;
+    profit_bank: number;
+  }>({
+    petty_cash: 0,
+    profit_bank: 0
+  });
+  const [loadingFundBalances, setLoadingFundBalances] = useState(false);
   
   // Existing expenses
   const [existingExpenses, setExistingExpenses] = useState<Expense[]>([]);
@@ -183,6 +201,35 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     }
   }, [transaction.id]);
 
+  // Fetch fund balances
+  const fetchFundBalances = async () => {
+    try {
+      setLoadingFundBalances(true);
+      const res = await fetchWithAuth("/api/fund-balance", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        const balances = {
+          petty_cash: 0,
+          profit_bank: 0
+        };
+        
+        data.forEach((fund: any) => {
+          if (fund.fundType === "petty_cash") {
+            balances.petty_cash = fund.currentBalance;
+          } else if (fund.fundType === "profit_bank") {
+            balances.profit_bank = fund.currentBalance;
+          }
+        });
+        
+        setFundBalances(balances);
+      }
+    } catch (error) {
+      console.error("Error fetching fund balances:", error);
+    } finally {
+      setLoadingFundBalances(false);
+    }
+  };
+
   // Fetch vendors for expense form
   const fetchVendors = useCallback(async () => {
     try {
@@ -206,6 +253,17 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     if (open) {
       loadTransactionExpenses();
       fetchVendors();
+      fetchFundBalances();
+      setFormData({
+        name: transaction.name || "",
+        description: transaction.description || "",
+        projectValue: transaction.projectValue?.toString() || "",
+        email: transaction.email || "",
+        phone: transaction.phone || "",
+        startDate: transaction.startDate ? new Date(transaction.startDate).toISOString().split('T')[0] : "",
+        endDate: transaction.endDate ? new Date(transaction.endDate).toISOString().split('T')[0] : "",
+        fundType: transaction.fundType || "petty_cash",
+      });
     } else {
       // Reset state when dialog closes
       setExistingExpenses([]);
@@ -214,7 +272,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
       setActiveTab("details");
       setIsAddExpenseOpen(false);
     }
-  }, [open, transaction.id, loadTransactionExpenses, fetchVendors]);
+  }, [open, transaction, loadTransactionExpenses, fetchVendors]);
 
   // Reset new expense form
   const resetNewExpenseForm = () => {
@@ -241,6 +299,16 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     setNewExpense(prev => ({ ...prev, vendorId: value === "none" ? "" : value }));
   };
   
+  // Handle fund type change for transaction
+  const handleFundTypeChange = (value: string) => {
+    setFormData(prev => ({ ...prev, fundType: value }));
+  };
+  
+  // Handle fund type change for expense
+  const handleExpenseFundTypeChange = (value: string) => {
+    setNewExpense(prev => ({ ...prev, fundType: value }));
+  };
+  
   // Handle adding a new expense
   const handleAddExpense = () => {
     // Validate new expense form
@@ -249,6 +317,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     if (!newExpense.amount || parseFloat(newExpense.amount) <= 0) 
       errors.amount = "Valid expense amount is required";
     if (!newExpense.date) errors.date = "Date is required";
+    if (!newExpense.fundType) errors.fundType = "Fund source is required";
     if (newExpense.paymentProofLink && !isValidURL(newExpense.paymentProofLink)) 
       errors.paymentProofLink = "Please enter a valid URL";
     
@@ -311,6 +380,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     if (!formData.name.trim()) errors.name = "Transaction name is required";
     if (!formData.projectValue || parseFloat(formData.projectValue) <= 0) 
       errors.projectValue = "Valid project value is required";
+    if (!formData.fundType) errors.fundType = "Fund type is required";
     
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
@@ -374,7 +444,8 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
         startDate: formData.startDate || null,
         endDate: formData.endDate || null,
         expenses: processedExpenses, // Add expenses to the payload
-        updatedById: user?.userId // Add who updated the transaction
+        updatedById: user?.userId, // Add who updated the transaction
+        fundType: formData.fundType, // Include the fund type
       };
 
       console.log("Sending update to /api/transactions/update", payload);
@@ -410,6 +481,9 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
       toast.success("Transaction updated successfully");
       onTransactionUpdated(updated.transaction);
       setOpen(false);
+      
+      // Refresh fund balances after update
+      fetchFundBalances();
     } catch (error) {
       console.error("Error updating transaction:", error);
       toast.error(`Error updating transaction: ${error instanceof Error ? error.message : "Unknown error"}`);
@@ -430,6 +504,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
       phone: transaction.phone || "",
       startDate: transaction.startDate ? new Date(transaction.startDate).toISOString().split('T')[0] : "",
       endDate: transaction.endDate ? new Date(transaction.endDate).toISOString().split('T')[0] : "",
+      fundType: transaction.fundType || "petty_cash",
     });
   };
 
@@ -444,11 +519,64 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
   
   const totalExpenses = totalExistingExpenses + totalNewExpenses;
 
+  // Helper to get fund balance display with formatting
+  const getFundBalanceDisplay = (fundType: string) => {
+    const balance = fundType === "petty_cash" ? fundBalances.petty_cash : fundBalances.profit_bank;
+    return `Rp${formatRupiah(balance)}`;
+  };
+
+  // Function to render Fund Type Indicator Badge
+  const FundTypeIndicator = ({ fundType }: { fundType: string }) => {
+    if (fundType === "petty_cash") {
+      return (
+        <span className="inline-flex items-center bg-blue-50 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
+          <Wallet className="h-3 w-3 mr-1" />
+          Petty Cash
+        </span>
+      );
+    } else {
+      return (
+        <span className="inline-flex items-center bg-green-50 text-green-700 text-xs font-medium px-2 py-0.5 rounded-full">
+          <CreditCard className="h-3 w-3 mr-1" />
+          Profit Bank
+        </span>
+      );
+    }
+  };
+
+  // Calculate impact of changing fund type
+  const calculateFundChangeImpact = () => {
+    const originalFundType = transaction.fundType || "petty_cash";
+    const newFundType = formData.fundType;
+    
+    if (originalFundType === newFundType) return null;
+    
+    // Get amount that will be moved between funds
+    const amount = transaction.paymentStatus === "Lunas" 
+      ? transaction.projectValue || 0
+      : transaction.paymentStatus === "DP" 
+        ? transaction.downPaymentAmount || 0
+        : 0;
+    
+    if (amount <= 0) return null;
+    
+    return {
+      amount,
+      from: originalFundType,
+      to: newFundType
+    };
+  };
+
+  const fundChangeImpact = calculateFundChangeImpact();
+
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="outline" size="sm" onClick={handleOpenDialog}>Edit</Button>
+          <Button variant="outline" size="sm" onClick={handleOpenDialog}>
+            <Save className="h-4 w-4 mr-1" />
+            Edit
+          </Button>
         </DialogTrigger>
         <DialogContent className="max-w-2xl max-h-[95vh] overflow-hidden">
           <DialogHeader>
@@ -506,6 +634,80 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                     />
                     {formErrors.projectValue && <p className="text-red-500 text-xs mt-1">{formErrors.projectValue}</p>}
                   </div>
+                  
+                  {/* Fund Type Selection */}
+                  <div className="mt-4 p-4 border rounded-md bg-slate-50">
+                    <h3 className="text-sm font-semibold mb-3 flex items-center">
+                      <DollarSign className="h-4 w-4 mr-1 text-blue-600" />
+                      Fund Destination
+                    </h3>
+                    
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                          <Wallet className="h-4 w-4" />
+                          Select Fund Destination*
+                        </label>
+                        <Select
+                          value={formData.fundType}
+                          onValueChange={handleFundTypeChange}
+                        >
+                          <SelectTrigger className={formErrors.fundType ? "border-red-500" : ""}>
+                            <SelectValue placeholder="Select Fund Destination" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="petty_cash" className="flex items-center">
+                              <div className="flex items-center">
+                                <Wallet className="h-4 w-4 mr-2 text-blue-600" />
+                                <span>Petty Cash</span>
+                                <span className="ml-2 text-sm text-muted-foreground">
+                                  ({loadingFundBalances ? "Loading..." : getFundBalanceDisplay("petty_cash")})
+                                </span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="profit_bank" className="flex items-center">
+                              <div className="flex items-center">
+                                <CreditCard className="h-4 w-4 mr-2 text-green-600" />
+                                <span>Profit Bank</span>
+                                <span className="ml-2 text-sm text-muted-foreground">
+                                  ({loadingFundBalances ? "Loading..." : getFundBalanceDisplay("profit_bank")})
+                                </span>
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {formErrors.fundType && (
+                          <p className="text-red-500 text-xs mt-1">{formErrors.fundType}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Select which fund this income is associated with
+                        </p>
+                      </div>
+                      
+                      {/* Current Fund and Impact of Changes */}
+                      <div>
+                        <div className="text-sm mb-2">Current Fund:</div>
+                        <FundTypeIndicator fundType={transaction.fundType || "petty_cash"} />
+                        
+                        {fundChangeImpact && (
+                          <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                            <div className="text-sm font-medium text-amber-800 mb-1">Fund Change Impact:</div>
+                            <div className="flex items-center gap-2 text-sm">
+                              <FundTypeIndicator fundType={fundChangeImpact.from} />
+                              <ArrowDown className="h-3 w-3 text-red-600" />
+                              <span className="text-red-600 font-medium">-Rp{formatRupiah(fundChangeImpact.amount)}</span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 text-sm">
+                              <FundTypeIndicator fundType={fundChangeImpact.to} />
+                              <ArrowUp className="h-3 w-3 text-green-600" />
+                              <span className="text-green-600 font-medium">+Rp{formatRupiah(fundChangeImpact.amount)}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
                   <div>
                     <label className="text-sm font-medium">Email</label>
                     <Input
@@ -593,6 +795,9 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                                     <span className="text-sm">
                                       <span className="font-medium">Rp{formatRupiah(Number(expense.amount))}</span>
                                     </span>
+                                    {expense.fundType && (
+                                      <FundTypeIndicator fundType={expense.fundType as string} />
+                                    )}
                                   </div>
                                   <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
                                     <Calendar className="h-3 w-3" />
@@ -634,6 +839,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                                     <span className="text-sm">
                                       <span className="font-medium">Rp{formatRupiah(parseFloat(expense.amount) || 0)}</span>
                                     </span>
+                                    <FundTypeIndicator fundType={expense.fundType} />
                                   </div>
                                   <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
                                     <Calendar className="h-3 w-3" />
@@ -759,6 +965,46 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
               {expenseErrors.amount && <p className="text-red-500 text-xs mt-1">{expenseErrors.amount}</p>}
             </div>
             
+            {/* Fund Source Selection for Expense */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                <Wallet className="h-4 w-4" />
+                Fund Source
+              </label>
+              <Select
+                value={newExpense.fundType}
+                onValueChange={handleExpenseFundTypeChange}
+              >
+                <SelectTrigger className={expenseErrors.fundType ? "border-red-500" : ""}>
+                  <SelectValue placeholder="Select Fund Source" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="petty_cash" className="flex items-center">
+                    <div className="flex items-center">
+                      <Wallet className="h-4 w-4 mr-2 text-blue-600" />
+                      <span>Petty Cash</span>
+                      <span className="ml-2 text-sm text-muted-foreground">
+                        ({loadingFundBalances ? "Loading..." : getFundBalanceDisplay("petty_cash")})
+                      </span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="profit_bank" className="flex items-center">
+                    <div className="flex items-center">
+                      <CreditCard className="h-4 w-4 mr-2 text-green-600" />
+                      <span>Profit Bank</span>
+                      <span className="ml-2 text-sm text-muted-foreground">
+                        ({loadingFundBalances ? "Loading..." : getFundBalanceDisplay("profit_bank")})
+                      </span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {expenseErrors.fundType && <p className="text-red-500 text-xs mt-1">{expenseErrors.fundType}</p>}
+              <p className="text-xs text-muted-foreground">
+                Select which fund this expense will be deducted from
+              </p>
+            </div>
+            
             {/* Vendor Selection - For expenses */}
             <div className="space-y-2">
               <label className="text-sm font-medium mb-1 block">Vendor/Subcontractor</label>
@@ -829,26 +1075,6 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
               )}
               <p className="text-xs text-muted-foreground">
                 Add link to receipt or payment confirmation (Google Drive, Dropbox, etc.)
-              </p>
-            </div>
-            
-            {/* Fund Type Selection */}
-            <div>
-              <label className="text-sm font-medium">Fund Source</label>
-              <Select 
-                value={newExpense.fundType || "petty_cash"} 
-                onValueChange={(value) => handleNewExpenseChange('fundType', value)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Fund Source" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="petty_cash">Petty Cash</SelectItem>
-                  <SelectItem value="profit_bank">Profit Bank</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Select which fund to use for this expense
               </p>
             </div>
           </div>

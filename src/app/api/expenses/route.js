@@ -1,5 +1,4 @@
-
-// app/api/expenses/route.js - Enhanced with subscription handling
+// app/api/expenses/route.js - Enhanced with subscription handling and fund management integration
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuthToken } from '@/lib/auth';
@@ -101,7 +100,7 @@ export async function POST(request) {
       paymentProofLink,
       transactionId,
       inventoryId,
-      fundType,
+      fundType, // Added to specify which fund to use
       // Recurring expense fields
       isRecurringExpense,
       recurringFrequency,
@@ -119,7 +118,7 @@ export async function POST(request) {
       description: description || null,
       date: new Date(date),
       paymentProofLink: paymentProofLink || null,
-      fundType: fundType || "petty_cash",
+      fundType: fundType || "petty_cash", // Default to petty cash if not specified
       isDeleted: false,
       transactionId: transactionId || null,
       inventoryId: inventoryId || null,
@@ -245,38 +244,66 @@ export async function POST(request) {
         });
       }
       
-      // Update company finances
-      let updatedFinance = null;
+      // Update fund balance based on specified fund type
+      let fundBalanceUpdated = false;
       try {
-        const finance = await tx.companyFinance.findFirst();
+        // Find the fund or create it if it doesn't exist
+        let fund = await tx.fundBalance.findUnique({
+          where: { fundType: expenseData.fundType }
+        });
         
-        if (finance) {
-          updatedFinance = await tx.companyFinance.update({
-            where: { id: finance.id },
-            data: {
-              totalFunds: {
-                decrement: parseFloat(amount)
-              }
+        // If fund doesn't exist, create it
+        if (!fund) {
+          fund = await tx.fundBalance.create({
+            data: { 
+              fundType: expenseData.fundType, 
+              currentBalance: 0 
             }
           });
         }
-      } catch (financeError) {
-        console.error("Error updating company finances:", financeError);
-        // Continue even if finance update fails
+        
+        // Calculate new balance after expense deduction
+        const newBalance = fund.currentBalance - parseFloat(amount);
+        
+        // Update fund balance
+        await tx.fundBalance.update({
+          where: { fundType: expenseData.fundType },
+          data: { currentBalance: newBalance }
+        });
+        
+        // Create fund transaction record
+        await tx.fundTransaction.create({
+          data: {
+            fundType: expenseData.fundType,
+            transactionType: "expense",
+            amount: -parseFloat(amount),
+            balanceAfter: newBalance,
+            description: `Expense: ${category}${transactionId ? ` for transaction ${updatedTransaction?.name || transactionId}` : ''}`,
+            sourceType: "expense",
+            sourceId: expense.id,
+            createdById: authResult.user?.userId || null
+          }
+        });
+        
+        fundBalanceUpdated = true;
+      } catch (fundError) {
+        console.error("Error updating fund balance:", fundError);
+        // Continue even if fund update fails
       }
       
       return { 
         expense, 
         inventory: updatedInventory, 
-        transaction: updatedTransaction, 
-        finance: updatedFinance 
+        transaction: updatedTransaction,
+        fundBalanceUpdated
       };
     });
 
     return NextResponse.json({
       message: 'Expense created successfully',
       expense: result.expense,
-      inventory: result.inventory
+      inventory: result.inventory,
+      fundBalanceUpdated: result.fundBalanceUpdated
     });
   } catch (error) {
     console.error('Error creating expense:', error);
@@ -323,55 +350,210 @@ export async function PATCH(request) {
     
     const originalExpense = await prisma.expense.findUnique({
       where: { id },
-      select: { transactionId: true, amount: true }
+      select: { 
+        transactionId: true, 
+        amount: true,
+        fundType: true
+      }
     });
+
+    if (!originalExpense) {
+      return NextResponse.json({ error: 'Expense not found' }, { status: 404 });
+    }
 
     updateData.updatedById = authResult.user?.userId || null;
     updateData.updatedAt = new Date();
 
-    if (updateData.amount) {
-      updateData.amount = parseFloat(updateData.amount);
+    let newAmount = undefined;
+    if (updateData.amount !== undefined) {
+      newAmount = parseFloat(updateData.amount);
+      updateData.amount = newAmount;
     }
     
-    if (updateData.fundType !== undefined) {
-      updateData.fundType = updateData.fundType;
-    }
-
-    const updatedExpense = await prisma.expense.update({
-      where: { id },
-      data: updateData,
-      include: {
-        transaction: {
-          select: { id: true, name: true }
-        },
-        createdBy: {
-          select: { id: true, name: true, email: true }
-        },
-        updatedBy: {
-          select: { id: true, name: true, email: true }
+    const newFundType = updateData.fundType || originalExpense.fundType;
+    
+    // Perform expense update and related operations in a transaction
+    const result = await prisma.$transaction(async (tx) => {
+      // Update the expense
+      const updatedExpense = await tx.expense.update({
+        where: { id },
+        data: updateData,
+        include: {
+          transaction: {
+            select: { id: true, name: true }
+          },
+          createdBy: {
+            select: { id: true, name: true, email: true }
+          },
+          updatedBy: {
+            select: { id: true, name: true, email: true }
+          }
+        }
+      });
+      
+      // Update transaction capital cost if needed
+      let updatedTransaction = null;
+      if (originalExpense?.transactionId) {
+        const transactionExpenses = await tx.expense.findMany({
+          where: {
+            transactionId: originalExpense.transactionId,
+            isDeleted: false
+          }
+        });
+        
+        const totalExpenses = transactionExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+        
+        updatedTransaction = await tx.transaction.update({
+          where: { id: originalExpense.transactionId },
+          data: { capitalCost: totalExpenses }
+        });
+      }
+      
+      // Handle fund balance updates if amount changed or fund type changed
+      let fundUpdates = { success: false, oldFund: null, newFund: null };
+      
+      if (newAmount !== undefined || (updateData.fundType && updateData.fundType !== originalExpense.fundType)) {
+        try {
+          // Amount difference to apply
+          const amountDiff = newAmount !== undefined ? 
+            originalExpense.amount - newAmount : 0;
+          
+          // If fund type changed
+          if (updateData.fundType && updateData.fundType !== originalExpense.fundType) {
+            // Handle old fund (add the amount back)
+            const oldFund = await tx.fundBalance.findUnique({
+              where: { fundType: originalExpense.fundType }
+            });
+            
+            if (oldFund) {
+              const oldFundNewBalance = oldFund.currentBalance + originalExpense.amount;
+              
+              // Update old fund balance
+              await tx.fundBalance.update({
+                where: { fundType: originalExpense.fundType },
+                data: { currentBalance: oldFundNewBalance }
+              });
+              
+              // Record the reversion
+              await tx.fundTransaction.create({
+                data: {
+                  fundType: originalExpense.fundType,
+                  transactionType: "adjustment",
+                  amount: originalExpense.amount,
+                  balanceAfter: oldFundNewBalance,
+                  description: `Expense moved to ${updateData.fundType}: ${updatedExpense.category}`,
+                  sourceType: "expense_update",
+                  sourceId: id,
+                  createdById: authResult.user?.userId || null
+                }
+              });
+              
+              fundUpdates.oldFund = {
+                fundType: originalExpense.fundType,
+                newBalance: oldFundNewBalance
+              };
+            }
+            
+            // Handle new fund (subtract new amount)
+            let newFund = await tx.fundBalance.findUnique({
+              where: { fundType: updateData.fundType }
+            });
+            
+            // Create fund if it doesn't exist
+            if (!newFund) {
+              newFund = await tx.fundBalance.create({
+                data: { 
+                  fundType: updateData.fundType, 
+                  currentBalance: 0 
+                }
+              });
+            }
+            
+            const finalAmount = newAmount !== undefined ? newAmount : originalExpense.amount;
+            const newFundNewBalance = newFund.currentBalance - finalAmount;
+            
+            // Update new fund balance
+            await tx.fundBalance.update({
+              where: { fundType: updateData.fundType },
+              data: { currentBalance: newFundNewBalance }
+            });
+            
+            // Record the new expense in the new fund
+            await tx.fundTransaction.create({
+              data: {
+                fundType: updateData.fundType,
+                transactionType: "expense",
+                amount: -finalAmount,
+                balanceAfter: newFundNewBalance,
+                description: `Expense moved from ${originalExpense.fundType}: ${updatedExpense.category}`,
+                sourceType: "expense_update",
+                sourceId: id,
+                createdById: authResult.user?.userId || null
+              }
+            });
+            
+            fundUpdates.newFund = {
+              fundType: updateData.fundType,
+              newBalance: newFundNewBalance
+            };
+          } 
+          // If only amount changed (no fund type change)
+          else if (amountDiff !== 0) {
+            // Find the fund
+            const fund = await tx.fundBalance.findUnique({
+              where: { fundType: originalExpense.fundType }
+            });
+            
+            if (fund) {
+              // Add the difference to the fund (if new amount is less, add positive value)
+              const newBalance = fund.currentBalance + amountDiff;
+              
+              // Update fund balance
+              await tx.fundBalance.update({
+                where: { fundType: originalExpense.fundType },
+                data: { currentBalance: newBalance }
+              });
+              
+              // Record the adjustment
+              await tx.fundTransaction.create({
+                data: {
+                  fundType: originalExpense.fundType,
+                  transactionType: "adjustment",
+                  amount: amountDiff,
+                  balanceAfter: newBalance,
+                  description: `Expense amount adjusted: ${updatedExpense.category}`,
+                  sourceType: "expense_update",
+                  sourceId: id,
+                  createdById: authResult.user?.userId || null
+                }
+              });
+              
+              fundUpdates.oldFund = {
+                fundType: originalExpense.fundType,
+                newBalance: newBalance
+              };
+            }
+          }
+          
+          fundUpdates.success = true;
+        } catch (fundError) {
+          console.error("Error updating fund balances:", fundError);
+          fundUpdates.error = fundError.message;
         }
       }
+      
+      return { 
+        expense: updatedExpense, 
+        transaction: updatedTransaction,
+        fundUpdates
+      };
     });
-    
-    if (originalExpense?.transactionId) {
-      const transactionExpenses = await prisma.expense.findMany({
-        where: {
-          transactionId: originalExpense.transactionId,
-          isDeleted: false
-        }
-      });
-      
-      const totalExpenses = transactionExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
-      
-      await prisma.transaction.update({
-        where: { id: originalExpense.transactionId },
-        data: { capitalCost: totalExpenses }
-      });
-    }
 
     return NextResponse.json({
       message: 'Expense updated successfully',
-      expense: updatedExpense
+      expense: result.expense,
+      transaction: result.transaction,
+      fundUpdates: result.fundUpdates
     });
   } catch (error) {
     console.error('Error updating expense:', error);

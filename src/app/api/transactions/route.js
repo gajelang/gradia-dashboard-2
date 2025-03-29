@@ -92,7 +92,9 @@ export async function POST(req) {
         date: data.date ? new Date(data.date) : new Date(),
         // Add user tracking data
         createdById: user.userId,
-        updatedById: user.userId
+        updatedById: user.userId,
+        // Add fund type for transaction
+        fundType: data.fundType || "petty_cash" // Default to petty cash if not specified
       };
       
       // Add new financial fields if provided
@@ -148,23 +150,49 @@ export async function POST(req) {
       }, 500);
     }
 
-    // Update finances - only add the actual paid amount to the company finances
+    // Update finances - add the actual paid amount to the specified fund
     try {
-      let finance = await prisma.companyFinance.findFirst();
       const amountToAdd = Number(data.amount) || 0;
+      const fundType = data.fundType || "petty_cash"; // Use specified fund or default
       
-      if (finance) {
-        await prisma.companyFinance.update({
-          where: { id: finance.id },
-          data: { totalFunds: finance.totalFunds + amountToAdd }
+      // Find the fund record
+      let fund = await prisma.fundBalance.findUnique({
+        where: { fundType }
+      });
+      
+      // If fund doesn't exist, create it
+      if (!fund) {
+        fund = await prisma.fundBalance.create({
+          data: { 
+            fundType,
+            currentBalance: 0
+          }
         });
-        console.log("Company finance updated successfully, added:", amountToAdd);
-      } else {
-        await prisma.companyFinance.create({
-          data: { totalFunds: amountToAdd }
-        });
-        console.log("Company finance created successfully with amount:", amountToAdd);
       }
+      
+      // Update fund balance
+      await prisma.fundBalance.update({
+        where: { fundType },
+        data: { 
+          currentBalance: fund.currentBalance + amountToAdd 
+        }
+      });
+      
+      // Create fund transaction record
+      await prisma.fundTransaction.create({
+        data: {
+          fundType,
+          transactionType: "income",
+          amount: amountToAdd,
+          balanceAfter: fund.currentBalance + amountToAdd,
+          description: `Income from transaction: ${data.name}`,
+          sourceType: "transaction",
+          sourceId: transaction.id,
+          createdById: user.userId
+        }
+      });
+      
+      console.log(`Fund ${fundType} updated successfully, added:`, amountToAdd);
     } catch (financeError) {
       console.log("Finance update issue:", String(financeError));
       // Continue even if finance update fails
@@ -187,10 +215,19 @@ export async function PATCH(req) {
   
   try {
     let data = await req.json();
-    const { id, paymentStatus, expenses, updatedById } = data || {};
+    const { id, paymentStatus, expenses, updatedById, fundType: newFundType } = data || {};
     
     if (!id) {
       return createSafeResponse({ message: "Missing transaction ID" }, 400);
+    }
+
+    // Get the existing transaction to check for fund changes
+    const existingTransaction = await prisma.transaction.findUnique({
+      where: { id }
+    });
+    
+    if (!existingTransaction) {
+      return createSafeResponse({ message: "Transaction not found" }, 404);
     }
 
     let transaction;
@@ -212,12 +249,72 @@ export async function PATCH(req) {
       if (data.startDate !== undefined) updateData.startDate = data.startDate ? new Date(data.startDate) : null;
       if (data.endDate !== undefined) updateData.endDate = data.endDate ? new Date(data.endDate) : null;
       if (data.paymentProofLink !== undefined) updateData.paymentProofLink = data.paymentProofLink;
+      if (newFundType !== undefined) updateData.fundType = newFundType;
       
       // Update the transaction
       transaction = await prisma.transaction.update({
         where: { id },
         data: updateData
       });
+
+      // Handle fund transfers if fund type changed
+      if (newFundType && existingTransaction.fundType !== newFundType && existingTransaction.amount > 0) {
+        try {
+          // Get both funds
+          const oldFund = await prisma.fundBalance.findUnique({
+            where: { fundType: existingTransaction.fundType }
+          });
+          
+          const newFund = await prisma.fundBalance.findUnique({
+            where: { fundType: newFundType }
+          });
+          
+          if (oldFund && newFund) {
+            // Update old fund (subtract amount)
+            await prisma.fundBalance.update({
+              where: { fundType: existingTransaction.fundType },
+              data: { currentBalance: oldFund.currentBalance - existingTransaction.amount }
+            });
+            
+            // Create transaction record for subtraction
+            await prisma.fundTransaction.create({
+              data: {
+                fundType: existingTransaction.fundType,
+                transactionType: "transfer_out",
+                amount: -existingTransaction.amount,
+                balanceAfter: oldFund.currentBalance - existingTransaction.amount,
+                description: `Fund transfer to ${newFundType} for transaction: ${transaction.name}`,
+                sourceType: "transaction_edit",
+                sourceId: transaction.id,
+                createdById: user.userId
+              }
+            });
+            
+            // Update new fund (add amount)
+            await prisma.fundBalance.update({
+              where: { fundType: newFundType },
+              data: { currentBalance: newFund.currentBalance + existingTransaction.amount }
+            });
+            
+            // Create transaction record for addition
+            await prisma.fundTransaction.create({
+              data: {
+                fundType: newFundType,
+                transactionType: "transfer_in",
+                amount: existingTransaction.amount,
+                balanceAfter: newFund.currentBalance + existingTransaction.amount,
+                description: `Fund transfer from ${existingTransaction.fundType} for transaction: ${transaction.name}`,
+                sourceType: "transaction_edit",
+                sourceId: transaction.id,
+                createdById: user.userId
+              }
+            });
+          }
+        } catch (fundTransferError) {
+          console.log("Fund transfer error:", String(fundTransferError));
+          // Continue even if fund transfer fails
+        }
+      }
 
       // Handle expenses if provided
       let createdExpenses = [];
@@ -232,7 +329,8 @@ export async function PATCH(req) {
               description: expense.description || null,
               date: new Date(expense.date),
               paymentProofLink: expense.paymentProofLink || null,
-              transactionId: id // Link to the transaction
+              transactionId: id, // Link to the transaction
+              fundType: expense.fundType || "petty_cash" // Use specified fund type or default
             };
             
             // Add creator information
@@ -253,16 +351,44 @@ export async function PATCH(req) {
             
             // Update company finances
             try {
-              let finance = await prisma.companyFinance.findFirst();
-              if (finance) {
-                await prisma.companyFinance.update({
-                  where: { id: finance.id },
-                  data: {
-                    totalFunds: finance.totalFunds - Number(expense.amount),
+              // Get the fund
+              let fund = await prisma.fundBalance.findUnique({
+                where: { fundType: expenseData.fundType }
+              });
+              
+              // If fund doesn't exist, create it
+              if (!fund) {
+                fund = await prisma.fundBalance.create({
+                  data: { 
+                    fundType: expenseData.fundType,
+                    currentBalance: 0
                   }
                 });
-                console.log(`Finance updated: subtracted ${expense.amount} for expense ID ${createdExpense.id}`);
               }
+              
+              // Update fund balance
+              await prisma.fundBalance.update({
+                where: { fundType: expenseData.fundType },
+                data: {
+                  currentBalance: fund.currentBalance - Number(expense.amount),
+                }
+              });
+              
+              // Create fund transaction record
+              await prisma.fundTransaction.create({
+                data: {
+                  fundType: expenseData.fundType,
+                  transactionType: "expense",
+                  amount: -Number(expense.amount),
+                  balanceAfter: fund.currentBalance - Number(expense.amount),
+                  description: `Expense for transaction: ${transaction.name} - ${expense.category}`,
+                  sourceType: "expense",
+                  sourceId: createdExpense.id,
+                  createdById: user.userId
+                }
+              });
+              
+              console.log(`Fund ${expenseData.fundType} updated: subtracted ${expense.amount} for expense ID ${createdExpense.id}`);
             } catch (financeError) {
               console.log("Finance update error during expense creation:", String(financeError));
               // Continue even if finance update fails
@@ -333,14 +459,31 @@ export async function DELETE(req) {
       return createSafeResponse({ message: "Failed to delete transaction" }, 500);
     }
 
-    // Update finances - subtract the amount that was added to revenue
+    // Update finances - subtract the amount from the associated fund
     try {
-      const finance = await prisma.companyFinance.findFirst();
-      if (finance) {
+      const fundType = transaction.fundType || "petty_cash";
+      const fund = await prisma.fundBalance.findUnique({
+        where: { fundType }
+      });
+      
+      if (fund) {
         const amountToSubtract = transaction.amount || 0;
-        await prisma.companyFinance.update({
-          where: { id: finance.id },
-          data: { totalFunds: finance.totalFunds - amountToSubtract }
+        await prisma.fundBalance.update({
+          where: { fundType },
+          data: { currentBalance: fund.currentBalance - amountToSubtract }
+        });
+        
+        // Create fund transaction record for the deletion
+        await prisma.fundTransaction.create({
+          data: {
+            fundType,
+            transactionType: "adjustment",
+            amount: -amountToSubtract,
+            balanceAfter: fund.currentBalance - amountToSubtract,
+            description: `Transaction deleted: ${transaction.name}`,
+            sourceType: "transaction_delete",
+            createdById: user.userId
+          }
         });
       }
     } catch (error) {

@@ -39,6 +39,9 @@ import {
   Tag,
   Package2,
   User,
+  DollarSign,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { formatRupiah } from "@/lib/formatters";
@@ -88,7 +91,7 @@ interface FormData {
   vendorId: string;
   picId: string;
   transactionId: string;
-  fundType: string;
+  fundType: string; // Fund type for both transactions and expenses
   // Subscription fields
   subscriptionId: string;
   isRecurringExpense: boolean;
@@ -104,6 +107,15 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   const { user } = useAuth();
   const [transactionType, setTransactionType] = useState<TransactionType>("transaction");
   const [activeTab, setActiveTab] = useState("transaction"); // Added for tab activation
+  
+  // Fund balances state
+  const [fundBalances, setFundBalances] = useState<{
+    petty_cash: number;
+    profit_bank: number;
+  }>({
+    petty_cash: 0,
+    profit_bank: 0
+  });
   
   // Form data state
   const [formData, setFormData] = useState<FormData>({
@@ -155,6 +167,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   const [loadingVendors, setLoadingVendors] = useState(false);
   const [loadingPics, setLoadingPics] = useState(false);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
+  const [loadingFundBalances, setLoadingFundBalances] = useState(false);
   
   // New client state
   const [isNewClientSheetOpen, setIsNewClientSheetOpen] = useState(false);
@@ -215,12 +228,42 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     checkDatabaseSchema();
   }, []);
 
+  // Fetch fund balances
+  const fetchFundBalances = async () => {
+    try {
+      setLoadingFundBalances(true);
+      const res = await fetchWithAuth("/api/fund-balance", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        const balances = {
+          petty_cash: 0,
+          profit_bank: 0
+        };
+        
+        data.forEach((fund: any) => {
+          if (fund.fundType === "petty_cash") {
+            balances.petty_cash = fund.currentBalance;
+          } else if (fund.fundType === "profit_bank") {
+            balances.profit_bank = fund.currentBalance;
+          }
+        });
+        
+        setFundBalances(balances);
+      }
+    } catch (error) {
+      console.error("Error fetching fund balances:", error);
+    } finally {
+      setLoadingFundBalances(false);
+    }
+  };
+
   // Fetch data when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchClients();
       fetchVendors();
       fetchPics();
+      fetchFundBalances();
       
       // Initialize transaction type and expense data if needed
       if (transactionType === "expense" || activeTab === "expense") { 
@@ -604,6 +647,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       if (!formData.name.trim()) errors.name = "Transaction name is required";
       if (!formData.projectValue) errors.projectValue = "Project value is required";
       if (!formData.date) errors.date = "Date is required";
+      if (!formData.fundType) errors.fundType = "Fund destination is required";
       if (profit < 0) errors.profit = "Profit cannot be negative";
       if (formData.paymentStatus === "DP") {
         if (!formData.downPaymentAmount) {
@@ -619,6 +663,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       if (!formData.amount || parseFloat(formData.amount) <= 0)
         errors.amount = "Valid expense amount is required";
       if (!formData.date) errors.date = "Date is required";
+      if (!formData.fundType) errors.fundType = "Fund source is required";
       
       // Validate subscription-specific fields
       if (formData.category === "Subscription") {
@@ -685,6 +730,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           endDate: formData.endDate ? new Date(formData.endDate).toISOString() : null,
           clientId: formData.clientId || null,
           picId: formData.picId || null,
+          fundType: formData.fundType, // Include fund type for transactions
         };
         if (showPaymentProofField && formData.paymentProofLink) {
           payload.paymentProofLink = formData.paymentProofLink;
@@ -698,7 +744,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
           vendorId: formData.vendorId || null,
           transactionId: formData.transactionId || null,
-          fundType: formData.fundType || "petty_cash",
+          fundType: formData.fundType,
         };
         
         // Add subscription-specific fields
@@ -772,6 +818,9 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       // Show success message
       toast.success(`${transactionType === "transaction" ? "Transaction" : "Expense"} added successfully!`);
       
+      // Refresh fund balances
+      fetchFundBalances();
+      
       // If it was a subscription payment, refresh the subscriptions list
       if (transactionType === "expense" && formData.category === "Subscription" && formData.subscriptionId) {
         // Wait a moment for the database to update
@@ -787,6 +836,31 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       toast.error(`Failed to add ${transactionType}: ${error instanceof Error ? error.message : "Unknown error"}`);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Helper to get fund balance display with formatting
+  const getFundBalanceDisplay = (fundType: string) => {
+    const balance = fundType === "petty_cash" ? fundBalances.petty_cash : fundBalances.profit_bank;
+    return `Rp${formatRupiah(balance)}`;
+  };
+
+  // Function to render Fund Type Indicator Badge
+  const FundTypeIndicator = ({ fundType }: { fundType: string }) => {
+    if (fundType === "petty_cash") {
+      return (
+        <span className="inline-flex items-center bg-blue-50 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
+          <Wallet className="h-3 w-3 mr-1" />
+          Petty Cash
+        </span>
+      );
+    } else {
+      return (
+        <span className="inline-flex items-center bg-green-50 text-green-700 text-xs font-medium px-2 py-0.5 rounded-full">
+          <CreditCard className="h-3 w-3 mr-1" />
+          Profit Bank
+        </span>
+      );
     }
   };
 
@@ -850,6 +924,77 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         />
                         {formErrors.projectValue && (
                           <p className="text-red-500 text-xs mt-1">{formErrors.projectValue}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Fund Destination Selection - NEW ADDITION */}
+                    <div className="mt-4 p-4 border rounded-md bg-slate-50">
+                      <h3 className="text-sm font-semibold mb-3 flex items-center">
+                        <DollarSign className="h-4 w-4 mr-1 text-blue-600" />
+                        Fund Destination
+                      </h3>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                            <Wallet className="h-4 w-4" />
+                            Select Fund Destination*
+                          </label>
+                          <Select
+                            value={formData.fundType}
+                            onValueChange={handleFundTypeChange}
+                          >
+                            <SelectTrigger className={formErrors.fundType ? "border-red-500" : ""}>
+                              <SelectValue placeholder="Select Fund Destination" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="petty_cash" className="flex items-center">
+                                <div className="flex items-center">
+                                  <Wallet className="h-4 w-4 mr-2 text-blue-600" />
+                                  <span>Petty Cash</span>
+                                  <span className="ml-2 text-sm text-muted-foreground">
+                                    ({loadingFundBalances ? "Loading..." : getFundBalanceDisplay("petty_cash")})
+                                  </span>
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="profit_bank" className="flex items-center">
+                                <div className="flex items-center">
+                                  <CreditCard className="h-4 w-4 mr-2 text-green-600" />
+                                  <span>Profit Bank</span>
+                                  <span className="ml-2 text-sm text-muted-foreground">
+                                    ({loadingFundBalances ? "Loading..." : getFundBalanceDisplay("profit_bank")})
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {formErrors.fundType && (
+                            <p className="text-red-500 text-xs mt-1">{formErrors.fundType}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Select which fund this income will be added to
+                          </p>
+                        </div>
+                        
+                        {/* Fund Impact Preview */}
+                        {formData.paymentStatus !== "Belum Bayar" && parseFloat(formData.projectValue) > 0 && (
+                          <div className="bg-white p-3 rounded border">
+                            <h4 className="text-sm font-medium mb-2">Fund Impact Preview</h4>
+                            <div className="flex items-center gap-2">
+                              <FundTypeIndicator fundType={formData.fundType} />
+                              <div className="flex items-center">
+                                <ArrowUp className="h-3 w-3 text-green-600 mr-1" />
+                                <span className="text-sm font-medium text-green-600">
+                                  +Rp{formatRupiah(
+                                    formData.paymentStatus === "Lunas" 
+                                      ? parseFloat(formData.projectValue) || 0
+                                      : parseFloat(formData.downPaymentAmount) || 0
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1095,6 +1240,73 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                       {formErrors.category && (
                         <p className="text-red-500 text-xs mt-1">{formErrors.category}</p>
                       )}
+                    </div>
+
+                    {/* Fund Source Selection */}
+                    <div className="mt-4 p-4 border rounded-md bg-slate-50">
+                      <h3 className="text-sm font-semibold mb-3 flex items-center">
+                        <DollarSign className="h-4 w-4 mr-1 text-red-600" />
+                        Fund Source
+                      </h3>
+                      
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                            <Wallet className="h-4 w-4" />
+                            Select Fund Source*
+                          </label>
+                          <Select
+                            value={formData.fundType}
+                            onValueChange={handleFundTypeChange}
+                          >
+                            <SelectTrigger className={formErrors.fundType ? "border-red-500" : ""}>
+                              <SelectValue placeholder="Select Fund Source" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="petty_cash" className="flex items-center">
+                                <div className="flex items-center">
+                                  <Wallet className="h-4 w-4 mr-2 text-blue-600" />
+                                  <span>Petty Cash</span>
+                                  <span className="ml-2 text-sm text-muted-foreground">
+                                    ({loadingFundBalances ? "Loading..." : getFundBalanceDisplay("petty_cash")})
+                                  </span>
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="profit_bank" className="flex items-center">
+                                <div className="flex items-center">
+                                  <CreditCard className="h-4 w-4 mr-2 text-green-600" />
+                                  <span>Profit Bank</span>
+                                  <span className="ml-2 text-sm text-muted-foreground">
+                                    ({loadingFundBalances ? "Loading..." : getFundBalanceDisplay("profit_bank")})
+                                  </span>
+                                </div>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {formErrors.fundType && (
+                            <p className="text-red-500 text-xs mt-1">{formErrors.fundType}</p>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Select which fund this expense will be deducted from
+                          </p>
+                        </div>
+                        
+                        {/* Fund Impact Preview */}
+                        {parseFloat(formData.amount) > 0 && (
+                          <div className="bg-white p-3 rounded border">
+                            <h4 className="text-sm font-medium mb-2">Fund Impact Preview</h4>
+                            <div className="flex items-center gap-2">
+                              <FundTypeIndicator fundType={formData.fundType} />
+                              <div className="flex items-center">
+                                <ArrowDown className="h-3 w-3 text-red-600 mr-1" />
+                                <span className="text-sm font-medium text-red-600">
+                                  -Rp{formatRupiah(parseFloat(formData.amount) || 0)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     {/* Subscription Selection (only appears for Subscription category) */}
@@ -1374,26 +1586,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                       {formErrors.date && (
                         <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>
                       )}
-                    </div>
-
-                    {/* Fund Type */}
-                    <div className="mt-4">
-                      <label className="text-sm font-medium mb-1 flex items-center gap-1">
-                        <Wallet className="h-4 w-4" />
-                        Fund Type
-                      </label>
-                      <Select
-                        value={formData.fundType}
-                        onValueChange={handleFundTypeChange}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select Fund Type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="petty_cash">Petty Cash</SelectItem>
-                          <SelectItem value="profit_bank">Profit Bank</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
 
                     {/* Payment Proof */}
