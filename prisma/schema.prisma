@@ -122,7 +122,7 @@ model Transaction {
   deletedById       String?
   updatedBy         User?      @relation("TransactionUpdatedBy", fields: [updatedById], references: [id])
   deletedBy         User?      @relation("TransactionDeletedBy", fields: [deletedById], references: [id])
-  
+  fundType          String    @default("petty_cash") // Add this field
   clientId          String?
   client            Client?    @relation(fields: [clientId], references: [id])
   

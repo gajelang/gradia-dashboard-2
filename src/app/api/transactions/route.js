@@ -418,7 +418,7 @@ export async function PATCH(req) {
 
 export async function DELETE(req) {
   // Verify auth token
-  const { isAuthenticated } = await verifyAuthToken(req);
+  const { isAuthenticated, user } = await verifyAuthToken(req);
   
   if (!isAuthenticated) {
     return createSafeResponse({ error: "Unauthorized" }, 401);

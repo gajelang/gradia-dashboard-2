@@ -79,9 +79,47 @@ interface FundTransaction {
 }
 
 export default function FundManagement() {
-  const { user } = useAuth();
-  const [fundBalances, setFundBalances] = useState<FundBalance[]>([]);
-  const [transactions, setTransactions] = useState<FundTransaction[]>([]);
+
+    const formatDate = (dateString: string | undefined | null) => {
+        if (!dateString) return "—";
+        const date = new Date(dateString);
+        return date.toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+      };
+      
+      // Get transaction type color
+      const getTransactionTypeColor = (type: string) => {
+        switch (type) {
+          case "income": return "text-green-600";
+          case "expense": return "text-red-600";
+          case "transfer_in": return "text-blue-600";
+          case "transfer_out": return "text-purple-600";
+          case "adjustment": return "text-amber-600";
+          default: return "";
+        }
+      };
+      
+      // Get transaction type display
+      const getTransactionTypeDisplay = (type: string) => {
+        switch (type) {
+          case "income": return "Income";
+          case "expense": return "Expense";
+          case "transfer_in": return "Transfer In";
+          case "transfer_out": return "Transfer Out";
+          case "adjustment": return "Adjustment";
+          default: return type;
+        }
+      };
+
+
+const { user } = useAuth();
+const [fundBalances, setFundBalances] = useState<FundBalance[]>([]);
+const [transactions, setTransactions] = useState<FundTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedFund, setSelectedFund] = useState<string | null>(null);
@@ -242,7 +280,8 @@ const fetchFundData = async () => {
         body: JSON.stringify({
           fundType: addFundsForm.fundType,
           amount: parseFloat(addFundsForm.amount),
-          description: addFundsForm.description
+          description: addFundsForm.description,
+          transactionType: "income" // Add this missing required field
         })
       });
       
@@ -328,48 +367,12 @@ const fetchFundData = async () => {
       toast.error(error instanceof Error ? error.message : "Failed to reconcile fund");
     }
   };
-  
-  // Format date for display
-  const formatDate = (dateString: string | undefined | null) => {
-    if (!dateString) return "—";
-    const date = new Date(dateString);
-    return date.toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-  };
+
   
   // Get fund balance by type
   const getFundBalance = (type: string) => {
     const fund = fundBalances.find(f => f.fundType === type);
     return fund ? fund.currentBalance : 0;
-  };
-  
-  // Get transaction type display
-  const getTransactionTypeDisplay = (type: string) => {
-    switch (type) {
-      case "income": return "Income";
-      case "expense": return "Expense";
-      case "transfer_in": return "Transfer In";
-      case "transfer_out": return "Transfer Out";
-      case "adjustment": return "Adjustment";
-      default: return type;
-    }
-  };
-  
-  // Get transaction type color
-  const getTransactionTypeColor = (type: string) => {
-    switch (type) {
-      case "income": return "text-green-600";
-      case "expense": return "text-red-600";
-      case "transfer_in": return "text-blue-600";
-      case "transfer_out": return "text-purple-600";
-      case "adjustment": return "text-amber-600";
-      default: return "";
-    }
   };
   
   return (

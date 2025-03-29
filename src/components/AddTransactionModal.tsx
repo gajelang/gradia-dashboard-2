@@ -695,149 +695,150 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   };
 
   // Form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (isSubmitting) return;
-    if (!validateForm()) {
-      toast.error("Please correct the errors in the form");
-      return;
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  if (isSubmitting) return;
+  if (!validateForm()) {
+    toast.error("Please correct the errors in the form");
+    return;
+  }
+  setIsSubmitting(true);
+  try {
+    let payload: any = {};
+    let apiEndpoint;
+    
+    if (transactionType === "transaction") {
+      let revenueAmount = 0;
+      if (formData.paymentStatus === "Lunas") {
+        revenueAmount = profit;
+      } else if (formData.paymentStatus === "DP") {
+        revenueAmount = parseFloat(formData.downPaymentAmount) || 0;
+      }
+      payload = {
+        name: formData.name || "Transaction",
+        projectValue: parseFloat(formData.projectValue) || 0,
+        totalProfit: profit,
+        amount: revenueAmount,
+        paymentStatus: formData.paymentStatus,
+        downPaymentAmount: formData.paymentStatus === "DP" ? parseFloat(formData.downPaymentAmount) : 0,
+        remainingAmount: remainingAmount,
+        email: formData.email || "",
+        phone: formData.phone || "",
+        description: formData.description || "",
+        date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
+        startDate: formData.startDate ? new Date(formData.startDate).toISOString() : null,
+        endDate: formData.endDate ? new Date(formData.endDate).toISOString() : null,
+        clientId: formData.clientId || null,
+        picId: formData.picId || null,
+        fundType: formData.fundType, // Include fund type for transactions
+      };
+      if (showPaymentProofField && formData.paymentProofLink) {
+        payload.paymentProofLink = formData.paymentProofLink;
+      }
+      apiEndpoint = "/api/transactions";
+    } else {
+      payload = {
+        category: formData.category,
+        amount: parseFloat(formData.amount),
+        description: formData.description || "",
+        date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
+        vendorId: formData.vendorId || null,
+        transactionId: formData.transactionId || null,
+        fundType: formData.fundType,
+      };
+      
+      // Add subscription-specific fields
+      if (formData.category === "Subscription" && formData.subscriptionId) {
+        payload.inventoryId = formData.subscriptionId;
+        
+        // Add recurring payment info
+        if (formData.isRecurringExpense) {
+          payload.isRecurringExpense = true;
+          payload.recurringFrequency = formData.recurringFrequency;
+          payload.nextBillingDate = formData.nextBillingDate 
+            ? new Date(formData.nextBillingDate).toISOString() 
+            : null;
+        }
+      }
+      
+      if (showPaymentProofField && formData.paymentProofLink) {
+        payload.paymentProofLink = formData.paymentProofLink;
+      }
+      apiEndpoint = "/api/expenses";
     }
-    setIsSubmitting(true);
-    try {
-      let payload: any = {};
-      let apiEndpoint;
+    
+    console.log("Sending payload:", payload);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const res = await fetchWithAuth(apiEndpoint, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!res.ok) {
+      // Improved error handling with detailed logging
+      const errorText = await res.text();
+      console.error("Full server error response:", errorText);
       
-      if (transactionType === "transaction") {
-        let revenueAmount = 0;
-        if (formData.paymentStatus === "Lunas") {
-          revenueAmount = profit;
-        } else if (formData.paymentStatus === "DP") {
-          revenueAmount = parseFloat(formData.downPaymentAmount) || 0;
-        }
-        payload = {
-          name: formData.name || "Transaction",
-          projectValue: parseFloat(formData.projectValue) || 0,
-          totalProfit: profit,
-          amount: revenueAmount,
-          paymentStatus: formData.paymentStatus,
-          downPaymentAmount: formData.paymentStatus === "DP" ? parseFloat(formData.downPaymentAmount) : 0,
-          remainingAmount: remainingAmount,
-          email: formData.email || "",
-          phone: formData.phone || "",
-          description: formData.description || "",
-          date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
-          startDate: formData.startDate ? new Date(formData.startDate).toISOString() : null,
-          endDate: formData.endDate ? new Date(formData.endDate).toISOString() : null,
-          clientId: formData.clientId || null,
-          picId: formData.picId || null,
-          fundType: formData.fundType, // Include fund type for transactions
-        };
-        if (showPaymentProofField && formData.paymentProofLink) {
-          payload.paymentProofLink = formData.paymentProofLink;
-        }
-        apiEndpoint = "/api/transactions";
-      } else {
-        payload = {
-          category: formData.category,
-          amount: parseFloat(formData.amount),
-          description: formData.description || "",
-          date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
-          vendorId: formData.vendorId || null,
-          transactionId: formData.transactionId || null,
-          fundType: formData.fundType,
-        };
-        
-        // Add subscription-specific fields
-        if (formData.category === "Subscription" && formData.subscriptionId) {
-          payload.inventoryId = formData.subscriptionId;
-          
-          // Add recurring payment info
-          if (formData.isRecurringExpense) {
-            payload.isRecurringExpense = true;
-            payload.recurringFrequency = formData.recurringFrequency;
-            payload.nextBillingDate = formData.nextBillingDate 
-              ? new Date(formData.nextBillingDate).toISOString() 
-              : null;
-          }
-        }
-        
-        if (showPaymentProofField && formData.paymentProofLink) {
-          payload.paymentProofLink = formData.paymentProofLink;
-        }
-        apiEndpoint = "/api/expenses";
-      }
-      
-      console.log("Sending payload:", payload);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
-      const res = await fetchWithAuth(apiEndpoint, {
-        method: "POST",
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!res.ok) {
-        let errorMessage = "Server error occurred";
-        try {
-          const errorData = await res.json();
-          console.error("Error response:", errorData);
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        } catch (e) {
-          console.error("Could not parse error response", e);
-        }
-        throw new Error(errorMessage);
-      }
-      
-      let responseData: Record<string, unknown> = {};
       try {
-        responseData = await res.json();
-        console.log("Server response:", responseData);
-      } catch (jsonError) {
-        console.error("Failed to parse server response:", jsonError);
+        const errorData = JSON.parse(errorText);
+        throw new Error(errorData.message || errorData.error || `Server error: ${res.status}`);
+      } catch (e) {
+        throw new Error(`Server error (${res.status}): ${errorText.slice(0, 100)}`);
       }
-      
-      const transactionData =
-        (responseData?.transaction as TransactionData) ||
-        (responseData?.expense as TransactionData) ||
-        (responseData as unknown as TransactionData) ||
-        (payload as unknown as TransactionData);
-      
-      if (user) {
-        transactionData.createdBy = {
-          id: user.userId,
-          name: user.name,
-          email: user.email,
-        };
-      }
-      
-      onTransactionAdded(transactionData);
-      
-      // Show success message
-      toast.success(`${transactionType === "transaction" ? "Transaction" : "Expense"} added successfully!`);
-      
-      // Refresh fund balances
-      fetchFundBalances();
-      
-      // If it was a subscription payment, refresh the subscriptions list
-      if (transactionType === "expense" && formData.category === "Subscription" && formData.subscriptionId) {
-        // Wait a moment for the database to update
-        setTimeout(() => {
-          fetchSubscriptions();
-        }, 1000);
-      }
-      
-      resetForm();
-      setIsOpen(false);
-    } catch (error) {
-      console.error("Error adding transaction/expense:", error);
-      toast.error(`Failed to add ${transactionType}: ${error instanceof Error ? error.message : "Unknown error"}`);
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+    
+    let responseData: Record<string, unknown> = {};
+    try {
+      responseData = await res.json();
+      console.log("Server response:", responseData);
+    } catch (jsonError) {
+      console.error("Failed to parse server response:", jsonError);
+    }
+    
+    const transactionData =
+      (responseData?.transaction as TransactionData) ||
+      (responseData?.expense as TransactionData) ||
+      (responseData as unknown as TransactionData) ||
+      (payload as unknown as TransactionData);
+    
+    if (user) {
+      transactionData.createdBy = {
+        id: user.userId,
+        name: user.name,
+        email: user.email,
+      };
+    }
+    
+    onTransactionAdded(transactionData);
+    
+    // Show success message
+    toast.success(`${transactionType === "transaction" ? "Transaction" : "Expense"} added successfully!`);
+    
+    // Refresh fund balances
+    fetchFundBalances();
+    
+    // If it was a subscription payment, refresh the subscriptions list
+    if (transactionType === "expense" && formData.category === "Subscription" && formData.subscriptionId) {
+      // Wait a moment for the database to update
+      setTimeout(() => {
+        fetchSubscriptions();
+      }, 1000);
+    }
+    
+    resetForm();
+    setIsOpen(false);
+  } catch (error) {
+    console.error("Error with full details:", error);
+    toast.error(`Failed to add ${transactionType}: ${error instanceof Error ? error.message : "Unknown error"}`);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   // Helper to get fund balance display with formatting
   const getFundBalanceDisplay = (fundType: string) => {
