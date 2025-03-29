@@ -51,6 +51,7 @@ import { DatePickerDialog } from "@/components/DatePickerDialog";
 import { fetchWithAuth } from "@/lib/api";
 import { toast } from "react-hot-toast";
 import { formatRupiah } from "@/lib/formatters";
+import FundManagement from "@/components/FundManagement";
 
 import {
   Tooltip as UITooltip,
@@ -713,10 +714,11 @@ export default function CompanyFinance() {
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid grid-cols-3 w-[400px] mb-6">
+            <TabsList className="grid grid-cols-4 w-[550px] mb-6">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="categories">Categories</TabsTrigger>
               <TabsTrigger value="monthly">Monthly Analysis</TabsTrigger>
+              <TabsTrigger value="funds">Fund Management</TabsTrigger>
             </TabsList>
 
             {/* ===================== OVERVIEW ===================== */}
@@ -1455,6 +1457,11 @@ export default function CompanyFinance() {
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+            
+            {/* ===================== FUNDS ===================== */}
+            <TabsContent value="funds" className="space-y-6">
+              <FundManagement />
             </TabsContent>
           </Tabs>
         </>

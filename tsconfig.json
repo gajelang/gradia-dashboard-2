@@ -22,6 +22,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/app/api/subscriptions/route.js", "src/app/api/cron/recurring-payments/route.js", "src/app/api/expenses/recurring/route.js", "src/lib/api.ts", "src/app/api/expenses/route.js"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/app/api/subscriptions/route.js", "src/app/api/cron/recurring-payments/route.js", "src/app/api/expenses/recurring/route.js", "src/lib/api.ts", "src/app/api/expenses/route.js", "src/app/api/fund-transaction/route.js", "src/app/api/fund-balance/route.js", "src/app/api/fund-transfer/route.js"],
   "exclude": ["node_modules"]
 }

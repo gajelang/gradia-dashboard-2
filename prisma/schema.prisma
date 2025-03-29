@@ -39,6 +39,8 @@ model User {
   deletedClients         Client[]      @relation("ClientDeletedBy")
   
   createdInvoices        Invoice[]     @relation("InvoiceCreatedBy")
+
+  fundTransactions    FundTransaction[]
   
   // Inventory relations
   createdInventories     Inventory[]   @relation("InventoryCreatedBy")
@@ -131,6 +133,33 @@ model Transaction {
   pic               User?      @relation("TransactionPIC", fields: [picId], references: [id])
   
   invoices          Invoice[]
+}
+
+model FundBalance {
+  id                     String    @id @default(uuid())
+  fundType               String    @unique // "petty_cash" or "profit_bank"
+  currentBalance         Float     @default(0.0)
+  lastReconciledBalance  Float?    // Last manually verified balance
+  lastReconciledAt       DateTime? // When balance was last reconciled
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+}
+
+model FundTransaction {
+  id                  String    @id @default(uuid())
+  fundType            String    // "petty_cash" or "profit_bank"
+  transactionType     String    // "income", "expense", "transfer_in", "transfer_out", "adjustment"
+  amount              Float
+  balanceAfter        Float     // Running balance after this transaction
+  description         String?
+  sourceId            String?   // ID of related expense/transaction
+  sourceType          String?   // "expense", "transaction", "manual_adjustment", "fund_transfer"
+  
+  referenceId         String?   // For transfers: ID of the corresponding transaction in the other fund
+  
+  createdById         String?
+  createdBy           User?     @relation(fields: [createdById], references: [id])
+  createdAt           DateTime  @default(now())
 }
 
 model Expense {
