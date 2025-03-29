@@ -14,6 +14,7 @@ import TransactionTable from "@/components/transactions/TransactionTable"
 import ExpensesTable from "@/components/ExpensesTable"
 import ResourcesTab from "@/components/ResourceTab"
 import InvoiceCreator from "@/components/InvoiceCreator"
+import InvoiceList from "@/components/InvoiceList" // Import the InvoiceList component
 import ProjectCalendar from "@/components/ProjectCalendar"
 import DashboardHeader from "@/components/dashboard-header"
 import FinancialAnalysis from "@/components/FinanceAnalysis"
@@ -118,6 +119,7 @@ export default function Dashboard() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
+            <TabsTrigger value="invoices">Invoices</TabsTrigger> {/* New tab for invoices */}
             <TabsTrigger value="analysis">Project Financial</TabsTrigger>
             <TabsTrigger value="company-finance">Company Finance</TabsTrigger>
             <TabsTrigger value="resources">Resources</TabsTrigger>
@@ -157,6 +159,11 @@ export default function Dashboard() {
           
           <TabsContent value="expenses" className="space-y-4">
             <ExpensesTable />
+          </TabsContent>
+          
+          {/* New Invoices Tab Content */}
+          <TabsContent value="invoices" className="space-y-4">
+            <InvoiceList />
           </TabsContent>
           
           <TabsContent value="analysis" className="space-y-4">

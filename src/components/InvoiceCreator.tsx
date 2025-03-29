@@ -259,32 +259,65 @@ export default function InvoiceCreator() {
   };
 
   // Function to download invoice as PDF
-  const handleDownloadPDF = async () => {
-    if (!invoiceRef.current) return;
+  // Function to download invoice as PDF with proper A4 proportions
+const handleDownloadPDF = async () => {
+  if (!invoiceRef.current) return;
 
-    try {
-      // Capture invoice element as canvas
-      const canvas = await html2canvas(invoiceRef.current);
-      const imgData = canvas.toDataURL("image/png");
-
-      // Create PDF with A4 size
-      const pdf = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
-        format: "a4",
-      });
-
-      // Calculate dimensions to fit A4
-      // Gunakan ukuran A4 penuh (210 x 297 mm)
-pdf.addImage(imgData, "PNG", 0, 0, 210, 297);
-      pdf.save(`${invoiceData.invoiceNumber}.pdf`);
-
-      toast.success("Invoice berhasil diunduh sebagai PDF!");
-    } catch (error) {
-      console.error("Gagal mengunduh PDF:", error);
-      toast.error("Terjadi kesalahan saat mengunduh PDF.");
+  try {
+    // Capture invoice element as canvas
+    const canvas = await html2canvas(invoiceRef.current, {
+      scale: 2, // Higher scale for better quality
+      logging: false,
+      useCORS: true
+    });
+    
+    // A4 dimensions in mm and points (used by jsPDF)
+    const a4Width = 210; // mm
+    const a4Height = 297; // mm
+    
+    // Create PDF with A4 size
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+    
+    // Get the dimensions of the canvas
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+    
+    // Calculate the aspect ratio
+    const aspectRatio = canvasWidth / canvasHeight;
+    
+    // Calculate dimensions to fit within A4 without stretching
+    let pdfWidth = a4Width;
+    let pdfHeight = pdfWidth / aspectRatio;
+    
+    // If the calculated height is greater than A4 height, adjust
+    if (pdfHeight > a4Height) {
+      pdfHeight = a4Height;
+      pdfWidth = pdfHeight * aspectRatio;
     }
-  };
+    
+    // Calculate centering position
+    const xPosition = (a4Width - pdfWidth) / 2;
+    let yPosition = 30; // Leave space at the top for company logo (30mm from top)
+    
+    // Get canvas data
+    const imgData = canvas.toDataURL('image/png');
+    
+    // Add image to PDF (centered and scaled properly)
+    pdf.addImage(imgData, 'PNG', xPosition, yPosition, pdfWidth, pdfHeight);
+    
+    // Save the PDF
+    pdf.save(`${invoiceData.invoiceNumber}.pdf`);
+
+    toast.success("Invoice berhasil diunduh sebagai PDF!");
+  } catch (error) {
+    console.error("Gagal mengunduh PDF:", error);
+    toast.error("Terjadi kesalahan saat mengunduh PDF.");
+  }
+};
 
   // Submit invoice
   const handleSubmitInvoice = async () => {

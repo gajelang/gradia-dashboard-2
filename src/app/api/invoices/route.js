@@ -12,8 +12,27 @@ export async function GET(request) {
       return createSafeResponse({ error: "Unauthorized" }, 401);
     }
 
+    // Parse URL to get query parameters
+    const { searchParams } = new URL(request.url);
+    const transactionId = searchParams.get('transactionId');
+    const invoiceId = searchParams.get('id');
+    
+    // Build where clause for the query
+    const whereClause = {};
+    
+    // Filter by transactionId if provided
+    if (transactionId) {
+      whereClause.transactionId = transactionId;
+    }
+    
+    // Filter by invoiceId if provided
+    if (invoiceId) {
+      whereClause.id = invoiceId;
+    }
+
     // Query invoices with related data
     const invoices = await prisma.invoice.findMany({
+      where: whereClause,
       include: {
         transaction: {
           select: {
@@ -30,6 +49,13 @@ export async function GET(request) {
             email: true,
             phone: true
           }
+        },
+        createdBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
         }
       },
       orderBy: {
@@ -40,6 +66,43 @@ export async function GET(request) {
     return createSafeResponse(invoices);
   } catch (error) {
     console.error('Error fetching invoices:', error);
+    return createSafeResponse({ error: 'Internal server error' }, 500);
+  }
+}
+
+// Add DELETE endpoint to handle invoice deletion
+export async function DELETE(request) {
+  try {
+    // Verify authentication
+    const authResult = await verifyAuthToken(request);
+    if (!authResult.isAuthenticated) {
+      return createSafeResponse({ error: "Unauthorized" }, 401);
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    
+    if (!id) {
+      return createSafeResponse({ error: "Invoice ID is required" }, 400);
+    }
+
+    // Check if invoice exists
+    const invoice = await prisma.invoice.findUnique({
+      where: { id }
+    });
+
+    if (!invoice) {
+      return createSafeResponse({ error: "Invoice not found" }, 404);
+    }
+
+    // Delete the invoice
+    await prisma.invoice.delete({
+      where: { id }
+    });
+
+    return createSafeResponse({ message: "Invoice deleted successfully" });
+  } catch (error) {
+    console.error('Error deleting invoice:', error);
     return createSafeResponse({ error: 'Internal server error' }, 500);
   }
 }

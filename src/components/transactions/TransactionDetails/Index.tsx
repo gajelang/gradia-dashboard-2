@@ -24,6 +24,7 @@ import FinancialInfo from "./FinancialInfo";
 import BroadcastInfo from "./BroadcastInfo";
 import AuditInfo from "./AuditInfo";
 import ExpenseTable from "../ExpenseTable";
+import InvoicesTab from "@/components/InvoicesTab";
 
 // Import dialogs
 import UpdateStatusDialog from "@/components/UpdateStatusDialog";
@@ -114,7 +115,7 @@ export default function TransactionDetails({
         
         <div className="flex flex-col h-full">
           <Tabs value={detailViewTab} onValueChange={setDetailViewTab}>
-            <TabsList className="grid grid-cols-2">
+            <TabsList className="grid grid-cols-3"> {/* Changed from grid-cols-2 to grid-cols-3 */}
               <TabsTrigger value="details">Information</TabsTrigger>
               <TabsTrigger value="expenses">
                 Expenses
@@ -123,6 +124,9 @@ export default function TransactionDetails({
                     {(selectedTransaction.capitalCost || 0).toLocaleString()}
                   </span>
                 )}
+              </TabsTrigger>
+              <TabsTrigger value="invoices">
+                Invoices
               </TabsTrigger>
             </TabsList>
             
@@ -162,6 +166,10 @@ export default function TransactionDetails({
                     onExpensesUpdated={() => fetchTransactionExpenses(selectedTransaction.id)}
                   />
                 )}
+              </TabsContent>
+
+              <TabsContent value="invoices">
+                <InvoicesTab transaction={selectedTransaction} />
               </TabsContent>
             </div>
           </Tabs>
