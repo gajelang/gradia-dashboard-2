@@ -25,6 +25,11 @@ export interface TransactionData {
 // certain fields (like paymentStatus, description, and email) are
 // definitely strings in this final shape.
 export interface Transaction {
+  fundType(fundType: any): import("react").ReactNode;
+  endDate: string | number | Date;
+  endDate: any;
+  startDate: any;
+  startDate: string | number | Date;
   client: any;
   remainingAmount: number;
   isDeleted: any;

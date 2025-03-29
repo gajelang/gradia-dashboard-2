@@ -1,3 +1,4 @@
+// Improved /api/transactions GET method that properly filters out deleted expenses
 import { PrismaClient } from "@prisma/client";
 import { verifyAuthToken } from "@/lib/auth";
 import { createSafeResponse } from "@/lib/api";
@@ -14,33 +15,56 @@ export async function GET(req) {
   }
   
   try {
-    // Ambil transaksi dengan expenses yang terkait
+    // Parse URL to get query parameters
+    const { searchParams } = new URL(req.url);
+    const fetchDeleted = searchParams.get('deleted') === 'true';
+    
+    // Build where clause
+    const whereClause = {
+      isDeleted: fetchDeleted
+    };
+    
+    // Fetch transactions with appropriate where clause
     const transactions = await prisma.transaction.findMany({
+      where: whereClause,
       orderBy: { date: 'desc' },
       include: {
-        expenses: true, // Include related expenses
+        // Only include active expenses (not deleted ones)
+        expenses: {
+          where: {
+            isDeleted: false // This is the key filter - only include non-deleted expenses
+          }
+        },
         createdBy: {
           select: {
             id: true,
             name: true,
             email: true
           }
-        }
+        },
+        deletedBy: fetchDeleted ? {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        } : undefined
       }
     });
     
-    // Modifikasi data transaksi untuk menambahkan capitalCost
+    // Modify data to correctly calculate capitalCost only from active expenses
     const transactionsWithCapitalCost = transactions.map(transaction => {
-      // Hitung total biaya modal dari expenses
+      // Calculate capital cost based on active expenses only
       const capitalCost = transaction.expenses.reduce(
         (total, expense) => total + (expense.amount || 0), 
         0
       );
       
-      // Mengembalikan objek transaksi dengan capitalCost dan menghapus expenses
-      // (karena kita tidak perlu mengirim seluruh data expense)
-      const { ...transactionData } = transaction;
+      // Create a clean transaction object without the expenses array
+      // (since we don't need to send all expense details)
+      const { expenses, ...transactionData } = transaction;
       
+      // Return transaction with correct capital cost
       return {
         ...transactionData,
         capitalCost

@@ -43,8 +43,11 @@ import {
   ArrowUpDown, 
   RefreshCw,
   PlusCircle, 
-  CreditCard
+  CreditCard,
+  AlertTriangle,
+  InfoIcon
 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { toast } from "react-hot-toast";
 import { fetchWithAuth } from "@/lib/api";
 import { formatRupiah } from "@/lib/formatters";
@@ -54,6 +57,7 @@ interface FundBalance {
   id: string;
   fundType: string;
   currentBalance: number;
+  calculatedBalance?: number; // New field for the corrected balance
   lastReconciledBalance?: number | null;
   lastReconciledAt?: string | null;
   createdAt: string;
@@ -79,47 +83,9 @@ interface FundTransaction {
 }
 
 export default function FundManagement() {
-
-    const formatDate = (dateString: string | undefined | null) => {
-        if (!dateString) return "—";
-        const date = new Date(dateString);
-        return date.toLocaleDateString(undefined, {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit"
-        });
-      };
-      
-      // Get transaction type color
-      const getTransactionTypeColor = (type: string) => {
-        switch (type) {
-          case "income": return "text-green-600";
-          case "expense": return "text-red-600";
-          case "transfer_in": return "text-blue-600";
-          case "transfer_out": return "text-purple-600";
-          case "adjustment": return "text-amber-600";
-          default: return "";
-        }
-      };
-      
-      // Get transaction type display
-      const getTransactionTypeDisplay = (type: string) => {
-        switch (type) {
-          case "income": return "Income";
-          case "expense": return "Expense";
-          case "transfer_in": return "Transfer In";
-          case "transfer_out": return "Transfer Out";
-          case "adjustment": return "Adjustment";
-          default: return type;
-        }
-      };
-
-
-const { user } = useAuth();
-const [fundBalances, setFundBalances] = useState<FundBalance[]>([]);
-const [transactions, setTransactions] = useState<FundTransaction[]>([]);
+  const { user } = useAuth();
+  const [fundBalances, setFundBalances] = useState<FundBalance[]>([]);
+  const [transactions, setTransactions] = useState<FundTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedFund, setSelectedFund] = useState<string | null>(null);
@@ -149,9 +115,44 @@ const [transactions, setTransactions] = useState<FundTransaction[]>([]);
     description: ""
   });
   
+  const formatDate = (dateString: string | undefined | null) => {
+    if (!dateString) return "—";
+    const date = new Date(dateString);
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
+  
+  // Get transaction type color
+  const getTransactionTypeColor = (type: string) => {
+    switch (type) {
+      case "income": return "text-green-600";
+      case "expense": return "text-red-600";
+      case "transfer_in": return "text-blue-600";
+      case "transfer_out": return "text-purple-600";
+      case "adjustment": return "text-amber-600";
+      default: return "";
+    }
+  };
+  
+  // Get transaction type display
+  const getTransactionTypeDisplay = (type: string) => {
+    switch (type) {
+      case "income": return "Income";
+      case "expense": return "Expense";
+      case "transfer_in": return "Transfer In";
+      case "transfer_out": return "Transfer Out";
+      case "adjustment": return "Adjustment";
+      default: return type;
+    }
+  };
+
   // Fetch fund balances and transactions
-  // Update the fetchFundData function in FundManagement.tsx
-const fetchFundData = async () => {
+  const fetchFundData = async () => {
     try {
       setLoading(true);
       
@@ -166,6 +167,17 @@ const fetchFundData = async () => {
       
       const balancesData = await balancesRes.json();
       setFundBalances(balancesData);
+      
+      // Check for any discrepancies between current and calculated balances
+      balancesData.forEach((fund: FundBalance) => {
+        const currentBalance = fund.currentBalance;
+        const calculatedBalance = fund.calculatedBalance;
+        
+        // If calculated balance exists and differs from current balance
+        if (calculatedBalance !== undefined && Math.abs(calculatedBalance - currentBalance) > 0.01) {
+          console.warn(`Balance discrepancy detected for ${fund.fundType}: System shows ${currentBalance}, calculated is ${calculatedBalance}`);
+        }
+      });
       
       // Fetch transactions for the selected fund or all funds
       const transactionsRes = await fetchWithAuth(
@@ -204,38 +216,6 @@ const fetchFundData = async () => {
       setLoading(false);
     }
   };
-  
-  // Also add a safety check where transactions.slice() is being used:
-  {transactions && Array.isArray(transactions) && transactions.length > 0 ? (
-    transactions.slice(0, 5).map((transaction) => (
-      <TableRow key={transaction.id}>
-        <TableCell className="font-medium">
-          {formatDate(transaction.createdAt)}
-        </TableCell>
-        <TableCell className={getTransactionTypeColor(transaction.transactionType)}>
-          {getTransactionTypeDisplay(transaction.transactionType)}
-        </TableCell>
-        <TableCell>
-          {transaction.fundType === "petty_cash" ? "Petty Cash" : "Profit Bank"}
-        </TableCell>
-        <TableCell className={`text-right ${
-          transaction.amount >= 0 ? "text-green-600" : "text-red-600"
-        }`}>
-          {transaction.amount >= 0 ? "+" : ""}
-          Rp{formatRupiah(Math.abs(transaction.amount))}
-        </TableCell>
-        <TableCell className="max-w-xs truncate">
-          {transaction.description}
-        </TableCell>
-      </TableRow>
-    ))
-  ) : (
-    <TableRow>
-      <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
-        No transactions found.
-      </TableCell>
-    </TableRow>
-  )}
   
   useEffect(() => {
     fetchFundData();
@@ -367,10 +347,27 @@ const fetchFundData = async () => {
       toast.error(error instanceof Error ? error.message : "Failed to reconcile fund");
     }
   };
-
   
-  // Get fund balance by type
+  // Get fund balance by type - UPDATED to use calculatedBalance if available
   const getFundBalance = (type: string) => {
+    const fund = fundBalances.find(f => f.fundType === type);
+    if (!fund) return 0;
+    
+    // Use calculatedBalance if available, otherwise fall back to currentBalance
+    return typeof fund.calculatedBalance !== 'undefined' ? fund.calculatedBalance : fund.currentBalance;
+  };
+  
+  // Check if there's a discrepancy between current and calculated balance
+  const hasBalanceDiscrepancy = (type: string) => {
+    const fund = fundBalances.find(f => f.fundType === type);
+    if (!fund || typeof fund.calculatedBalance === 'undefined') return false;
+    
+    // Return true if there's a significant difference (more than 1 unit of currency)
+    return Math.abs(fund.currentBalance - fund.calculatedBalance) > 1;
+  };
+  
+  // Get the current database balance (not the calculated one)
+  const getDatabaseBalance = (type: string) => {
     const fund = fundBalances.find(f => f.fundType === type);
     return fund ? fund.currentBalance : 0;
   };
@@ -398,20 +395,54 @@ const fetchFundData = async () => {
         </div>
       </div>
       
+      {/* Warning Alert for Balance Discrepancies */}
+      {(hasBalanceDiscrepancy("petty_cash") || hasBalanceDiscrepancy("profit_bank")) && (
+        <Alert className="bg-amber-50 border-amber-200">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertTitle className="text-amber-800">Balance Discrepancy Detected</AlertTitle>
+          <AlertDescription className="text-amber-700">
+            The calculated fund balances differ from the system balances. This could be due to archived 
+            transactions or expenses. Consider using the Reconcile function to adjust the balances.
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {/* Fund Balances */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Petty Cash */}
-        <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+        <Card className={`bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200 ${
+          hasBalanceDiscrepancy("petty_cash") ? "border-amber-300" : ""
+        }`}>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center">
               <Wallet className="mr-2 h-5 w-5 text-blue-600" />
               Petty Cash
+              {hasBalanceDiscrepancy("petty_cash") && (
+                <span className="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Discrepancy
+                </span>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-blue-800">
               Rp{formatRupiah(getFundBalance("petty_cash"))}
             </div>
+            
+            {hasBalanceDiscrepancy("petty_cash") && (
+              <div className="mt-2 text-sm text-amber-700 bg-amber-50 rounded-md px-2 py-1">
+                <div className="flex justify-between">
+                  <span>System Balance:</span>
+                  <span>Rp{formatRupiah(getDatabaseBalance("petty_cash"))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Calculated Balance:</span>
+                  <span>Rp{formatRupiah(getFundBalance("petty_cash"))}</span>
+                </div>
+              </div>
+            )}
+            
             <div className="flex justify-between mt-2 text-sm">
               <span className="text-muted-foreground">
                 Last reconciled: {
@@ -436,17 +467,39 @@ const fetchFundData = async () => {
         </Card>
         
         {/* Profit Bank */}
-        <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+        <Card className={`bg-gradient-to-br from-green-50 to-green-100 border-green-200 ${
+          hasBalanceDiscrepancy("profit_bank") ? "border-amber-300" : ""
+        }`}>
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center">
               <CreditCard className="mr-2 h-5 w-5 text-green-600" />
               Profit Bank
+              {hasBalanceDiscrepancy("profit_bank") && (
+                <span className="ml-2 inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Discrepancy
+                </span>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-green-800">
               Rp{formatRupiah(getFundBalance("profit_bank"))}
             </div>
+            
+            {hasBalanceDiscrepancy("profit_bank") && (
+              <div className="mt-2 text-sm text-amber-700 bg-amber-50 rounded-md px-2 py-1">
+                <div className="flex justify-between">
+                  <span>System Balance:</span>
+                  <span>Rp{formatRupiah(getDatabaseBalance("profit_bank"))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Calculated Balance:</span>
+                  <span>Rp{formatRupiah(getFundBalance("profit_bank"))}</span>
+                </div>
+              </div>
+            )}
+            
             <div className="flex justify-between mt-2 text-sm">
               <span className="text-muted-foreground">
                 Last reconciled: {
@@ -494,13 +547,13 @@ const fetchFundData = async () => {
             <CardContent>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-blue-50 p-4 rounded-lg">
+                  <div className={`p-4 rounded-lg ${hasBalanceDiscrepancy("petty_cash") ? "bg-blue-50 border border-amber-300" : "bg-blue-50"}`}>
                     <div className="text-sm text-muted-foreground">Petty Cash</div>
                     <div className="text-2xl font-bold text-blue-800">
                       Rp{formatRupiah(getFundBalance("petty_cash"))}
                     </div>
                   </div>
-                  <div className="bg-green-50 p-4 rounded-lg">
+                  <div className={`p-4 rounded-lg ${hasBalanceDiscrepancy("profit_bank") ? "bg-green-50 border border-amber-300" : "bg-green-50"}`}>
                     <div className="text-sm text-muted-foreground">Profit Bank</div>
                     <div className="text-2xl font-bold text-green-800">
                       Rp{formatRupiah(getFundBalance("profit_bank"))}
@@ -559,28 +612,36 @@ const fetchFundData = async () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {transactions.slice(0, 5).map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell className="font-medium">
-                          {formatDate(transaction.createdAt)}
-                        </TableCell>
-                        <TableCell className={getTransactionTypeColor(transaction.transactionType)}>
-                          {getTransactionTypeDisplay(transaction.transactionType)}
-                        </TableCell>
-                        <TableCell>
-                          {transaction.fundType === "petty_cash" ? "Petty Cash" : "Profit Bank"}
-                        </TableCell>
-                        <TableCell className={`text-right ${
-                          transaction.amount >= 0 ? "text-green-600" : "text-red-600"
-                        }`}>
-                          {transaction.amount >= 0 ? "+" : ""}
-                          Rp{formatRupiah(Math.abs(transaction.amount))}
-                        </TableCell>
-                        <TableCell className="max-w-xs truncate">
-                          {transaction.description}
+                    {transactions && Array.isArray(transactions) && transactions.length > 0 ? (
+                      transactions.slice(0, 5).map((transaction) => (
+                        <TableRow key={transaction.id}>
+                          <TableCell className="font-medium">
+                            {formatDate(transaction.createdAt)}
+                          </TableCell>
+                          <TableCell className={getTransactionTypeColor(transaction.transactionType)}>
+                            {getTransactionTypeDisplay(transaction.transactionType)}
+                          </TableCell>
+                          <TableCell>
+                            {transaction.fundType === "petty_cash" ? "Petty Cash" : "Profit Bank"}
+                          </TableCell>
+                          <TableCell className={`text-right ${
+                            transaction.amount >= 0 ? "text-green-600" : "text-red-600"
+                          }`}>
+                            {transaction.amount >= 0 ? "+" : ""}
+                            Rp{formatRupiah(Math.abs(transaction.amount))}
+                          </TableCell>
+                          <TableCell className="max-w-xs truncate">
+                            {transaction.description}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-4 text-muted-foreground">
+                          No transactions found.
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )}
                   </TableBody>
                 </Table>
               )}
@@ -782,158 +843,186 @@ const fetchFundData = async () => {
               <Select
                 value={transferForm.toFundType}
                 onValueChange={(value) => setTransferForm(prev => ({ ...prev, toFundType: value }))}
-              ><SelectTrigger>
-              <SelectValue placeholder="Select destination fund" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="petty_cash">Petty Cash</SelectItem>
-              <SelectItem value="profit_bank">Profit Bank</SelectItem>
-            </SelectContent>
-          </Select>
-          {transferForm.fromFundType === transferForm.toFundType && (
-            <p className="text-sm text-red-500 mt-1">
-              Source and destination funds cannot be the same
-            </p>
-          )}
-        </div>
-        
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Amount (Rp)</label>
-          <Input
-            type="number"
-            min="0"
-            value={transferForm.amount}
-            onChange={(e) => setTransferForm(prev => ({ ...prev, amount: e.target.value }))}
-            placeholder="Enter amount"
-          />
-          <p className="text-xs text-muted-foreground">
-            Available: Rp{formatRupiah(getFundBalance(transferForm.fromFundType))}
-          </p>
-        </div>
-        
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Description (Optional)</label>
-          <Textarea
-            value={transferForm.description}
-            onChange={(e) => setTransferForm(prev => ({ ...prev, description: e.target.value }))}
-            placeholder="Enter description"
-          />
-        </div>
-      </div>
-      
-      <DialogFooter>
-        <Button variant="outline" onClick={() => setTransferFundsOpen(false)}>Cancel</Button>
-        <Button 
-          onClick={handleTransferFunds}
-          disabled={
-            transferForm.fromFundType === transferForm.toFundType ||
-            !transferForm.amount ||
-            parseFloat(transferForm.amount) <= 0 ||
-            parseFloat(transferForm.amount) > getFundBalance(transferForm.fromFundType)
-          }
-        >
-          <ArrowUpDown className="mr-2 h-4 w-4" />
-          Transfer Funds
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
-  
-  {/* Reconcile Funds Dialog */}
-  <Dialog open={reconcileOpen} onOpenChange={setReconcileOpen}>
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>Reconcile Fund Balance</DialogTitle>
-        <DialogDescription>
-          Adjust the system balance to match the actual balance in your account.
-        </DialogDescription>
-      </DialogHeader>
-      
-      <div className="space-y-4 py-4">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Fund Type</label>
-          <Select
-            value={reconcileForm.fundType}
-            onValueChange={(value) => setReconcileForm(prev => ({ ...prev, fundType: value }))}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select fund type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="petty_cash">Petty Cash</SelectItem>
-              <SelectItem value="profit_bank">Profit Bank</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Current System Balance</label>
-          <div className="p-2 bg-gray-50 rounded-md border">
-            Rp{formatRupiah(getFundBalance(reconcileForm.fundType))}
-          </div>
-        </div>
-        
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Actual Balance (Rp)</label>
-          <Input
-            type="number"
-            min="0"
-            value={reconcileForm.actualBalance}
-            onChange={(e) => setReconcileForm(prev => ({ ...prev, actualBalance: e.target.value }))}
-            placeholder="Enter actual balance"
-          />
-          <p className="text-xs text-muted-foreground">
-            Enter the actual balance from your physical cash or bank account
-          </p>
-        </div>
-        
-        {reconcileForm.actualBalance && !isNaN(parseFloat(reconcileForm.actualBalance)) && (
-          <div className="p-2 rounded-md border bg-blue-50">
-            <div className="font-medium text-sm">Adjustment Summary</div>
-            <div className="flex justify-between mt-1">
-              <span>Current System Balance:</span>
-              <span>Rp{formatRupiah(getFundBalance(reconcileForm.fundType))}</span>
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select destination fund" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="petty_cash">Petty Cash</SelectItem>
+                  <SelectItem value="profit_bank">Profit Bank</SelectItem>
+                </SelectContent>
+              </Select>
+              {transferForm.fromFundType === transferForm.toFundType && (
+                <p className="text-sm text-red-500 mt-1">
+                  Source and destination funds cannot be the same
+                </p>
+              )}
             </div>
-            <div className="flex justify-between">
-              <span>Actual Balance:</span>
-              <span>Rp{formatRupiah(parseFloat(reconcileForm.actualBalance))}</span>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Amount (Rp)</label>
+              <Input
+                type="number"
+                min="0"
+                value={transferForm.amount}
+                onChange={(e) => setTransferForm(prev => ({ ...prev, amount: e.target.value }))}
+                placeholder="Enter amount"
+              />
+              <p className="text-xs text-muted-foreground">
+                Available: Rp{formatRupiah(getFundBalance(transferForm.fromFundType))}
+              </p>
             </div>
-            <div className="border-t mt-2 pt-2 flex justify-between font-medium">
-              <span>Adjustment Amount:</span>
-              <span className={parseFloat(reconcileForm.actualBalance) - getFundBalance(reconcileForm.fundType) >= 0 ? "text-green-600" : "text-red-600"}>
-                {parseFloat(reconcileForm.actualBalance) - getFundBalance(reconcileForm.fundType) >= 0 ? "+" : ""}
-                Rp{formatRupiah(Math.abs(parseFloat(reconcileForm.actualBalance) - getFundBalance(reconcileForm.fundType)))}
-              </span>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description (Optional)</label>
+              <Textarea
+                value={transferForm.description}
+                onChange={(e) => setTransferForm(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Enter description"
+              />
             </div>
           </div>
-        )}
-        
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Reconciliation Note</label>
-          <Textarea
-            value={reconcileForm.description}
-            onChange={(e) => setReconcileForm(prev => ({ ...prev, description: e.target.value }))}
-            placeholder="Why is this adjustment needed? (required)"
-          />
-        </div>
-      </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTransferFundsOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={handleTransferFunds}
+              disabled={
+                transferForm.fromFundType === transferForm.toFundType ||
+                !transferForm.amount ||
+                parseFloat(transferForm.amount) <= 0 ||
+                parseFloat(transferForm.amount) > getFundBalance(transferForm.fromFundType)
+              }
+            >
+              <ArrowUpDown className="mr-2 h-4 w-4" />
+              Transfer Funds
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       
-      <DialogFooter>
-        <Button variant="outline" onClick={() => setReconcileOpen(false)}>Cancel</Button>
-        <Button 
-          onClick={handleReconcile}
-          disabled={
-            !reconcileForm.actualBalance || 
-            isNaN(parseFloat(reconcileForm.actualBalance)) ||
-            !reconcileForm.description
-          }
-        >
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Reconcile Balance
-        </Button>
-      </DialogFooter>
-    </DialogContent>
-  </Dialog>
-</div>
-);
+      {/* Reconcile Funds Dialog */}
+      <Dialog open={reconcileOpen} onOpenChange={setReconcileOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reconcile Fund Balance</DialogTitle>
+            <DialogDescription>
+              Adjust the system balance to match the actual balance in your account.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Fund Type</label>
+              <Select
+                value={reconcileForm.fundType}
+                onValueChange={(value) => setReconcileForm(prev => ({ ...prev, fundType: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select fund type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="petty_cash">Petty Cash</SelectItem>
+                  <SelectItem value="profit_bank">Profit Bank</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">System Balance</label>
+              <div className="p-2 bg-gray-50 rounded-md border">
+                Rp{formatRupiah(getDatabaseBalance(reconcileForm.fundType))}
+              </div>
+            </div>
+            
+            {hasBalanceDiscrepancy(reconcileForm.fundType) && (
+              <div className="space-y-2">
+                <div className="flex items-center">
+                  <InfoIcon className="h-4 w-4 mr-2 text-blue-500" />
+                  <label className="text-sm font-medium">Calculated Balance</label>
+                </div>
+                <div className="p-2 bg-blue-50 rounded-md border border-blue-200">
+                  Rp{formatRupiah(getFundBalance(reconcileForm.fundType))}
+                </div>
+                <p className="text-xs text-blue-600">
+                  This is the calculated balance based on active transactions and expenses.
+                  You may want to use this as your actual balance.
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setReconcileForm(prev => ({
+                    ...prev,
+                    actualBalance: getFundBalance(reconcileForm.fundType).toString()
+                  }))}
+                  className="w-full"
+                >
+                  Use Calculated Balance
+                </Button>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Actual Balance (Rp)</label>
+              <Input
+                type="number"
+                min="0"
+                value={reconcileForm.actualBalance}
+                onChange={(e) => setReconcileForm(prev => ({ ...prev, actualBalance: e.target.value }))}
+                placeholder="Enter actual balance"
+              />
+              <p className="text-xs text-muted-foreground">
+                Enter the actual balance from your physical cash or bank account
+              </p>
+            </div>
+            
+            {reconcileForm.actualBalance && !isNaN(parseFloat(reconcileForm.actualBalance)) && (
+              <div className="p-2 rounded-md border bg-blue-50">
+                <div className="font-medium text-sm">Adjustment Summary</div>
+                <div className="flex justify-between mt-1">
+                  <span>Current System Balance:</span>
+                  <span>Rp{formatRupiah(getDatabaseBalance(reconcileForm.fundType))}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Actual Balance:</span>
+                  <span>Rp{formatRupiah(parseFloat(reconcileForm.actualBalance))}</span>
+                </div>
+                <div className="border-t mt-2 pt-2 flex justify-between font-medium">
+                  <span>Adjustment Amount:</span>
+                  <span className={parseFloat(reconcileForm.actualBalance) - getDatabaseBalance(reconcileForm.fundType) >= 0 ? "text-green-600" : "text-red-600"}>
+                    {parseFloat(reconcileForm.actualBalance) - getDatabaseBalance(reconcileForm.fundType) >= 0 ? "+" : ""}
+                    Rp{formatRupiah(Math.abs(parseFloat(reconcileForm.actualBalance) - getDatabaseBalance(reconcileForm.fundType)))}
+                  </span>
+                </div>
+              </div>
+            )}
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Reconciliation Note</label>
+              <Textarea
+                value={reconcileForm.description}
+                onChange={(e) => setReconcileForm(prev => ({ ...prev, description: e.target.value }))}
+                placeholder="Why is this adjustment needed? (required)"
+              />
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReconcileOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={handleReconcile}
+              disabled={
+                !reconcileForm.actualBalance || 
+                isNaN(parseFloat(reconcileForm.actualBalance)) ||
+                !reconcileForm.description
+              }
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Reconcile Balance
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
 }

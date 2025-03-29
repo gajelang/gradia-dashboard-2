@@ -1,18 +1,9 @@
-// src/app/api/fund-balance/route.js
+// Modified API endpoint to exclude soft-deleted items in fund calculations
+// File: src/app/api/fund-balance/route.js
+
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuthToken } from '@/lib/auth';
-
-// Handle OPTIONS requests for CORS preflight
-export async function OPTIONS(request) {
-  return new NextResponse(null, {
-    status: 200,
-    headers: {
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    },
-  });
-}
 
 // Handle GET requests to retrieve fund balances
 export async function GET(request) {
@@ -39,8 +30,79 @@ export async function GET(request) {
       const newBalances = await prisma.fundBalance.findMany();
       return NextResponse.json(newBalances);
     }
+
+    // Calculate correct balances by excluding soft-deleted transactions and expenses
+    const recalculatedBalances = await Promise.all(fundBalances.map(async (fundBalance) => {
+      // Get fund type
+      const fundType = fundBalance.fundType;
+      
+      // Find all active transactions for this fund
+      const transactions = await prisma.transaction.findMany({
+        where: {
+          fundType,
+          isDeleted: false // Only include non-deleted transactions
+        }
+      });
+      
+      // Find all active expenses for this fund
+      const expenses = await prisma.expense.findMany({
+        where: {
+          fundType,
+          isDeleted: false // Only include non-deleted expenses
+        }
+      });
+      
+      // Calculate correct balance based on transaction amounts and expenses
+      let recalculatedBalance = 0;
+      
+      // Add income from transactions (only consider paid amounts)
+      transactions.forEach(transaction => {
+        if (transaction.paymentStatus === "Lunas") {
+          recalculatedBalance += transaction.totalProfit || transaction.projectValue || 0;
+        } else if (transaction.paymentStatus === "DP") {
+          recalculatedBalance += transaction.downPaymentAmount || 0;
+        }
+      });
+      
+      // Subtract expenses
+      expenses.forEach(expense => {
+        recalculatedBalance -= expense.amount || 0;
+      });
+      
+      // Get the fund transactions to reconcile the difference if needed
+      const fundTransactions = await prisma.fundTransaction.findMany({
+        where: { fundType },
+        orderBy: { createdAt: 'desc' }
+      });
+      
+      // Find the latest balance after a reconciliation, if exists
+      const latestReconciliation = fundTransactions.find(tx => tx.transactionType === 'adjustment');
+      
+      // If a reconciliation exists, use its balance as the starting point
+      if (latestReconciliation) {
+        // Get all transactions after the reconciliation
+        const laterTransactions = fundTransactions.filter(tx => 
+          new Date(tx.createdAt) > new Date(latestReconciliation.createdAt)
+        );
+        
+        // Start with the reconciled balance
+        recalculatedBalance = latestReconciliation.balanceAfter;
+        
+        // Apply all transactions that happened after the reconciliation
+        laterTransactions.forEach(tx => {
+          recalculatedBalance += tx.amount;
+        });
+      }
+      
+      // Return the fund with corrected balance
+      return {
+        ...fundBalance,
+        // Keep the original balance, but add the corrected one for reference
+        calculatedBalance: recalculatedBalance
+      };
+    }));
     
-    return NextResponse.json(fundBalances);
+    return NextResponse.json(recalculatedBalances);
   } catch (error) {
     console.error('Error fetching fund balances:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
