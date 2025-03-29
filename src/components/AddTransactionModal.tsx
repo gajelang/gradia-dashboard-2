@@ -1,4 +1,3 @@
-// Enhanced AddTransactionModal.tsx with subscription support
 "use client";
 
 import { useState, useEffect } from "react";
@@ -22,21 +21,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import {
   Loader2,
   Link as LinkIcon,
-  UserPlus,
-  User,
-  Plus,
   Calendar,
   RepeatIcon,
   AlertCircle,
+  CreditCard,
+  Wallet,
+  Tag,
+  Package2,
+  User,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { formatRupiah } from "@/lib/formatters";
 import { fetchWithAuth } from "@/lib/api";
-import { useAuth } from "../contexts/AuthContext";
-import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
 import { TransactionData } from "@/app/types/transaction";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Sheet,
   SheetContent,
@@ -44,23 +53,11 @@ import {
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardFooter,
-  CardDescription,
-} from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-// Extended interfaces
+// Transaction type definition
 type TransactionType = "transaction" | "expense";
 
-// Interface for Subscription
+// Subscription interface
 interface Subscription {
   id: string;
   name: string;
@@ -72,7 +69,7 @@ interface Subscription {
   paymentStatus: string;
 }
 
-// Extended form data interface
+// Form data interface
 interface FormData {
   name: string;
   projectValue: string;
@@ -92,7 +89,7 @@ interface FormData {
   picId: string;
   transactionId: string;
   fundType: string;
-  // New subscription fields
+  // Subscription fields
   subscriptionId: string;
   isRecurringExpense: boolean;
   recurringFrequency: string;
@@ -103,13 +100,12 @@ interface AddTransactionModalProps {
   onTransactionAdded: (transaction: TransactionData) => void;
 }
 
-// Updated component with subscription support
 export default function AddTransactionModal({ onTransactionAdded }: AddTransactionModalProps) {
-  const router = useRouter();
   const { user } = useAuth();
   const [transactionType, setTransactionType] = useState<TransactionType>("transaction");
+  const [activeTab, setActiveTab] = useState("transaction"); // Added for tab activation
   
-  // Enhanced form data with subscription fields
+  // Form data state
   const [formData, setFormData] = useState<FormData>({
     name: "",
     projectValue: "",
@@ -129,7 +125,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     picId: "",
     transactionId: "",
     fundType: "petty_cash",
-    // New subscription fields
+    // Subscription fields
     subscriptionId: "",
     isRecurringExpense: false,
     recurringFrequency: "MONTHLY",
@@ -144,13 +140,13 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [showPaymentProofField, setShowPaymentProofField] = useState(true);
   
-  // New state for subscriptions
+  // Subscription state
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loadingSubscriptions, setLoadingSubscriptions] = useState(false);
   const [selectedSubscription, setSelectedSubscription] = useState<Subscription | null>(null);
   const [showSubscriptionDetails, setShowSubscriptionDetails] = useState(false);
   
-  // Existing state for clients, vendors, PICs, and transactions
+  // Client, vendor, PIC, and transactions state
   const [clients, setClients] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
   const [pics, setPics] = useState<any[]>([]);
@@ -160,7 +156,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   const [loadingPics, setLoadingPics] = useState(false);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   
-  // State for new client creation
+  // New client state
   const [isNewClientSheetOpen, setIsNewClientSheetOpen] = useState(false);
   const [newClientData, setNewClientData] = useState({
     code: "",
@@ -171,6 +167,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     description: "",
   });
 
+  // Category and payment options
   const expenseCategories: string[] = [
     "Gaji",
     "Bonus",
@@ -180,7 +177,6 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     "Biaya Produksi",
     "Subscription",
   ];
-
   const paymentStatusOptions: string[] = ["Belum Bayar", "DP", "Lunas"];
   const recurringFrequencyOptions: string[] = ["MONTHLY", "QUARTERLY", "ANNUALLY"];
 
@@ -197,7 +193,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     }
   }, [formData.projectValue, formData.downPaymentAmount, formData.paymentStatus]);
 
-  // Set up required fields
+  // Check payment proof field
   useEffect(() => {
     const checkDatabaseSchema = async () => {
       try {
@@ -225,13 +221,14 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       fetchClients();
       fetchVendors();
       fetchPics();
-      if (transactionType === "expense") {
+      
+      // Initialize transaction type and expense data if needed
+      if (transactionType === "expense" || activeTab === "expense") { 
         fetchTransactions();
-        // Fetch subscriptions for expense type
         fetchSubscriptions();
       }
     }
-  }, [isOpen, transactionType]);
+  }, [isOpen, transactionType, activeTab]);
 
   // Update form when subscription is selected
   useEffect(() => {
@@ -242,6 +239,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
         description: `Payment for subscription: ${selectedSubscription.name}`,
         amount: selectedSubscription.cost.toString(),
         nextBillingDate: selectedSubscription.nextBillingDate,
+        recurringFrequency: selectedSubscription.recurringType,
       }));
     }
   }, [selectedSubscription]);
@@ -320,17 +318,17 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     }
   };
 
-  // NEW: Fetch subscriptions
+  // Fetch subscriptions
   const fetchSubscriptions = async () => {
     try {
       setLoadingSubscriptions(true);
-      const res = await fetchWithAuth("/api/inventory?type=SUBSCRIPTION", { cache: "no-store" });
+      // Use the dedicated subscriptions endpoint
+      const res = await fetchWithAuth("/api/subscriptions", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        // Filter for active subscriptions
+        // Filter for active subscriptions needing payment
         const activeSubscriptions = data.filter((item: any) => 
           !item.isDeleted && 
-          item.type === "SUBSCRIPTION" && 
           (item.paymentStatus === "BELUM_BAYAR" || item.paymentStatus === "DP")
         );
         
@@ -347,9 +345,13 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
         }));
         
         setSubscriptions(formattedSubscriptions);
+      } else {
+        console.error("Failed to fetch subscriptions:", await res.text());
+        toast.error("Failed to load subscriptions");
       }
     } catch (error) {
       console.error("Error fetching subscriptions:", error);
+      toast.error("Error loading subscriptions");
     } finally {
       setLoadingSubscriptions(false);
     }
@@ -387,6 +389,8 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     setFormErrors({});
     setSelectedSubscription(null);
     setShowSubscriptionDetails(false);
+    setTransactionType("transaction");
+    setActiveTab("transaction");
   };
 
   // Reset new client form
@@ -477,7 +481,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     }
   };
 
-  // NEW: Handle subscription selection
+  // Handle subscription selection
   const handleSubscriptionChange = (value: string) => {
     if (value === "none") {
       setFormData(prev => ({ ...prev, subscriptionId: "" }));
@@ -501,12 +505,12 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     }
   };
 
-  // NEW: Handle recurring expense checkbox
+  // Handle recurring expense checkbox
   const handleRecurringExpenseChange = (checked: boolean) => {
     setFormData(prev => ({ ...prev, isRecurringExpense: checked }));
   };
 
-  // NEW: Handle recurring frequency change
+  // Handle recurring frequency change
   const handleRecurringFrequencyChange = (value: string) => {
     setFormData(prev => ({ ...prev, recurringFrequency: value }));
     
@@ -534,10 +538,29 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     }
   };
 
+  // Handle fund type change
+  const handleFundTypeChange = (value: string) => {
+    setFormData(prev => ({ ...prev, fundType: value }));
+  };
+
   // Handle new client change
   const handleNewClientChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setNewClientData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Handle tab change
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    setTransactionType(value as TransactionType);
+    
+    // Initialize data for the selected tab
+    if (value === "expense" && transactions.length === 0) {
+      fetchTransactions();
+    }
+    if (value === "expense" && subscriptions.length === 0) {
+      fetchSubscriptions(); 
+    }
   };
 
   // Handle client creation
@@ -715,7 +738,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
         try {
           const errorData = await res.json();
           console.error("Error response:", errorData);
-          errorMessage = errorData.message || errorMessage;
+          errorMessage = errorData.message || errorData.error || errorMessage;
         } catch (e) {
           console.error("Could not parse error response", e);
         }
@@ -745,7 +768,17 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       }
       
       onTransactionAdded(transactionData);
+      
+      // Show success message
       toast.success(`${transactionType === "transaction" ? "Transaction" : "Expense"} added successfully!`);
+      
+      // If it was a subscription payment, refresh the subscriptions list
+      if (transactionType === "expense" && formData.category === "Subscription" && formData.subscriptionId) {
+        // Wait a moment for the database to update
+        setTimeout(() => {
+          fetchSubscriptions();
+        }, 1000);
+      }
       
       resetForm();
       setIsOpen(false);
@@ -776,119 +809,343 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
             <DialogDescription>Choose entry type and fill in details.</DialogDescription>
           </DialogHeader>
 
-          <div className="mb-4">
-            <Select
-              value={transactionType}
-              onValueChange={(value: TransactionType) => {
-                setTransactionType(value);
-                resetForm();
-                if (value === "expense") {
-                  fetchTransactions();
-                  fetchSubscriptions();
-                }
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select Entry Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="transaction">Transaction</SelectItem>
-                <SelectItem value="expense">Expense</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Tabs value={activeTab} onValueChange={handleTabChange}>
+            <TabsList className="grid grid-cols-2 w-full mb-4">
+              <TabsTrigger value="transaction">Transaction</TabsTrigger>
+              <TabsTrigger value="expense">Expense</TabsTrigger>
+            </TabsList>
 
-          <div className="h-[calc(90vh-180px)] overflow-y-auto pr-4">
-            {/* Form content */}
-            <form onSubmit={handleSubmit}>
-              {transactionType === "transaction" ? (
-                // TRANSACTION FORM (unchanged)
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Transaction form fields - unchanged */}
-                    {/* ...existing transaction form fields... */}
-                  </div>
-                </div>
-              ) : (
-                // EXPENSE FORM (enhanced with subscription support)
-                <div className="space-y-4">
-                  {/* Category */}
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Category</label>
-                    <Select
-                      name="category"
-                      value={formData.category}
-                      onValueChange={handleCategoryChange}
-                      required
-                    >
-                      <SelectTrigger className={formErrors.category ? "border-red-500" : ""}>
-                        <SelectValue placeholder="Select Expense Category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {expenseCategories.map((category) => (
-                          <SelectItem key={category} value={category}>
-                            {category}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {formErrors.category && (
-                      <p className="text-red-500 text-xs mt-1">{formErrors.category}</p>
-                    )}
-                  </div>
+            <div className="h-[calc(90vh-180px)] overflow-y-auto pr-4">
+              <form onSubmit={handleSubmit}>
+                <TabsContent value="transaction" className="mt-0">
+                  {/* TRANSACTION FORM */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Transaction Name */}
+                      <div>
+                        <label className="text-sm font-medium mb-1 block">Transaction Name*</label>
+                        <Input
+                          name="name"
+                          value={formData.name}
+                          onChange={handleChange}
+                          placeholder="Enter transaction name"
+                          className={formErrors.name ? "border-red-500" : ""}
+                        />
+                        {formErrors.name && (
+                          <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>
+                        )}
+                      </div>
 
-                  {/* Subscription Selection (only appears for Subscription category) */}
-                  {formData.category === "Subscription" && (
-                    <div className="space-y-4 p-4 border rounded-md bg-slate-50">
-                      <h3 className="text-md font-medium flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-blue-500" />
-                        Subscription Details
-                      </h3>
-                      
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium mb-1 block">
-                          Select Subscription
-                        </label>
+                      {/* Project Value */}
+                      <div>
+                        <label className="text-sm font-medium mb-1 block">Project Value*</label>
+                        <Input
+                          name="projectValue"
+                          type="number"
+                          min="0"
+                          value={formData.projectValue}
+                          onChange={handleChange}
+                          placeholder="Enter project value"
+                          className={formErrors.projectValue ? "border-red-500" : ""}
+                        />
+                        {formErrors.projectValue && (
+                          <p className="text-red-500 text-xs mt-1">{formErrors.projectValue}</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Client Selection */}
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Client</label>
+                      <div className="flex gap-2">
                         <Select
-                          value={formData.subscriptionId}
-                          onValueChange={handleSubscriptionChange}
-                          disabled={loadingSubscriptions}
+                          value={formData.clientId || "none"}
+                          onValueChange={handleClientChange}
+                          disabled={loadingClients}
                         >
-                          <SelectTrigger 
-                            className={formErrors.subscriptionId ? "border-red-500" : ""}
-                          >
-                            {loadingSubscriptions ? (
+                          <SelectTrigger className="flex-1">
+                            {loadingClients ? (
                               <div className="flex items-center">
                                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                <span>Loading subscriptions...</span>
+                                <span>Loading clients...</span>
                               </div>
                             ) : (
-                              <SelectValue placeholder="Select subscription" />
+                              <SelectValue placeholder="Select client (optional)" />
                             )}
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none">Select a subscription</SelectItem>
-                            {subscriptions.map((subscription) => (
-                              <SelectItem key={subscription.id} value={subscription.id}>
-                                {subscription.name} - Rp{formatRupiah(subscription.cost)}
+                            <SelectItem value="none">No client</SelectItem>
+                            {clients.map((client) => (
+                              <SelectItem key={client.id} value={client.id}>
+                                {client.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
-                        {formErrors.subscriptionId && (
-                          <p className="text-red-500 text-xs mt-1">{formErrors.subscriptionId}</p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setIsNewClientSheetOpen(true)}
+                        >
+                          <User className="h-4 w-4 mr-2" />
+                          New
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Client Contact Details */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-medium mb-1 block">Email</label>
+                        <Input
+                          name="email"
+                          type="email"
+                          value={formData.email}
+                          onChange={handleChange}
+                          placeholder="client@example.com"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-1 block">Phone</label>
+                        <Input
+                          name="phone"
+                          value={formData.phone}
+                          onChange={handleChange}
+                          placeholder="08123456789"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Transaction Details */}
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Description</label>
+                      <Textarea
+                        name="description"
+                        value={formData.description}
+                        onChange={handleChange}
+                        placeholder="Enter transaction description"
+                        rows={3}
+                      />
+                    </div>
+
+                    {/* Dates */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-sm font-medium mb-1 block">Date*</label>
+                        <Input
+                          name="date"
+                          type="date"
+                          value={formData.date}
+                          onChange={handleChange}
+                          className={formErrors.date ? "border-red-500" : ""}
+                        />
+                        {formErrors.date && (
+                          <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>
                         )}
                       </div>
-                      
-                      {/* Show subscription details if selected */}
-                      {showSubscriptionDetails && selectedSubscription && (
-                        <>
-                          <div className="pt-2">
-                            <Card>
-                              <CardHeader className="pb-2">
-                                <CardTitle className="text-sm">Subscription Info</CardTitle>
-                              </CardHeader>
-                              <CardContent>
+                      <div>
+                        <label className="text-sm font-medium mb-1 block">Start Date</label>
+                        <Input
+                          name="startDate"
+                          type="date"
+                          value={formData.startDate}
+                          onChange={handleChange}
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-1 block">End Date</label>
+                        <Input
+                          name="endDate"
+                          type="date"
+                          value={formData.endDate}
+                          onChange={handleChange}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Project PIC */}
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Project PIC</label>
+                      <Select
+                        value={formData.picId || "none"}
+                        onValueChange={handlePicChange}
+                        disabled={loadingPics}
+                      >
+                        <SelectTrigger>
+                          {loadingPics ? (
+                            <div className="flex items-center">
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              <span>Loading PICs...</span>
+                            </div>
+                          ) : (
+                            <SelectValue placeholder="Select PIC (optional)" />
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No PIC</SelectItem>
+                          {pics.map((pic) => (
+                            <SelectItem key={pic.id} value={pic.id}>
+                              {pic.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Payment Details */}
+                    <div className="mt-4 p-4 border rounded-md">
+                      <h3 className="font-medium mb-4">Payment Details</h3>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="text-sm font-medium mb-1 block">Payment Status</label>
+                          <Select
+                            value={formData.paymentStatus}
+                            onValueChange={handlePaymentStatusChange}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select payment status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {paymentStatusOptions.map((status) => (
+                                <SelectItem key={status} value={status}>
+                                  {status}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {formData.paymentStatus === "DP" && (
+                          <div>
+                            <label className="text-sm font-medium mb-1 block">Down Payment Amount*</label>
+                            <Input
+                              name="downPaymentAmount"
+                              type="number"
+                              min="0"
+                              max={formData.projectValue}
+                              value={formData.downPaymentAmount}
+                              onChange={handleChange}
+                              placeholder="Enter down payment amount"
+                              className={formErrors.downPaymentAmount ? "border-red-500" : ""}
+                            />
+                            {formErrors.downPaymentAmount && (
+                              <p className="text-red-500 text-xs mt-1">{formErrors.downPaymentAmount}</p>
+                            )}
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Remaining: Rp{formatRupiah(remainingAmount)}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Payment Proof Link */}
+                        {showPaymentProofField && (
+                          <div className="mt-2">
+                            <div className="flex items-center">
+                              <LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" />
+                              <label className="text-sm font-medium">
+                                Payment Proof Link (Optional)
+                              </label>
+                            </div>
+                            <Input
+                              name="paymentProofLink"
+                              type="url"
+                              value={formData.paymentProofLink}
+                              onChange={handleChange}
+                              placeholder="https://drive.google.com/file/your-receipt"
+                              className={formErrors.paymentProofLink ? "border-red-500" : ""}
+                            />
+                            {formErrors.paymentProofLink && (
+                              <p className="text-red-500 text-xs mt-1">
+                                {formErrors.paymentProofLink}
+                              </p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Add link to receipt or payment confirmation (Google Drive, Dropbox, etc.)
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="expense" className="mt-0">
+                  {/* EXPENSE FORM */}
+                  <div className="space-y-4">
+                    {/* Category */}
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Category</label>
+                      <Select
+                        name="category"
+                        value={formData.category}
+                        onValueChange={handleCategoryChange}
+                        required
+                      >
+                        <SelectTrigger className={formErrors.category ? "border-red-500" : ""}>
+                          <SelectValue placeholder="Select Expense Category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {expenseCategories.map((category) => (
+                            <SelectItem key={category} value={category}>
+                              {category}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {formErrors.category && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.category}</p>
+                      )}
+                    </div>
+
+                    {/* Subscription Selection (only appears for Subscription category) */}
+                    {formData.category === "Subscription" && (
+                      <div className="space-y-4 p-4 border rounded-md bg-slate-50">
+                        <h3 className="text-md font-medium flex items-center gap-2">
+                          <Calendar className="h-4 w-4 text-blue-500" />
+                          Subscription Details
+                        </h3>
+                        
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium mb-1 block">
+                            Select Subscription
+                          </label>
+                          <Select
+                            value={formData.subscriptionId}
+                            onValueChange={handleSubscriptionChange}
+                            disabled={loadingSubscriptions}
+                          >
+                            <SelectTrigger 
+                              className={formErrors.subscriptionId ? "border-red-500" : ""}
+                            >
+                              {loadingSubscriptions ? (
+                                <div className="flex items-center">
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  <span>Loading subscriptions...</span>
+                                </div>
+                              ) : (
+                                <SelectValue placeholder="Select subscription" />
+                              )}
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Select a subscription</SelectItem>
+                              {subscriptions.map((subscription) => (
+                                <SelectItem key={subscription.id} value={subscription.id}>
+                                  {subscription.name} - Rp{formatRupiah(subscription.cost)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {formErrors.subscriptionId && (
+                            <p className="text-red-500 text-xs mt-1">{formErrors.subscriptionId}</p>
+                          )}
+                        </div>
+                        
+                        {/* Show subscription details if selected */}
+                        {showSubscriptionDetails && selectedSubscription && (
+                          <>
+                            <div className="pt-2">
+                              <div className="bg-white p-3 rounded border">
+                                <h4 className="text-sm font-medium mb-2">Subscription Info</h4>
                                 <dl className="grid grid-cols-1 gap-1 text-sm">
                                   <div className="flex justify-between py-1">
                                     <dt className="text-muted-foreground">Name:</dt>
@@ -911,261 +1168,266 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                                     </div>
                                   )}
                                 </dl>
-                              </CardContent>
-                            </Card>
-                          </div>
-                          
-                          {/* Recurring payment options */}
-                          <div className="pt-2">
-                            <div className="flex items-start space-x-2">
-                              <Checkbox
-                                id="isRecurringExpense"
-                                checked={formData.isRecurringExpense}
-                                onCheckedChange={handleRecurringExpenseChange}
-                              />
-                              <div className="grid gap-1.5 leading-none">
-                                <Label
-                                  htmlFor="isRecurringExpense"
-                                  className="text-sm font-medium leading-none"
-                                >
-                                  Set up recurring payments
-                                </Label>
-                                <p className="text-sm text-muted-foreground">
-                                  This will automatically schedule future payments
-                                </p>
                               </div>
                             </div>
-                          </div>
-                          
-                          {/* Recurring payment settings */}
-                          {formData.isRecurringExpense && (
-                            <div className="space-y-4 pl-6 border-l-2 border-blue-100">
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                  <Label htmlFor="recurringFrequency">Payment Frequency</Label>
-                                  <Select
-                                    value={formData.recurringFrequency}
-                                    onValueChange={handleRecurringFrequencyChange}
+                            
+                            {/* Recurring payment options */}
+                            <div className="pt-2">
+                              <div className="flex items-start space-x-2">
+                                <Checkbox
+                                  id="isRecurringExpense"
+                                  checked={formData.isRecurringExpense}
+                                  onCheckedChange={handleRecurringExpenseChange}
+                                />
+                                <div className="grid gap-1.5 leading-none">
+                                  <Label
+                                    htmlFor="isRecurringExpense"
+                                    className="text-sm font-medium leading-none"
                                   >
-                                    <SelectTrigger id="recurringFrequency">
-                                      <SelectValue placeholder="Select frequency" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {recurringFrequencyOptions.map((freq) => (
-                                        <SelectItem key={freq} value={freq}>
-                                          {freq === "MONTHLY" ? "Monthly" : 
-                                           freq === "QUARTERLY" ? "Quarterly" : "Annually"}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
+                                    Set up recurring payments
+                                  </Label>
+                                  <p className="text-sm text-muted-foreground">
+                                    This will automatically schedule future payments
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Recurring payment settings */}
+                            {formData.isRecurringExpense && (
+                              <div className="space-y-4 pl-6 border-l-2 border-blue-100">
+                                <div className="grid grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <Label htmlFor="recurringFrequency">Payment Frequency</Label>
+                                    <Select
+                                      value={formData.recurringFrequency}
+                                      onValueChange={handleRecurringFrequencyChange}
+                                    >
+                                      <SelectTrigger id="recurringFrequency">
+                                        <SelectValue placeholder="Select frequency" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {recurringFrequencyOptions.map((freq) => (
+                                          <SelectItem key={freq} value={freq}>
+                                            {freq === "MONTHLY" ? "Monthly" : 
+                                             freq === "QUARTERLY" ? "Quarterly" : "Annually"}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  
+                                  <div className="space-y-2">
+                                    <Label htmlFor="nextBillingDate">Next Billing Date</Label>
+                                    <Input
+                                      id="nextBillingDate"
+                                      name="nextBillingDate"
+                                      type="date"
+                                      value={formData.nextBillingDate}
+                                      onChange={handleChange}
+                                      className={formErrors.nextBillingDate ? "border-red-500" : ""}
+                                    />
+                                    {formErrors.nextBillingDate && (
+                                      <p className="text-red-500 text-xs mt-1">{formErrors.nextBillingDate}</p>
+                                    )}
+                                  </div>
                                 </div>
                                 
-                                <div className="space-y-2">
-                                  <Label htmlFor="nextBillingDate">Next Billing Date</Label>
-                                  <Input
-                                    id="nextBillingDate"
-                                    name="nextBillingDate"
-                                    type="date"
-                                    value={formData.nextBillingDate}
-                                    onChange={handleChange}
-                                    className={formErrors.nextBillingDate ? "border-red-500" : ""}
-                                  />
-                                  {formErrors.nextBillingDate && (
-                                    <p className="text-red-500 text-xs mt-1">{formErrors.nextBillingDate}</p>
-                                  )}
-                                </div>
+                                <Alert>
+                                  <RepeatIcon className="h-4 w-4" />
+                                  <AlertTitle>Recurring Payment</AlertTitle>
+                                  <AlertDescription>
+                                    This expense will automatically repeat on the selected frequency until canceled.
+                                    You can manage recurring payments in the subscription management section.
+                                  </AlertDescription>
+                                </Alert>
                               </div>
-                              
-                              <Alert>
-                                <RepeatIcon className="h-4 w-4" />
-                                <AlertTitle>Recurring Payment</AlertTitle>
-                                <AlertDescription>
-                                  This expense will automatically repeat on the selected frequency until canceled.
-                                  You can manage recurring payments in the subscription management section.
-                                </AlertDescription>
-                              </Alert>
-                            </div>
-                          )}
-                        </>
-                      )}
-                      
-                      {subscriptions.length === 0 && !loadingSubscriptions && (
-                        <Alert className="bg-amber-50 text-amber-800 border-amber-200">
-                          <AlertCircle className="h-4 w-4" />
-                          <AlertTitle>No subscriptions found</AlertTitle>
-                          <AlertDescription>
-                            You don't have any active subscriptions. Go to the Inventory section to add a subscription.
-                          </AlertDescription>
-                        </Alert>
+                            )}
+                          </>
+                        )}
+                        
+                        {subscriptions.length === 0 && !loadingSubscriptions && (
+                          <Alert className="bg-amber-50 text-amber-800 border-amber-200">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertTitle>No subscriptions found</AlertTitle>
+                            <AlertDescription>
+                              You don't have any active subscriptions. Go to the Inventory section to add a subscription.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Amount */}
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Amount</label>
+                      <Input
+                        name="amount"
+                        type="number"
+                        min="0"
+                        value={formData.amount}
+                        onChange={handleChange}
+                        placeholder="Expense Amount"
+                        required
+                        className={formErrors.amount ? "border-red-500" : ""}
+                        disabled={formData.category === "Subscription" && !!selectedSubscription}
+                      />
+                      {formErrors.amount && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.amount}</p>
                       )}
                     </div>
-                  )}
 
-                  {/* Amount */}
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Amount</label>
-                    <Input
-                      name="amount"
-                      type="number"
-                      min="0"
-                      value={formData.amount}
-                      onChange={handleChange}
-                      placeholder="Expense Amount"
-                      required
-                      className={formErrors.amount ? "border-red-500" : ""}
-                      disabled={formData.category === "Subscription" && !!selectedSubscription}
-                    />
-                    {formErrors.amount && (
-                      <p className="text-red-500 text-xs mt-1">{formErrors.amount}</p>
-                    )}
-                  </div>
-
-                  {/* Link to Transaction */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium mb-1 block">
-                      Link to Transaction/Project
-                    </label>
-                    <Select
-                      value={formData.transactionId}
-                      onValueChange={handleTransactionChange}
-                      disabled={loadingTransactions}
-                    >
-                      <SelectTrigger>
-                        {loadingTransactions ? (
-                          <div className="flex items-center">
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            <span>Loading transactions...</span>
-                          </div>
-                        ) : (
-                          <SelectValue placeholder="Select transaction (optional)" />
-                        )}
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No transaction</SelectItem>
-                        {transactions.map((transaction) => (
-                          <SelectItem key={transaction.id} value={transaction.id}>
-                            {transaction.name} - Rp{formatRupiah(transaction.projectValue || 0)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Link this expense to an existing transaction/project for proper
-                      project expense tracking
-                    </p>
-                  </div>
-
-                  {/* Vendor */}
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium mb-1 block">Vendor/Subcontractor</label>
-                    <Select
-                      value={formData.vendorId}
-                      onValueChange={handleVendorChange}
-                      disabled={loadingVendors}
-                    >
-                      <SelectTrigger>
-                        {loadingVendors ? (
-                          <div className="flex items-center">
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            <span>Loading vendors...</span>
-                          </div>
-                        ) : (
-                          <SelectValue placeholder="Select vendor (optional)" />
-                        )}
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No vendor</SelectItem>
-                        {vendors.map((vendor) => (
-                          <SelectItem key={vendor.id} value={vendor.id}>
-                            {vendor.name} - {vendor.serviceDesc}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Select a vendor that this expense is associated with
-                    </p>
-                  </div>
-
-                  {/* Description */}
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Description</label>
-                    <Textarea
-                      name="description"
-                      value={formData.description}
-                      onChange={handleChange}
-                      placeholder="Enter expense description"
-                      rows={3}
-                    />
-                  </div>
-
-                  {/* Date */}
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">Date</label>
-                    <Input
-                      name="date"
-                      type="date"
-                      value={formData.date}
-                      onChange={handleChange}
-                      required
-                      className={formErrors.date ? "border-red-500" : ""}
-                    />
-                    {formErrors.date && (
-                      <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>
-                    )}
-                  </div>
-
-                  {/* Fund Type */}
-                  <div className="mt-4">
-                    <label className="text-sm font-medium mb-1 block">Fund Type</label>
-                    <Select
-                      value={formData.fundType}
-                      onValueChange={(value: string) =>
-                        setFormData((prev) => ({ ...prev, fundType: value }))
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select Fund Type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="petty_cash">Petty Cash</SelectItem>
-                        <SelectItem value="profit_bank">Profit Bank</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  {/* Payment Proof */}
-                  {showPaymentProofField && (
+                    {/* Link to Transaction */}
                     <div className="space-y-2">
-                      <div className="flex items-center">
-                        <LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" />
-                        <label className="text-sm font-medium">
-                          Payment Proof Link (Optional)
-                        </label>
-                      </div>
-                      <Input
-                        name="paymentProofLink"
-                        type="url"
-                        value={formData.paymentProofLink}
-                        onChange={handleChange}
-                        placeholder="https://drive.google.com/file/your-receipt"
-                        className={formErrors.paymentProofLink ? "border-red-500" : ""}
-                      />
-                      {formErrors.paymentProofLink && (
-                        <p className="text-red-500 text-xs mt-1">
-                          {formErrors.paymentProofLink}
-                        </p>
-                      )}
+                      <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                        <Tag className="h-4 w-4" />
+                        Link to Transaction/Project
+                      </label>
+                      <Select
+                        value={formData.transactionId}
+                        onValueChange={handleTransactionChange}
+                        disabled={loadingTransactions}
+                      >
+                        <SelectTrigger>
+                          {loadingTransactions ? (
+                            <div className="flex items-center">
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              <span>Loading transactions...</span>
+                            </div>
+                          ) : (
+                            <SelectValue placeholder="Select transaction (optional)" />
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No transaction</SelectItem>
+                          {transactions.map((transaction) => (
+                            <SelectItem key={transaction.id} value={transaction.id}>
+                              {transaction.name} - Rp{formatRupiah(transaction.projectValue || 0)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <p className="text-xs text-muted-foreground">
-                        Add link to receipt or payment confirmation (Google Drive, Dropbox, etc.)
+                        Link this expense to an existing transaction/project for proper
+                        project expense tracking
                       </p>
                     </div>
-                  )}
-                </div>
-              )}
-            </form>
-          </div>
+
+                    {/* Vendor */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                        <Package2 className="h-4 w-4" />
+                        Vendor/Subcontractor
+                      </label>
+                      <Select
+                        value={formData.vendorId}
+                        onValueChange={handleVendorChange}
+                        disabled={loadingVendors}
+                      >
+                        <SelectTrigger>
+                          {loadingVendors ? (
+                            <div className="flex items-center">
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              <span>Loading vendors...</span>
+                            </div>
+                          ) : (
+                            <SelectValue placeholder="Select vendor (optional)" />
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No vendor</SelectItem>
+                          {vendors.map((vendor) => (
+                            <SelectItem key={vendor.id} value={vendor.id}>
+                              {vendor.name} - {vendor.serviceDesc}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Select a vendor that this expense is associated with
+                      </p>
+                    </div>
+
+                    {/* Description */}
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Description</label>
+                      <Textarea
+                        name="description"
+                        value={formData.description}
+                        onChange={handleChange}
+                        placeholder="Enter expense description"
+                        rows={3}
+                      />
+                    </div>
+
+                    {/* Date */}
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">Date</label>
+                      <Input
+                        name="date"
+                        type="date"
+                        value={formData.date}
+                        onChange={handleChange}
+                        required
+                        className={formErrors.date ? "border-red-500" : ""}
+                      />
+                      {formErrors.date && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.date}</p>
+                      )}
+                    </div>
+
+                    {/* Fund Type */}
+                    <div className="mt-4">
+                      <label className="text-sm font-medium mb-1 flex items-center gap-1">
+                        <Wallet className="h-4 w-4" />
+                        Fund Type
+                      </label>
+                      <Select
+                        value={formData.fundType}
+                        onValueChange={handleFundTypeChange}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select Fund Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="petty_cash">Petty Cash</SelectItem>
+                          <SelectItem value="profit_bank">Profit Bank</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Payment Proof */}
+                    {showPaymentProofField && (
+                      <div className="space-y-2">
+                        <div className="flex items-center">
+                          <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
+                          <label className="text-sm font-medium">
+                            Payment Proof Link (Optional)
+                          </label>
+                        </div>
+                        <Input
+                          name="paymentProofLink"
+                          type="url"
+                          value={formData.paymentProofLink}
+                          onChange={handleChange}
+                          placeholder="https://drive.google.com/file/your-receipt"
+                          className={formErrors.paymentProofLink ? "border-red-500" : ""}
+                        />
+                        {formErrors.paymentProofLink && (
+                          <p className="text-red-500 text-xs mt-1">
+                            {formErrors.paymentProofLink}
+                          </p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Add link to receipt or payment confirmation (Google Drive, Dropbox, etc.)
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
+              </form>
+            </div>
+          </Tabs>
 
           <div className="flex justify-end gap-2 mt-4 pt-2 border-t">
             <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isSubmitting}>
@@ -1185,10 +1447,83 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
         </DialogContent>
       </Dialog>
 
-      {/* New Client Sheet (unchanged) */}
+      {/* New Client Sheet */}
       <Sheet open={isNewClientSheetOpen} onOpenChange={setIsNewClientSheetOpen}>
         <SheetContent className="w-full sm:max-w-md">
-          {/* Sheet content - unchanged */}
+          <SheetHeader>
+            <SheetTitle>Add New Client</SheetTitle>
+            <SheetDescription>
+              Create a new client to associate with this transaction.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="grid gap-4 py-4">
+            <div>
+              <label className="text-sm font-medium mb-1 block">Client Code*</label>
+              <Input
+                name="code"
+                value={newClientData.code}
+                onChange={handleNewClientChange}
+                placeholder="e.g., CLIENT001"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Client Name*</label>
+              <Input
+                name="name"
+                value={newClientData.name}
+                onChange={handleNewClientChange}
+                placeholder="Enter client name"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Email</label>
+              <Input
+                name="email"
+                type="email"
+                value={newClientData.email}
+                onChange={handleNewClientChange}
+                placeholder="client@example.com"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Phone</label>
+              <Input
+                name="phone"
+                value={newClientData.phone}
+                onChange={handleNewClientChange}
+                placeholder="08123456789"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Address</label>
+              <Textarea
+                name="address"
+                value={newClientData.address}
+                onChange={handleNewClientChange}
+                placeholder="Enter client address"
+                rows={2}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Description</label>
+              <Textarea
+                name="description"
+                value={newClientData.description}
+                onChange={handleNewClientChange}
+                placeholder="Enter client description"
+                rows={3}
+              />
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsNewClientSheetOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleCreateClient}>Create Client</Button>
+          </div>
         </SheetContent>
       </Sheet>
     </>

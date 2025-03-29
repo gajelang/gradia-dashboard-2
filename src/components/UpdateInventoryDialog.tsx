@@ -23,13 +23,14 @@ import {
 import { Label } from "@/components/ui/label";
 import { Edit, Loader2, Save } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { InventoryItem } from "./InventoryTab";
+import { Inventory } from "@/app/types/inventory";
 import { fetchWithAuth } from "@/lib/api";
 
 interface UpdateInventoryDialogProps {
-  item: InventoryItem;
+  item: Inventory;
   categories: string[];
-  onItemUpdated?: (updatedItem: InventoryItem) => void;
+  onItemUpdated?: (updatedItem: Inventory) => void;
+  triggerId?: string; // Added missing prop
 }
 
 interface FormData {
@@ -47,6 +48,7 @@ export default function UpdateInventoryDialog({
   item,
   categories,
   onItemUpdated,
+  triggerId,
 }: UpdateInventoryDialogProps) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,10 +60,10 @@ export default function UpdateInventoryDialog({
   const [formData, setFormData] = useState<FormData>({
     name: item.name,
     category: item.category || "",
-    unitPrice: item.unitPrice.toString(),
+    unitPrice: (item.unitPrice || item.cost).toString(),
     location: item.location || "",
     minimumStock: item.minimumStock?.toString() || "",
-    supplier: item.supplier || "",
+    supplier: item.supplier || item.vendor?.name || "",
     description: item.description || "",
     purchaseDate: item.purchaseDate 
       ? new Date(item.purchaseDate).toISOString().split("T")[0]
@@ -74,10 +76,10 @@ export default function UpdateInventoryDialog({
       setFormData({
         name: item.name,
         category: item.category || "",
-        unitPrice: item.unitPrice.toString(),
+        unitPrice: (item.unitPrice || item.cost).toString(),
         location: item.location || "",
         minimumStock: item.minimumStock?.toString() || "",
-        supplier: item.supplier || "",
+        supplier: item.supplier || item.vendor?.name || "",
         description: item.description || "",
         purchaseDate: item.purchaseDate 
           ? new Date(item.purchaseDate).toISOString().split("T")[0]
@@ -215,13 +217,25 @@ export default function UpdateInventoryDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          title="Edit item"
-        >
-          <Edit className="h-4 w-4" />
-        </Button>
+        {triggerId ? (
+          <Button
+            id={triggerId}
+            variant="outline"
+            size="icon"
+            title="Edit item"
+            className="hidden"
+          >
+            <Edit className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="icon"
+            title="Edit item"
+          >
+            <Edit className="h-4 w-4" />
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>

@@ -58,6 +58,7 @@ import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { formatRupiah } from "@/lib/formatters";
 
 // Define types
 export type InventoryType = "EQUIPMENT" | "SUBSCRIPTION" | "OTHER";
@@ -128,6 +129,53 @@ interface AddInventoryModalProps {
   onInventoryAdded: (inventory: any) => void;
 }
 
+/**
+ * Calculate the next billing date based on the purchase date and recurring frequency
+ * This ensures the next billing date is on the same day of the month as the purchase date
+ * 
+ * @param {Date} purchaseDate - The initial purchase/start date
+ * @param {String} frequency - MONTHLY, QUARTERLY, or ANNUALLY
+ * @returns {Date} The next billing date
+ */
+function calculateNextBillingDate(purchaseDate: string | number | Date, frequency: string) {
+  // Create a new date object from the purchase date to avoid modifying the original
+  const startDate = new Date(purchaseDate);
+  const nextDate = new Date(startDate);
+  
+  // Get the day of the month from the purchase date
+  const dayOfMonth = startDate.getDate();
+  
+  switch (frequency) {
+    case 'MONTHLY':
+      // Move to next month, same day
+      nextDate.setMonth(nextDate.getMonth() + 1);
+      break;
+      
+    case 'QUARTERLY':
+      // Move 3 months ahead, same day
+      nextDate.setMonth(nextDate.getMonth() + 3);
+      break;
+      
+    case 'ANNUALLY':
+      // Move 1 year ahead, same day
+      nextDate.setFullYear(nextDate.getFullYear() + 1);
+      break;
+      
+    default:
+      // Default to monthly if frequency not recognized
+      nextDate.setMonth(nextDate.getMonth() + 1);
+  }
+  
+  // Handle month length differences (e.g., Jan 31 -> Feb 28)
+  // Check if the day has changed due to month length differences
+  if (nextDate.getDate() !== dayOfMonth) {
+    // Set to last day of previous month
+    nextDate.setDate(0);
+  }
+  
+  return nextDate;
+}
+
 export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModalProps) {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
@@ -192,31 +240,21 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
     }
   }, [isOpen]);
   
-  // Update next billing date when recurring type changes
+  // Update next billing date when purchase date or recurring type changes
   useEffect(() => {
-    if (formData.isRecurring && formData.recurringType) {
-      // Calculate next billing date based on subscription type
-      const today = new Date();
-      let nextDate = new Date(today);
-      
-      switch(formData.recurringType) {
-        case "MONTHLY":
-          nextDate.setMonth(today.getMonth() + 1);
-          break;
-        case "QUARTERLY":
-          nextDate.setMonth(today.getMonth() + 3);
-          break;
-        case "ANNUALLY":
-          nextDate.setFullYear(today.getFullYear() + 1);
-          break;
-      }
+    if (formData.type === 'SUBSCRIPTION' && formData.purchaseDate && formData.isRecurring && formData.recurringType) {
+      // Calculate next billing date based on purchase date, not current date
+      const nextDate = calculateNextBillingDate(
+        new Date(formData.purchaseDate),
+        formData.recurringType
+      );
       
       setFormData(prev => ({
         ...prev,
-        nextBillingDate: nextDate.toISOString().split("T")[0]
+        nextBillingDate: nextDate.toISOString().split('T')[0]
       }));
     }
-  }, [formData.isRecurring, formData.recurringType]);
+  }, [formData.type, formData.purchaseDate, formData.isRecurring, formData.recurringType]);
   
   const fetchVendors = async () => {
     try {
@@ -337,14 +375,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
           isRecurring: true,
           recurringType: "MONTHLY",
           category: "Subscription",
-          // Set next billing date to one month from now
-          nextBillingDate: (() => {
-            const date = new Date();
-            date.setMonth(date.getMonth() + 1);
-            return date.toISOString().split("T")[0];
-          })(),
-          reminderDays: "7",
-          autoRenew: true,
+          // Next billing date will be calculated in useEffect based on purchase date
         }));
       } else {
         // Reset subscription fields if type is not subscription
@@ -1135,6 +1166,9 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                           {formErrors.nextBillingDate && (
                             <p className="text-red-500 text-xs mt-1">{formErrors.nextBillingDate}</p>
                           )}
+                          <p className="text-xs text-muted-foreground">
+                            This is calculated from the purchase date, but you can adjust it if needed
+                          </p>
                         </div>
                       </div>
                       

@@ -18,7 +18,8 @@ import {
   RefreshCw, 
   ArrowUpDown, 
   Filter, 
-  MoreHorizontal 
+  MoreHorizontal,
+  AlertCircle
 } from "lucide-react";
 import { 
   DropdownMenu, 
@@ -28,9 +29,10 @@ import {
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
-import { toast } from "sonner";
+import { toast } from "react-hot-toast";
 import { formatRupiah } from "@/lib/formatters";
-import { fetchWithAuth } from "@/lib/api";
+import { fetchWithAuth } from "@/lib/api"; // Use authenticated fetch
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export interface Subscription {
   id: string;
@@ -79,7 +81,14 @@ export default function SubscriptionTable() {
       setLoading(true);
       setError(null);
   
+      // Use authenticated fetch
       const response = await fetchWithAuth('/api/subscriptions');
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch subscriptions');
+      }
+      
       const data: Subscription[] = await response.json();
       setSubscriptions(data);
     } catch (err: any) {
@@ -88,13 +97,12 @@ export default function SubscriptionTable() {
         : 'An unexpected error occurred';
       
       setError(errorMessage);
-      toast.error(errorMessage, {
-        description: 'Unable to fetch subscriptions. Please try again.'
-      });
+      toast.error(`${errorMessage}. Unable to fetch subscriptions. Please try again.`);
     } finally {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     fetchSubscriptions();
   }, []);
@@ -159,17 +167,19 @@ export default function SubscriptionTable() {
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 p-4 rounded-md text-center">
-        <p className="text-red-700 mb-2">{error}</p>
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>{error}</AlertDescription>
         <Button 
           onClick={fetchSubscriptions} 
           variant="destructive" 
-          className="mx-auto"
+          className="mt-4"
         >
           <RefreshCw className="mr-2 h-4 w-4" /> 
-          Retry Fetching Subscriptions
+          Retry
         </Button>
-      </div>
+      </Alert>
     );
   }
 
@@ -221,7 +231,7 @@ export default function SubscriptionTable() {
           </DropdownMenu>
         </div>
         <Button variant="ghost" onClick={fetchSubscriptions}>
-        <RefreshCw className="h-4 w-4" />
+          <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
       
@@ -313,10 +323,30 @@ export default function SubscriptionTable() {
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem>View Details</DropdownMenuItem>
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => {
+                            // Get inventory ID for this subscription
+                            const inventoryId = sub.id;
+                            // Open inventory edit dialog using the inventory ID
+                            const editButton = document.getElementById(`update-inventory-${inventoryId}`);
+                            if (editButton) {
+                              editButton.click();
+                            } else {
+                              toast.error("Edit dialog not found");
+                            }
+                          }}
+                        >
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>Make Payment</DropdownMenuItem>
                         <DropdownMenuItem className="text-red-600">Cancel Subscription</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    
+                    {/* Hidden trigger buttons for edit modal (needed by inventory system) */}
+                    <div className="hidden">
+                      <span id={`update-inventory-${sub.id}`}></span>
+                    </div>
                   </TableCell>
                 </TableRow>
               );

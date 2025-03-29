@@ -1,8 +1,10 @@
-// api/expenses/route.js
+
+// app/api/expenses/route.js - Enhanced with subscription handling
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuthToken } from '@/lib/auth';
 
+// Handler for GET requests - Fetch expenses
 export async function GET(request) {
   try {
     // Verify authentication
@@ -14,19 +16,36 @@ export async function GET(request) {
     // Parse URL to get query parameters
     const { searchParams } = new URL(request.url);
     const fetchDeleted = searchParams.get('deleted') === 'true';
+    const inventoryId = searchParams.get('inventoryId');
     
-    console.log(`Fetching expenses with isDeleted=${fetchDeleted}`);
-
-    // Query for expenses based on whether we want active or deleted ones
+    // Build the where clause
+    const whereClause = {
+      isDeleted: fetchDeleted // true for deleted expenses, false for active ones
+    };
+    
+    // Filter by inventory ID if provided
+    if (inventoryId) {
+      whereClause.inventoryId = inventoryId;
+    }
+    
+    // Query for expenses with the built where clause
     const expenses = await prisma.expense.findMany({
-      where: {
-        isDeleted: fetchDeleted // true for deleted expenses, false for active ones
-      },
+      where: whereClause,
       include: {
         transaction: {
           select: {
             id: true,
             name: true
+          }
+        },
+        inventory: {
+          select: {
+            id: true,
+            name: true,
+            type: true,
+            recurringType: true,
+            nextBillingDate: true,
+            isRecurring: true
           }
         },
         createdBy: {
@@ -65,11 +84,7 @@ export async function GET(request) {
   }
 }
 
-// Handler for creating expenses
-// Modified app/api/expenses/route.js (extending existing route)
-// Add inventory integration to the expenses POST handler
-
-// Add to the existing POST handler
+// Handler for creating expenses with enhanced subscription handling
 export async function POST(request) {
   try {
     const authResult = await verifyAuthToken(request);
@@ -85,100 +100,210 @@ export async function POST(request) {
       date, 
       paymentProofLink,
       transactionId,
-      inventoryId, // New field for connecting to inventory
-      fundType
+      inventoryId,
+      fundType,
+      // Recurring expense fields
+      isRecurringExpense,
+      recurringFrequency,
+      nextBillingDate
     } = body;
 
     if (!category || !amount || !date) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Create expense with possible inventory connection
-    const expense = await prisma.expense.create({
-      data: {
-        category,
-        amount: parseFloat(amount),
-        description: description || null,
-        date: new Date(date),
-        paymentProofLink: paymentProofLink || null,
-        fundType: fundType || undefined,
-        isDeleted: false,
-        transactionId: transactionId || null,
-        inventoryId: inventoryId || null, // Link to inventory if provided
-        createdById: authResult.user?.userId || null
-      }
-    });
-    
-    // If connected to inventory, update inventory payment status if needed
-    if (inventoryId) {
-      try {
-        const inventory = await prisma.inventory.findUnique({
+    // Create basic expense data
+    const expenseData = {
+      category,
+      amount: parseFloat(amount),
+      description: description || null,
+      date: new Date(date),
+      paymentProofLink: paymentProofLink || null,
+      fundType: fundType || "petty_cash",
+      isDeleted: false,
+      transactionId: transactionId || null,
+      inventoryId: inventoryId || null,
+      createdById: authResult.user?.userId || null,
+      // Add recurring expense fields if provided
+      isRecurringExpense: isRecurringExpense || false,
+      recurringFrequency: isRecurringExpense ? recurringFrequency : null,
+      nextBillingDate: isRecurringExpense && nextBillingDate ? new Date(nextBillingDate) : null
+    };
+
+    // Start a transaction to handle related updates
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the expense
+      const expense = await tx.expense.create({
+        data: expenseData,
+        include: {
+          transaction: {
+            select: {
+              id: true,
+              name: true
+            }
+          },
+          inventory: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+              recurringType: true
+            }
+          },
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true
+            }
+          }
+        }
+      });
+      
+      let updatedInventory = null;
+      
+      // If connected to inventory, update inventory payment status as needed
+      if (inventoryId) {
+        const inventory = await tx.inventory.findUnique({
           where: { id: inventoryId }
         });
         
         if (inventory) {
-          // Update inventory if this was a payment
-          if (inventory.paymentStatus === "BELUM_BAYAR") {
-            // If this is a first payment, check if it's the full amount
-            if (Math.abs(parseFloat(amount) - inventory.cost) < 0.01) {
-              await prisma.inventory.update({
-                where: { id: inventoryId },
-                data: {
-                  paymentStatus: "LUNAS",
-                  updatedById: authResult.user?.userId || null
-                }
-              });
-            } else if (parseFloat(amount) > 0) {
-              // It's a partial payment
-              await prisma.inventory.update({
-                where: { id: inventoryId },
-                data: {
-                  paymentStatus: "DP",
-                  downPaymentAmount: parseFloat(amount),
-                  remainingAmount: inventory.cost - parseFloat(amount),
-                  updatedById: authResult.user?.userId || null
-                }
-              });
+          const updateData = {
+            updatedById: authResult.user?.userId || null
+          };
+          
+          // Handle subscription specific logic
+          if (inventory.type === 'SUBSCRIPTION') {
+            if (inventory.paymentStatus === "BELUM_BAYAR") {
+              // If this is a first payment, check if it's the full amount
+              if (Math.abs(parseFloat(amount) - parseFloat(inventory.cost)) < 0.01) {
+                updateData.paymentStatus = "LUNAS";
+              } else if (parseFloat(amount) > 0) {
+                // It's a partial payment
+                updateData.paymentStatus = "DP";
+                updateData.downPaymentAmount = parseFloat(amount);
+                updateData.remainingAmount = parseFloat(inventory.cost) - parseFloat(amount);
+              }
+            } else if (inventory.paymentStatus === "DP") {
+              // Check if this payment completes the total
+              const totalPaid = (parseFloat(inventory.downPaymentAmount) || 0) + parseFloat(amount);
+              
+              if (Math.abs(totalPaid - parseFloat(inventory.cost)) < 0.01) {
+                updateData.paymentStatus = "LUNAS";
+                updateData.remainingAmount = 0;
+              } else {
+                // Update the remaining amount
+                updateData.remainingAmount = parseFloat(inventory.cost) - totalPaid;
+              }
             }
-          } else if (inventory.paymentStatus === "DP") {
-            // Check if this payment completes the total
-            const totalPaid = (inventory.downPaymentAmount || 0) + parseFloat(amount);
             
-            if (Math.abs(totalPaid - inventory.cost) < 0.01) {
-              await prisma.inventory.update({
-                where: { id: inventoryId },
-                data: {
-                  paymentStatus: "LUNAS",
-                  remainingAmount: 0,
-                  updatedById: authResult.user?.userId || null
-                }
-              });
-            } else {
-              // Update the remaining amount
-              await prisma.inventory.update({
-                where: { id: inventoryId },
-                data: {
-                  remainingAmount: inventory.cost - totalPaid,
-                  updatedById: authResult.user?.userId || null
-                }
-              });
+            // Update nextBillingDate if this is a subscription payment
+            if (isRecurringExpense && nextBillingDate) {
+              updateData.nextBillingDate = new Date(nextBillingDate);
+            } else if (!isRecurringExpense && inventory.isRecurring) {
+              // For one-time payments on recurring subscriptions, calculate next billing date
+              const newBillingDate = calculateNextBillingDate(
+                new Date(), 
+                inventory.recurringType || 'MONTHLY'
+              );
+              updateData.nextBillingDate = newBillingDate;
             }
           }
+          
+          // Update the inventory item
+          updatedInventory = await tx.inventory.update({
+            where: { id: inventoryId },
+            data: updateData,
+            include: {
+              vendor: {
+                select: {
+                  id: true,
+                  name: true
+                }
+              }
+            }
+          });
         }
-      } catch (inventoryError) {
-        console.error("Error updating inventory payment status:", inventoryError);
-        // Continue even if inventory update fails
       }
-    }
+      
+      // Update transaction capital cost if needed
+      let updatedTransaction = null;
+      if (transactionId) {
+        const transactionExpenses = await tx.expense.findMany({
+          where: {
+            transactionId,
+            isDeleted: false
+          }
+        });
+        
+        const totalExpenses = transactionExpenses.reduce((sum, exp) => sum + (exp.amount || 0), 0);
+        
+        updatedTransaction = await tx.transaction.update({
+          where: { id: transactionId },
+          data: { capitalCost: totalExpenses }
+        });
+      }
+      
+      // Update company finances
+      let updatedFinance = null;
+      try {
+        const finance = await tx.companyFinance.findFirst();
+        
+        if (finance) {
+          updatedFinance = await tx.companyFinance.update({
+            where: { id: finance.id },
+            data: {
+              totalFunds: {
+                decrement: parseFloat(amount)
+              }
+            }
+          });
+        }
+      } catch (financeError) {
+        console.error("Error updating company finances:", financeError);
+        // Continue even if finance update fails
+      }
+      
+      return { 
+        expense, 
+        inventory: updatedInventory, 
+        transaction: updatedTransaction, 
+        finance: updatedFinance 
+      };
+    });
 
     return NextResponse.json({
       message: 'Expense created successfully',
-      expense
+      expense: result.expense,
+      inventory: result.inventory
     });
   } catch (error) {
     console.error('Error creating expense:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+// Helper function to calculate next billing date
+function calculateNextBillingDate(currentDate, frequency) {
+  const nextDate = new Date(currentDate);
+  
+  switch (frequency) {
+    case 'MONTHLY':
+      nextDate.setMonth(nextDate.getMonth() + 1);
+      break;
+    case 'QUARTERLY':
+      nextDate.setMonth(nextDate.getMonth() + 3);
+      break;
+    case 'ANNUALLY':
+      nextDate.setFullYear(nextDate.getFullYear() + 1);
+      break;
+    default:
+      // Default to monthly if frequency is not recognized
+      nextDate.setMonth(nextDate.getMonth() + 1);
+  }
+  
+  return nextDate;
 }
 
 // Update expense handler

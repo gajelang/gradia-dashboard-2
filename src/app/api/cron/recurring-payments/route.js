@@ -1,195 +1,229 @@
 // app/api/cron/recurring-payments/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { getServerSession } from 'next-auth/next';
-import { authOptions } from '@/lib/auth';
+import { verifyAuthToken } from '@/lib/auth';
 
 /**
- * This route handles scheduled processing of recurring payments.
- * It should be triggered by a cron job or similar scheduler.
+ * This API route handles processing of recurring payments.
+ * It can be triggered by:
+ * 1. A cron job for automatic daily processing
+ * 2. Manual trigger from the UI for immediate processing
  */
-export async function GET(request) {
+export async function POST(request) {
   try {
-    // Verify that this is a legitimate cron request using a secret
-    const { searchParams } = new URL(request.url);
-    const secret = searchParams.get('secret');
-    
-    if (secret !== process.env.CRON_SECRET) {
+    // Optional authentication check - if coming from UI, require auth
+    // If coming from a cron job with secret key, bypass auth
+    const isAuthorized = await checkAuthorization(request);
+    if (!isAuthorized) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    let expenseIds = [];
+    let userId = null;
     
-    // Find all active recurring expenses that need processing
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const dueBillings = await prisma.expense.findMany({
-      where: {
-        isRecurringExpense: true,
-        isActive: true,
-        isDeleted: false,
-        nextBillingDate: {
-          lte: today
-        }
-      },
-      include: {
-        inventory: {
-          select: {
-            id: true,
-            name: true,
-            type: true,
-            recurringType: true,
-            cost: true,
-            autoRenew: true
-          }
-        },
-        createdBy: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        }
-      }
-    });
-    
-    if (dueBillings.length === 0) {
-      return NextResponse.json({ message: 'No recurring payments to process today' });
+    // Check if this is a specific request for certain expenses
+    try {
+      const body = await request.json();
+      expenseIds = body.expenseIds || [];
+      userId = body.userId || null;
+    } catch (error) {
+      // No body or invalid JSON, continue with all expenses
+      console.log("No specific expenses requested, processing all due expenses");
     }
-    
-    let processed = 0;
-    let failed = 0;
-    const results = [];
-    
-    // Process each recurring payment
-    for (const expense of dueBillings) {
-      try {
-        // Skip if subscription is not set to auto-renew
-        if (expense.inventory && expense.inventory.type === 'SUBSCRIPTION' && !expense.inventory.autoRenew) {
-          results.push({
-            id: expense.id,
-            status: 'skipped',
-            reason: 'Subscription auto-renew is disabled'
-          });
-          continue;
-        }
-        
-        // Create a new expense record for this billing cycle
-        const newExpense = await prisma.expense.create({
-          data: {
-            category: expense.category,
-            amount: expense.amount,
-            description: `${expense.description || ''} (Automatic recurring payment for ${expense.inventory?.name || 'subscription'})`,
-            date: new Date(),
-            paymentProofLink: null,
-            transactionId: expense.transactionId,
-            inventoryId: expense.inventoryId,
-            fundType: expense.fundType,
-            isRecurringExpense: false, // This is a single payment, not recurring
-            createdById: expense.createdById
-          }
-        });
-        
-        // Calculate the next billing date based on the frequency
-        let nextBillingDate = new Date();
-        switch (expense.recurringFrequency) {
-          case 'MONTHLY':
-            nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
-            break;
-          case 'QUARTERLY':
-            nextBillingDate.setMonth(nextBillingDate.getMonth() + 3);
-            break;
-          case 'ANNUALLY':
-            nextBillingDate.setFullYear(nextBillingDate.getFullYear() + 1);
-            break;
-          default:
-            nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
-        }
-        
-        // Update the recurring expense with the new next billing date
-        await prisma.expense.update({
-          where: { id: expense.id },
-          data: {
-            lastProcessedDate: new Date(),
-            nextBillingDate
-          }
-        });
-        
-        // If this is a subscription inventory item, update its billing date too
-        if (expense.inventoryId) {
-          await prisma.inventory.update({
-            where: { id: expense.inventoryId },
-            data: {
-              lastBillingDate: new Date(),
-              nextBillingDate
-            }
-          });
-        }
-        
-        // Create a notification for admins/finance team
-        await prisma.notification.create({
-          data: {
-            type: 'SUBSCRIPTION_PAYMENT',
-            title: 'Automatic Subscription Payment',
-            message: `An automatic payment of ${expense.amount} was processed for ${expense.inventory?.name || 'subscription'}.`,
-            isRead: false,
-            dueDate: null,
-            entityId: expense.id,
-            entityType: 'EXPENSE',
-            userId: expense.createdById || '1', // Fallback to a default admin ID if needed
-          }
-        });
-        
-        results.push({
-          id: expense.id,
-          status: 'success',
-          newExpenseId: newExpense.id,
-          nextBillingDate
-        });
-        
-        processed++;
-      } catch (error) {
-        console.error(`Error processing recurring payment ${expense.id}:`, error);
-        
-        results.push({
-          id: expense.id,
-          status: 'error',
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-        
-        failed++;
-      }
-    }
+
+    const result = await processRecurringPayments(expenseIds, userId);
     
     return NextResponse.json({
-      message: `Processed ${processed} recurring payments, ${failed} failed`,
-      results
+      message: 'Recurring payments processed successfully',
+      results: result
     });
   } catch (error) {
-    console.error('Error in recurring payments processing:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error processing recurring payments:', error);
+    return NextResponse.json({ 
+      error: 'Failed to process recurring payments',
+      details: error.message 
+    }, { status: 500 });
   }
 }
 
-// POST handler for manual trigger of the recurring payment process
-export async function POST(request) {
-  try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user || session.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    // Get IDs of expenses to process from the request
-    const { expenseIds } = await request.json();
-    
-    if (!expenseIds || !Array.isArray(expenseIds) || expenseIds.length === 0) {
-      return NextResponse.json({ error: 'No expense IDs provided' }, { status: 400 });
-    }
-    
-    // Rest of implementation...
-    // Continue with your existing code but without TypeScript annotations
-  } catch (error) {
-    console.error('Error in manual recurring payments processing:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+/**
+ * Check if the request is authorized
+ * - Either from a logged in user
+ * - Or from a cron job with the correct secret
+ */
+async function checkAuthorization(request) {
+  // Check for auth token first (for UI requests)
+  const authResult = await verifyAuthToken(request);
+  if (authResult.isAuthenticated) {
+    return true;
   }
+  
+  // Then check for cron secret (for automated jobs)
+  const apiSecret = process.env.CRON_API_SECRET;
+  if (!apiSecret) {
+    console.warn("CRON_API_SECRET is not set in environment variables");
+    return false;
+  }
+  
+  const authHeader = request.headers.get("authorization");
+  if (authHeader && authHeader === `Bearer ${apiSecret}`) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
+ * Process recurring payments that are due
+ * @param {string[]} specificExpenseIds - Optional array of specific expense IDs to process
+ * @param {string} userId - Optional user ID to attribute the processing to
+ */
+async function processRecurringPayments(specificExpenseIds = [], userId = null) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  
+  // Query for recurring expenses that are due
+  const whereClause = {
+    isRecurringExpense: true,
+    isActive: true,
+    nextBillingDate: {
+      lt: tomorrow,
+    },
+    isDeleted: false
+  };
+  
+  // If specific expenses were requested, only process those
+  if (specificExpenseIds.length > 0) {
+    whereClause.id = {
+      in: specificExpenseIds
+    };
+  }
+  
+  const dueExpenses = await prisma.expense.findMany({
+    where: whereClause,
+    include: {
+      inventory: true
+    }
+  });
+  
+  console.log(`Found ${dueExpenses.length} recurring expenses due for processing`);
+  
+  const results = [];
+  
+  // Process each due expense
+  for (const expense of dueExpenses) {
+    try {
+      // Calculate the next billing date based on the frequency
+      const nextBillingDate = calculateNextBillingDate(
+        expense.nextBillingDate || new Date(),
+        expense.recurringFrequency
+      );
+      
+      // Create a new expense for this period
+      const newExpense = await prisma.expense.create({
+        data: {
+          category: expense.category,
+          amount: expense.amount,
+          description: `${expense.description || 'Recurring payment'} - ${new Date().toLocaleDateString()}`,
+          date: new Date(),
+          paymentProofLink: null,
+          transactionId: expense.transactionId,
+          fundType: expense.fundType || 'petty_cash',
+          inventoryId: expense.inventoryId,
+          createdById: userId || expense.createdById,
+          isRecurringExpense: false, // This is an instance, not the recurring template
+        }
+      });
+      
+      // Update the original recurring expense with the new next billing date
+      const updatedExpense = await prisma.expense.update({
+        where: { id: expense.id },
+        data: {
+          lastProcessedDate: new Date(),
+          nextBillingDate: nextBillingDate,
+          updatedById: userId || expense.createdById,
+        }
+      });
+      
+      // If this is a subscription payment, update the subscription
+      if (expense.inventoryId && expense.inventory?.type === 'SUBSCRIPTION') {
+        await prisma.inventory.update({
+          where: { id: expense.inventoryId },
+          data: {
+            lastBillingDate: new Date(),
+            nextBillingDate: nextBillingDate,
+            updatedById: userId || expense.createdById,
+            // Mark subscription as paid
+            paymentStatus: 'LUNAS'
+          }
+        });
+      }
+      
+      // If the payment affects company finances, update them
+      try {
+        const finance = await prisma.companyFinance.findFirst();
+        
+        if (finance) {
+          await prisma.companyFinance.update({
+            where: { id: finance.id },
+            data: {
+              totalFunds: {
+                decrement: expense.amount
+              }
+            }
+          });
+        }
+      } catch (financeError) {
+        console.error("Error updating company finances:", financeError);
+        // Continue even if finance update fails
+      }
+      
+      results.push({
+        expenseId: expense.id,
+        newExpenseId: newExpense.id,
+        status: 'success',
+        nextBillingDate
+      });
+      
+    } catch (error) {
+      console.error(`Error processing expense ${expense.id}:`, error);
+      results.push({
+        expenseId: expense.id,
+        status: 'error',
+        error: error.message
+      });
+    }
+  }
+  
+  return results;
+}
+
+/**
+ * Calculate the next billing date based on frequency
+ * @param {Date} currentDate - The current billing date
+ * @param {string} frequency - MONTHLY, QUARTERLY, or ANNUALLY
+ * @returns {Date} The next billing date
+ */
+function calculateNextBillingDate(currentDate, frequency) {
+  const nextDate = new Date(currentDate);
+  
+  switch (frequency) {
+    case 'MONTHLY':
+      nextDate.setMonth(nextDate.getMonth() + 1);
+      break;
+    case 'QUARTERLY':
+      nextDate.setMonth(nextDate.getMonth() + 3);
+      break;
+    case 'ANNUALLY':
+      nextDate.setFullYear(nextDate.getFullYear() + 1);
+      break;
+    default:
+      // Default to monthly if frequency is not recognized
+      nextDate.setMonth(nextDate.getMonth() + 1);
+  }
+  
+  return nextDate;
 }

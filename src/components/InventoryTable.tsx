@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Table,
   TableBody,
@@ -10,39 +10,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { formatRupiah } from "@/lib/formatters";
-import {
-  ArrowUpDown,
-  Edit,
-  Search,
-  Plus,
-  Minus,
-  FileText,
-  Loader2,
-  Archive,
-  RefreshCw,
-  Package2,
-  Calendar,
+import { Badge } from "@/components/ui/badge";
+import { 
+  ArrowUpDown, 
+  Edit, 
+  Search, 
+  Plus, 
+  Minus, 
+  Archive, 
+  RefreshCw, 
+  Package2, 
+  Calendar, 
   AlertTriangle,
-  Tag,
-  ShoppingBag,
-  Check,
   CreditCard,
-  Wallet,
-  ExternalLink,
-  Clock,
   X,
   Filter,
   MoreHorizontal,
+  FileText,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -51,11 +37,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { fetchWithAuth } from "@/lib/api";
 import { toast } from "react-hot-toast";
+import { formatRupiah } from "@/lib/formatters";
 import UpdateInventoryDialog from "./UpdateInventoryDialog";
 import InventoryDetailDialog from "./InventoryDetailDialog";
 import UpdateInventoryQuantityDialog from "./UpdateInventoryQuantityDialog";
@@ -75,49 +59,154 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@radix-ui/react-select";
+import { Inventory } from "@/app/types/inventory";
 
-export interface InventoryItem {
-  id: string;
-  name: string;
-  type: string;
-  status: string;
-  description?: string;
-  quantity: number;
-  unitPrice: number;
-  totalValue: number;
-  category?: string;
-  location?: string;
-  minimumStock?: number;
-  supplier?: string;
-  purchaseDate: string;
-  expiryDate?: string;
-  cost: number;
-  paymentStatus?: string;
-  isRecurring?: boolean;
-  recurringType?: string;
-  nextBillingDate?: string;
-  isDeleted: boolean;
-  createdAt: string;
-  updatedAt: string;
-  createdBy?: {
-    id: string;
-    name: string;
-    email: string;
+// Payment Button Component
+function InventoryPaymentButton({ 
+  item, 
+  onPaymentProcessed 
+}: { 
+  item: Inventory; 
+  onPaymentProcessed?: () => void 
+}) {
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [fundType, setFundType] = useState("petty_cash");
+  const router = useRouter();
+
+  // Only render for unpaid or partially paid items
+  if (item.paymentStatus !== 'BELUM_BAYAR' && item.paymentStatus !== 'DP') {
+    return null;
+  }
+
+  const handleProcessPayment = async () => {
+    setIsLoading(true);
+    
+    try {
+      // Create an expense record for this inventory payment
+      const payload = {
+        category: item.type === 'SUBSCRIPTION' ? 'Subscription' : 'Inventaris',
+        amount: parseFloat(item.cost.toString()),
+        description: `Payment for ${item.name}`,
+        date: new Date().toISOString(),
+        inventoryId: item.id,
+        fundType: fundType, // Use the selected fund type
+      };
+      
+      const response = await fetchWithAuth("/api/expenses", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || errorData.message || "Failed to process payment");
+      }
+      
+      toast.success("Payment processed successfully");
+      setIsDialogOpen(false);
+      
+      // Call callback if provided
+      if (onPaymentProcessed) {
+        onPaymentProcessed();
+      }
+    } catch (error) {
+      console.error("Error processing payment:", error);
+      toast.error(`Payment failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
-  updatedBy?: {
-    id: string;
-    name: string;
-    email: string;
-  };
+
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200"
+        onClick={() => setIsDialogOpen(true)}
+        title="Process Payment"
+      >
+        <CreditCard className="h-4 w-4" />
+      </Button>
+
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Process Payment</DialogTitle>
+            <DialogDescription>
+              You're about to process a payment for this {item.type.toLowerCase()}.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p className="font-medium">{item.name}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Amount: Rp{formatRupiah(item.cost)}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Current Status: {item.paymentStatus === 'BELUM_BAYAR' ? 'Unpaid' : 'Partially Paid'}
+            </p>
+            
+            {/* Fund type selection */}
+            <div className="mt-4">
+              <label className="text-sm font-medium mb-1 block">Fund Source</label>
+              <Select 
+                value={fundType} 
+                onValueChange={setFundType}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Fund Source" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="petty_cash">Petty Cash</SelectItem>
+                  <SelectItem value="profit_bank">Profit Bank</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Select which fund to use for this payment
+              </p>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsDialogOpen(false)}
+              disabled={isLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleProcessPayment}
+              disabled={isLoading}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                "Process Payment"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
 }
 
 interface InventoryTableProps {
-  inventory: InventoryItem[];
+  inventory: Inventory[];
   isLoading: boolean;
   isArchived?: boolean;
-  onUpdate?: (updatedItem: InventoryItem) => void;
-  onArchive?: (item: InventoryItem) => void;
-  onRestore?: (item: InventoryItem) => void;
+  onUpdate?: (updatedItem: Inventory) => void;
+  onArchive?: (item: Inventory) => void;
+  onRestore?: (item: Inventory) => void;
   categories: string[];
   categoryFilter?: string | null;
   searchTerm?: string;
@@ -137,18 +226,18 @@ export default function InventoryTable({
   categoryFilter = null,
   searchTerm = '',
 }: InventoryTableProps) {
-  const [filteredInventory, setFilteredInventory] = useState<InventoryItem[]>([]);
+  const [filteredInventory, setFilteredInventory] = useState<Inventory[]>([]);
   const [sortField, setSortField] = useState<SortField>('updatedAt');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [showQuantityDialog, setShowQuantityDialog] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<Inventory | null>(null);
   const [adjustmentType, setAdjustmentType] = useState<"increase" | "decrease">("increase");
   const [showArchiveDialog, setShowArchiveDialog] = useState(false);
   const [confirmArchiveText, setConfirmArchiveText] = useState("");
-  const [itemToArchive, setItemToArchive] = useState<InventoryItem | null>(null);
-  const [itemToRestore, setItemToRestore] = useState<InventoryItem | null>(null);
+  const [itemToArchive, setItemToArchive] = useState<Inventory | null>(null);
+  const [itemToRestore, setItemToRestore] = useState<Inventory | null>(null);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const [restoring, setRestoring] = useState(false);
@@ -179,6 +268,7 @@ export default function InventoryTable({
             (item.description && item.description.toLowerCase().includes(term)) ||
             (item.category && item.category.toLowerCase().includes(term)) ||
             (item.supplier && item.supplier.toLowerCase().includes(term)) ||
+            (item.vendor?.name && item.vendor.name.toLowerCase().includes(term)) ||
             (item.location && item.location.toLowerCase().includes(term))
         );
       }
@@ -200,8 +290,8 @@ export default function InventoryTable({
       
       // Apply sorting
       filtered.sort((a, b) => {
-        let compareA: string | number | Date = a[sortField] as string | number;
-        let compareB: string | number | Date = b[sortField] as string | number;
+        let compareA: string | number | Date = a[sortField] as any || "";
+        let compareB: string | number | Date = b[sortField] as any || "";
         
         // Special handling for dates
         if (sortField === 'updatedAt') {
@@ -261,7 +351,6 @@ export default function InventoryTable({
       setArchiving(true);
       const res = await fetchWithAuth("/api/inventory/softDelete", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: itemToArchive.id }),
       });
       
@@ -296,7 +385,6 @@ export default function InventoryTable({
       setRestoring(true);
       const res = await fetchWithAuth("/api/inventory/restore", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: itemToRestore.id }),
       });
       
@@ -323,14 +411,14 @@ export default function InventoryTable({
   };
 
   // Handle quantity adjustment
-  const handleQuantityAdjustment = (item: InventoryItem, type: "increase" | "decrease") => {
+  const handleQuantityAdjustment = (item: Inventory, type: "increase" | "decrease") => {
     setSelectedItem(item);
     setAdjustmentType(type);
     setShowQuantityDialog(true);
   };
 
   // Handle quantity update
-  const handleQuantityUpdated = (updatedItem: InventoryItem) => {
+  const handleQuantityUpdated = (updatedItem: Inventory) => {
     if (onUpdate) {
       onUpdate(updatedItem);
     }
@@ -356,7 +444,7 @@ export default function InventoryTable({
       default:
         return (
           <div className="flex items-center gap-1">
-            <ShoppingBag className="h-4 w-4 text-amber-500" />
+            <Package2 className="h-4 w-4 text-amber-500" />
             <span>Other</span>
           </div>
         );
@@ -441,13 +529,9 @@ export default function InventoryTable({
       return <ArrowUpDown className="ml-1 h-4 w-4" />;
     }
     
-    return (
-      <ArrowUpDown 
-        className={`ml-1 h-4 w-4 transform ${
-          sortDirection === 'asc' ? 'rotate-0' : 'rotate-180'
-        }`} 
-      />
-    );
+    return sortDirection === 'asc' 
+      ? <ArrowUpDown className="ml-1 h-4 w-4 transform rotate-0" /> 
+      : <ArrowUpDown className="ml-1 h-4 w-4 transform rotate-180" />;
   };
   
   // Reset all filters
@@ -470,7 +554,7 @@ export default function InventoryTable({
           </div>
         </div>
         
-        <Card className="p-6">
+        <div className="border rounded-md p-6">
           <div className="space-y-3">
             <div className="flex justify-between">
               <Skeleton className="h-6 w-full max-w-md" />
@@ -482,13 +566,13 @@ export default function InventoryTable({
               </div>
             ))}
           </div>
-        </Card>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full">
       <div className="flex flex-col md:flex-row justify-between gap-4">
         <div className="flex items-center flex-wrap gap-2">
           <div className="relative mr-2">
@@ -520,6 +604,7 @@ export default function InventoryTable({
             <SelectContent>
               <SelectItem value="all">All Types</SelectItem>
               <SelectItem value="EQUIPMENT">Equipment</SelectItem>
+              <SelectItem value="SUBSCRIPTION">Subscription</SelectItem>
               <SelectItem value="OTHER">Other</SelectItem>
             </SelectContent>
           </Select>
@@ -549,8 +634,8 @@ export default function InventoryTable({
         </div>
       </div>
       
-      <div className="border rounded-md">
-        <Table>
+      <div className="border rounded-md w-full inventory-table-container">
+        <Table className="w-full inventory-table">
           <TableCaption>
             {isArchived 
               ? "Archived inventory items" 
@@ -667,10 +752,10 @@ export default function InventoryTable({
                       </Badge>
                     ) : (
                       <div className="flex flex-col items-end">
-                        <span className={item.quantity <= (item.minimumStock || 0) && item.quantity > 0 ? "text-red-600 font-bold" : ""}>
-                          {item.quantity}
+                        <span className={(item.quantity || 0) <= (item.minimumStock || 0) && (item.quantity || 0) > 0 ? "text-red-600 font-bold" : ""}>
+                          {item.quantity ?? 0}
                         </span>
-                        {item.minimumStock && item.quantity <= item.minimumStock && item.quantity > 0 && (
+                        {item.minimumStock && (item.quantity || 0) <= item.minimumStock && (item.quantity || 0) > 0 && (
                           <span className="text-xs text-red-600">
                             Low Stock
                           </span>
@@ -679,10 +764,10 @@ export default function InventoryTable({
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    Rp{formatRupiah(item.unitPrice)}
+                    Rp{formatRupiah(item.unitPrice || item.cost)}
                   </TableCell>
                   <TableCell className="text-right">
-                    Rp{formatRupiah(item.totalValue)}
+                    Rp{formatRupiah(item.totalValue || item.currentValue || item.cost)}
                   </TableCell>
                   <TableCell className="text-center">
                     <Badge 
@@ -694,69 +779,79 @@ export default function InventoryTable({
                   <TableCell>
                     <div className="flex justify-center space-x-1">
                       {!isArchived ? (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                            
-                            {item.type !== "SUBSCRIPTION" && (
-                              <>
-                                <DropdownMenuItem
-                                  onClick={() => handleQuantityAdjustment(item, "increase")}
-                                >
-                                  <Plus className="h-4 w-4 mr-2" />
-                                  Add Stock
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  onClick={() => handleQuantityAdjustment(item, "decrease")}
-                                  disabled={item.quantity <= 0}
-                                >
-                                  <Minus className="h-4 w-4 mr-2" />
-                                  Reduce Stock
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                              </>
-                            )}
-                            
-                            <DropdownMenuItem
-                              onClick={() => {
-                                // Open update dialog through UpdateInventoryDialog component
-                                document.getElementById(`update-inventory-${item.id}`)?.click();
-                              }}
-                            >
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit Item
-                            </DropdownMenuItem>
-                            
-                            <DropdownMenuItem
-                              onClick={() => {
-                                // Open details dialog through InventoryDetailDialog component
-                                document.getElementById(`view-inventory-${item.id}`)?.click();
-                              }}
-                            >
-                              <FileText className="h-4 w-4 mr-2" />
-                              View Details
-                            </DropdownMenuItem>
-                            
-                            <DropdownMenuSeparator />
-                            
-                            <DropdownMenuItem
-                              className="text-red-600"
-                              onClick={() => {
-                                setItemToArchive(item);
-                                setConfirmArchiveText("");
-                                setShowArchiveDialog(true);
-                              }}
-                            >
-                              <Archive className="h-4 w-4 mr-2" />
-                              Archive Item
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        <>
+                          {/* Payment Button - New Addition */}
+                          {(item.paymentStatus === 'BELUM_BAYAR' || item.paymentStatus === 'DP') && (
+                            <InventoryPaymentButton 
+                              item={item} 
+                              onPaymentProcessed={() => onUpdate && onUpdate(item)} 
+                            />
+                          )}
+                          
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                              
+                              {item.type !== "SUBSCRIPTION" && (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => handleQuantityAdjustment(item, "increase")}
+                                  >
+                                    <Plus className="h-4 w-4 mr-2" />
+                                    Add Stock
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleQuantityAdjustment(item, "decrease")}
+                                    disabled={(item.quantity || 0) <= 0}
+                                  >
+                                    <Minus className="h-4 w-4 mr-2" />
+                                    Reduce Stock
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
+                              
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  // Open update dialog through UpdateInventoryDialog component
+                                  document.getElementById(`update-inventory-${item.id}`)?.click();
+                                }}
+                              >
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit Item
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  // Open details dialog through InventoryDetailDialog component
+                                  document.getElementById(`view-inventory-${item.id}`)?.click();
+                                }}
+                              >
+                                <FileText className="h-4 w-4 mr-2" />
+                                View Details
+                              </DropdownMenuItem>
+                              
+                              <DropdownMenuSeparator />
+                              
+                              <DropdownMenuItem
+                                className="text-red-600"
+                                onClick={() => {
+                                  setItemToArchive(item);
+                                  setConfirmArchiveText("");
+                                  setShowArchiveDialog(true);
+                                }}
+                              >
+                                <Archive className="h-4 w-4 mr-2" />
+                                Archive Item
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </>
                       ) : (
                         <Button
                           variant="outline"
@@ -846,7 +941,7 @@ export default function InventoryTable({
             <Button variant="destructive" onClick={handleConfirmArchive} disabled={archiving || confirmArchiveText !== "ARCHIVE"}>
               {archiving ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                   Archiving...
                 </>
               ) : (
@@ -886,7 +981,7 @@ export default function InventoryTable({
             <Button variant="default" onClick={handleRestore} disabled={restoring} className="bg-green-600 hover:bg-green-700">
               {restoring ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
                   Restoring...
                 </>
               ) : (

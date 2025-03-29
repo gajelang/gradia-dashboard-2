@@ -23,12 +23,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { InventoryItem } from "./InventoryTab";
+import { Inventory } from "@/app/types/inventory";
 import { fetchWithAuth } from "@/lib/api";
 import { formatRupiah } from "@/lib/formatters";
 
 interface InventoryDetailDialogProps {
-  item: InventoryItem;
+  item: Inventory;
+  triggerId?: string; // Added missing prop
 }
 
 interface InventoryAdjustment {
@@ -47,7 +48,7 @@ interface InventoryAdjustment {
   } | null;
 }
 
-export default function InventoryDetailDialog({ item }: InventoryDetailDialogProps) {
+export default function InventoryDetailDialog({ item, triggerId }: InventoryDetailDialogProps) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
   const [adjustments, setAdjustments] = useState<InventoryAdjustment[]>([]);
@@ -95,7 +96,7 @@ export default function InventoryDetailDialog({ item }: InventoryDetailDialogPro
 
   // Fetch adjustment history when the dialog opens and the tab is "history"
   useEffect(() => {
-    if (open && activeTab === "history" && adjustments.length === 0 && !isLoadingAdjustments) {
+    if (open && activeTab === "history" && !isLoadingAdjustments) {
       fetchAdjustmentHistory();
     }
   }, [open, activeTab]);
@@ -105,6 +106,7 @@ export default function InventoryDetailDialog({ item }: InventoryDetailDialogPro
     setAdjustmentsError(null);
     
     try {
+      // First try to fetch from the adjustment endpoint
       const res = await fetchWithAuth(`/api/inventory/adjustment?inventoryId=${item.id}`, {
         cache: "no-store",
       });
@@ -114,7 +116,53 @@ export default function InventoryDetailDialog({ item }: InventoryDetailDialogPro
       }
       
       const data = await res.json();
-      setAdjustments(data);
+      
+      if (Array.isArray(data) && data.length > 0) {
+        console.log("Successfully fetched adjustment history:", data);
+        setAdjustments(data);
+      } else {
+        console.log("No adjustment history found, checking audit logs");
+        // If no adjustments found, try to fetch from audit logs
+        const auditRes = await fetchWithAuth(`/api/inventory/auditlogs?inventoryId=${item.id}`, {
+          cache: "no-store",
+        });
+        
+        if (!auditRes.ok) {
+          throw new Error("Failed to fetch inventory audit logs");
+        }
+        
+        const auditData = await auditRes.json();
+        
+        if (Array.isArray(auditData) && auditData.length > 0) {
+          // Convert audit logs to adjustment format
+          const formattedAudit = auditData.map(log => ({
+            id: log.id,
+            adjustmentType: log.action,
+            quantity: log.changedFields?.quantity || 0,
+            previousQuantity: log.previousValue?.quantity || 0,
+            newQuantity: log.newValue?.quantity || 0,
+            reason: log.reason || "System Update",
+            notes: log.notes || `Updated fields: ${Object.keys(log.changedFields || {}).join(', ')}`,
+            adjustedAt: log.timestamp,
+            adjustedBy: log.user,
+          }));
+          
+          setAdjustments(formattedAudit);
+        } else {
+          // If still no data, create a dummy entry for metadata
+          const dummyData = [{
+            id: "system-entry",
+            adjustmentType: "metadata",
+            quantity: 0,
+            previousQuantity: 0,
+            newQuantity: item.quantity || 0,
+            reason: "Initial Creation",
+            notes: "System created entry",
+            adjustedAt: item.createdAt || new Date().toISOString(),
+            adjustedBy: item.createdBy
+          }];
+        }
+      }
     } catch (error) {
       console.error("Error fetching adjustment history:", error);
       setAdjustmentsError(
@@ -128,19 +176,31 @@ export default function InventoryDetailDialog({ item }: InventoryDetailDialogPro
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          title="View details"
-        >
-          <FileText className="h-4 w-4" />
-        </Button>
+        {triggerId ? (
+          <Button
+            id={triggerId}
+            variant="outline"
+            size="icon"
+            title="View details"
+            className="hidden"
+          >
+            <FileText className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="icon"
+            title="View details"
+          >
+            <FileText className="h-4 w-4" />
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[700px] max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span>{item.name}</span>
-            {item.quantity <= (item.minimumStock || 0) && (
+            {(item.quantity || 0) <= (item.minimumStock || 0) && (item.quantity || 0) > 0 && (
               <Badge variant="destructive" className="ml-2">
                 Low Stock
               </Badge>
@@ -184,22 +244,22 @@ export default function InventoryDetailDialog({ item }: InventoryDetailDialogPro
                     <div>
                       <dt className="text-muted-foreground">Current Quantity</dt>
                       <dd className={`font-medium ${
-                        item.quantity <= (item.minimumStock || 0) ? "text-red-600" : ""
+                        (item.quantity || 0) <= (item.minimumStock || 0) ? "text-red-600" : ""
                       }`}>
-                        {item.quantity} {item.minimumStock ? `(Min: ${item.minimumStock})` : ""}
+                        {item.quantity ?? "—"} {item.minimumStock ? `(Min: ${item.minimumStock})` : ""}
                       </dd>
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Unit Price</dt>
-                      <dd className="font-medium">Rp{formatRupiah(item.unitPrice)}</dd>
+                      <dd className="font-medium">Rp{formatRupiah(item.unitPrice || item.cost)}</dd>
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Total Value</dt>
-                      <dd className="font-medium">Rp{formatRupiah(item.totalValue)}</dd>
+                      <dd className="font-medium">Rp{formatRupiah(item.totalValue || item.currentValue || item.cost)}</dd>
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Supplier</dt>
-                      <dd className="font-medium">{item.supplier || "—"}</dd>
+                      <dd className="font-medium">{item.supplier || item.vendor?.name || "—"}</dd>
                     </div>
                     <div>
                       <dt className="text-muted-foreground">Purchase Date</dt>
@@ -301,11 +361,17 @@ export default function InventoryDetailDialog({ item }: InventoryDetailDialogPro
                           {formatTimestamp(adjustment.adjustedAt)}
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            variant={adjustment.adjustmentType === "increase" ? "default" : "destructive"}
-                          >
-                            {adjustment.adjustmentType === "increase" ? "Increase" : "Decrease"}
-                          </Badge>
+                          {adjustment.adjustmentType === "metadata" ? (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-700">
+                              Metadata Update
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant={adjustment.adjustmentType === "increase" ? "default" : "destructive"}
+                            >
+                              {adjustment.adjustmentType === "increase" ? "Increase" : "Decrease"}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           {adjustment.quantity}

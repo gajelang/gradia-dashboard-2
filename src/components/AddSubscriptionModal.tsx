@@ -112,12 +112,6 @@ export default function AddSubscriptionModal({ onSubscriptionAdded }: AddSubscri
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Add Subscription
-        </Button>
-      </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Add New Subscription</DialogTitle>

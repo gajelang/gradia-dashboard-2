@@ -111,6 +111,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     date: string;
     paymentProofLink: string;
     vendorId: string;
+    fundType: string;
   }>>([]);
   
   // Add expense sheet state
@@ -135,6 +136,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     date: new Date().toISOString().split('T')[0],
     paymentProofLink: "",
     vendorId: "",
+    fundType: "petty_cash", // Default to petty cash
   });
 
   // Available expense categories
@@ -223,6 +225,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
       date: new Date().toISOString().split('T')[0],
       paymentProofLink: "",
       vendorId: "",
+      fundType: "petty_cash",
     });
     setExpenseErrors({});
   };
@@ -354,6 +357,8 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
         transactionId: transaction.id,
         // Include vendor if selected
         vendorId: exp.vendorId || null,
+        // Include fund type
+        fundType: exp.fundType || "petty_cash",
         // Add user tracking information
         createdById: user?.userId // Include the current user ID for tracking
       }));
@@ -824,6 +829,26 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
               )}
               <p className="text-xs text-muted-foreground">
                 Add link to receipt or payment confirmation (Google Drive, Dropbox, etc.)
+              </p>
+            </div>
+            
+            {/* Fund Type Selection */}
+            <div>
+              <label className="text-sm font-medium">Fund Source</label>
+              <Select 
+                value={newExpense.fundType || "petty_cash"} 
+                onValueChange={(value) => handleNewExpenseChange('fundType', value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Fund Source" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="petty_cash">Petty Cash</SelectItem>
+                  <SelectItem value="profit_bank">Profit Bank</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Select which fund to use for this expense
               </p>
             </div>
           </div>

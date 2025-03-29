@@ -36,53 +36,19 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { formatRupiah } from "@/lib/formatters";
 
-// Common interface that works with both components
-export interface InventoryItem {
-  id: string;
-  name: string;
-  type: string;
-  description?: string;
-  status: string;
-  quantity: number;
-  unitPrice: number;
-  totalValue: number;
-  category?: string;
-  purchaseDate: string;
-  isDeleted: boolean;
-  minimumStock?: number;
-  createdAt: string;
-  updatedAt: string;
-  // Additional fields for subscriptions
-  isRecurring?: boolean;
-  recurringType?: string;
-  nextBillingDate?: string;
-  paymentStatus?: string;
-  cost?: number;
-  expenses?: any[];
-  // Fields for the detail view
-  location?: string;
-  supplier?: string;
-  createdBy?: {
-    id: string;
-    name: string;
-    email?: string;
-  };
-  updatedBy?: {
-    id: string;
-    name: string;
-    email?: string;
-  };
-}
+// Import the official Inventory type
+import { Inventory } from "@/app/types/inventory";
 
 export default function InventoryTab() {
   const [activeTab, setActiveTab] = useState("inventory");
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
-  const [archivedInventory, setArchivedInventory] = useState<InventoryItem[]>([]);
-  const [subscriptions, setSubscriptions] = useState<InventoryItem[]>([]);
+  const [inventory, setInventory] = useState<Inventory[]>([]);
+  const [archivedInventory, setArchivedInventory] = useState<Inventory[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Inventory[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [localSearchTerm, setLocalSearchTerm] = useState("");
   const [stats, setStats] = useState({
     totalItems: 0,
     totalValue: 0,
@@ -113,11 +79,11 @@ export default function InventoryTab() {
         }));
         
         // Filter out subscriptions from regular inventory
-        const regularItems = processedData.filter((item: InventoryItem) => item.type !== "SUBSCRIPTION");
+        const regularItems = processedData.filter((item: Inventory) => item.type !== "SUBSCRIPTION");
         setInventory(regularItems);
         
         // Filter subscription items
-        const subscriptionItems = processedData.filter((item: InventoryItem) => item.type === "SUBSCRIPTION");
+        const subscriptionItems = processedData.filter((item: Inventory) => item.type === "SUBSCRIPTION");
         setSubscriptions(subscriptionItems);
         
         // Fetch archived inventory
@@ -155,14 +121,14 @@ export default function InventoryTab() {
   }, []);
   
   // Calculate inventory statistics
-  const calculateStats = (items: InventoryItem[]) => {
+  const calculateStats = (items: Inventory[]) => {
     const totalItems = items.length;
-    const totalValue = items.reduce((sum, item) => sum + item.totalValue, 0);
+    const totalValue = items.reduce((sum, item) => sum + (item.totalValue || item.currentValue || item.cost), 0);
     
     const lowStockItems = items.filter(item => 
       item.type !== "SUBSCRIPTION" && 
-      item.quantity <= (item.minimumStock || 0) && 
-      item.quantity > 0
+      (item.quantity || 0) <= (item.minimumStock || 0) && 
+      (item.quantity || 0) > 0
     ).length;
     
     const uniqueCategories = new Set(items.map(item => item.category).filter(Boolean)).size;
@@ -182,7 +148,7 @@ export default function InventoryTab() {
     // Calculate monthly subscription cost
     const subscriptionCost = items
       .filter(item => item.type === "SUBSCRIPTION")
-      .reduce((sum, item) => sum + (item.cost || 0), 0);
+      .reduce((sum, item) => sum + item.cost, 0);
     
     setStats({
       totalItems,
@@ -195,7 +161,7 @@ export default function InventoryTab() {
   };
   
   // Handle item added (both inventory and subscriptions)
-  const handleInventoryAdded = (newItem: InventoryItem) => {
+  const handleInventoryAdded = (newItem: Inventory) => {
     // Ensure the new item has the required fields
     const processedItem = {
       ...newItem,
@@ -220,7 +186,7 @@ export default function InventoryTab() {
   };
   
   // Handle updating an item
-  const handleInventoryUpdated = (updatedItem: InventoryItem) => {
+  const handleInventoryUpdated = (updatedItem: Inventory) => {
     // Ensure the updated item has the required fields
     const processedItem = {
       ...updatedItem,
@@ -248,7 +214,7 @@ export default function InventoryTab() {
   };
   
   // Handle archiving an item
-  const handleInventoryArchived = (archivedItem: InventoryItem) => {
+  const handleInventoryArchived = (archivedItem: Inventory) => {
     // Ensure the archived item has the required fields
     const processedItem = {
       ...archivedItem,
@@ -274,7 +240,7 @@ export default function InventoryTab() {
   };
   
   // Handle restoring an item from archive
-  const handleInventoryRestored = (restoredItem: InventoryItem) => {
+  const handleInventoryRestored = (restoredItem: Inventory) => {
     // Ensure the restored item has the required fields
     const processedItem = {
       ...restoredItem,
@@ -306,61 +272,6 @@ export default function InventoryTab() {
     setSelectedSubscriptionId(subscriptionId);
   };
   
-  // Render dashboard stats
-  const renderStatCards = () => (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Total Inventory Value</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">Rp{formatRupiah(stats.totalValue)}</div>
-          <p className="text-xs text-muted-foreground mt-1">{stats.totalItems} total items</p>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Inventory Health</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-2">
-            {stats.lowStockItems > 0 ? (
-              <Badge variant="destructive" className="w-fit">
-                {stats.lowStockItems} Low Stock Items
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="bg-green-50 text-green-700 w-fit">
-                Stock Levels Normal
-              </Badge>
-            )}
-            <p className="text-xs text-muted-foreground">{stats.categories} categories</p>
-          </div>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium text-muted-foreground">Subscription Status</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col gap-2">
-            <div className="text-lg font-bold">Rp{formatRupiah(stats.subscriptionCost)}<span className="text-xs font-normal text-muted-foreground">/month</span></div>
-            {stats.upcomingRenewals > 0 ? (
-              <Badge variant="secondary" className="bg-yellow-50 text-yellow-700 w-fit">
-                {stats.upcomingRenewals} Upcoming Renewals
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="w-fit">
-                No Upcoming Renewals
-              </Badge>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-  
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
@@ -372,7 +283,16 @@ export default function InventoryTab() {
               placeholder="Search inventory..."
               className="pl-9 w-[200px]"
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                // Pass the search term to child component
+                setLocalSearchTerm(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setLocalSearchTerm(searchTerm);
+                }
+              }}
             />
           </div>
           <Select value={categoryFilter || "all"} onValueChange={(value) => setCategoryFilter(value === "all" ? null : value)}>
@@ -389,9 +309,6 @@ export default function InventoryTab() {
           <AddInventoryModal onInventoryAdded={handleInventoryAdded} />
         </div>
       </div>
-      
-      {/* Stats Dashboard */}
-      {!loading && renderStatCards()}
       
       {/* Low stock warning */}
       {!loading && stats.lowStockItems > 0 && (
@@ -418,7 +335,7 @@ export default function InventoryTab() {
 
       {/* Main content with tabs */}
       <div className="flex flex-col lg:flex-row gap-6">
-        <div className="w-full lg:w-3/4">
+        <div className="w-full">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid grid-cols-3 w-full mb-6">
               <TabsTrigger value="inventory" className="flex items-center gap-2">
@@ -437,30 +354,29 @@ export default function InventoryTab() {
             
             <TabsContent value="inventory" className="m-0">
               <InventoryTable
-                inventory={inventory as any}
+                inventory={inventory}
                 isLoading={loading}
                 categories={categories}
-                onUpdate={handleInventoryUpdated as any}
-                onArchive={handleInventoryArchived as any}
+                onUpdate={handleInventoryUpdated}
+                onArchive={handleInventoryArchived}
                 categoryFilter={categoryFilter}
-                searchTerm={searchTerm}
+                searchTerm={localSearchTerm}
               />
             </TabsContent>
             
-<TabsContent value="subscriptions" className="m-0">
-  <SubscriptionManagement />
-</TabsContent>
-
+            <TabsContent value="subscriptions" className="m-0">
+              <SubscriptionManagement />
+            </TabsContent>
             
             <TabsContent value="archived" className="m-0">
               <InventoryTable
-                inventory={archivedInventory as any}
+                inventory={archivedInventory}
                 isLoading={loading}
                 isArchived={true}
                 categories={categories}
-                onRestore={handleInventoryRestored as any}
+                onRestore={handleInventoryRestored}
                 categoryFilter={categoryFilter}
-                searchTerm={searchTerm}
+                searchTerm={localSearchTerm}
               />
             </TabsContent>
           </Tabs>
