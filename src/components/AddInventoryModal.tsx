@@ -81,6 +81,7 @@ export interface InventoryFormData {
   downPaymentAmount: string;
   remainingAmount: string;
   vendorId: string;
+  fundType: string; // Added fund type for payments
   
   // Subscription fields
   isRecurring: boolean;
@@ -197,6 +198,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
     downPaymentAmount: "",
     remainingAmount: "",
     vendorId: "none",
+    fundType: "petty_cash", // Default fund type
     
     // Subscription fields
     isRecurring: false,
@@ -309,6 +311,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
       downPaymentAmount: "",
       remainingAmount: "",
       vendorId: "none",
+      fundType: "petty_cash", // Reset fund type to default
       
       isRecurring: false,
       recurringType: null,
@@ -469,7 +472,14 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
     }
     
     // Validate payment fields
+    if (formData.paymentStatus === "LUNAS" && !formData.fundType) {
+      errors.fundType = "Fund source is required for paid items";
+    }
+    
     if (formData.paymentStatus === "DP") {
+      if (!formData.fundType) {
+        errors.fundType = "Fund source is required for down payments";
+      }
       if (!formData.downPaymentAmount || 
           isNaN(parseFloat(formData.downPaymentAmount)) || 
           parseFloat(formData.downPaymentAmount) <= 0) {
@@ -613,6 +623,44 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
       
       const data = await response.json();
       const newItem = formData.type === "SUBSCRIPTION" ? data.subscription : data.item;
+      
+      // Process payment if payment status is LUNAS or DP
+      if (formData.paymentStatus === "LUNAS" || formData.paymentStatus === "DP") {
+        try {
+          // Create an expense record for this payment
+          const paymentAmount = formData.paymentStatus === "LUNAS" 
+            ? parseFloat(formData.cost) 
+            : parseFloat(formData.downPaymentAmount);
+          
+          const paymentType = formData.paymentStatus === "LUNAS" ? "full payment" : "down payment";
+          
+          const expensePayload = {
+            category: formData.type === "SUBSCRIPTION" ? "Subscription" : "Inventory",
+            amount: paymentAmount,
+            description: `${paymentType} for ${formData.type.toLowerCase()}: ${formData.name}`,
+            date: new Date().toISOString(),
+            inventoryId: newItem.id,
+            fundType: formData.fundType,
+          };
+          
+          const expenseResponse = await fetchWithAuth("/api/expenses", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(expensePayload),
+          });
+          
+          if (!expenseResponse.ok) {
+            const errorData = await expenseResponse.json();
+            throw new Error(errorData.error || "Failed to process payment");
+          }
+          
+          toast.success(`${paymentType} processed and funds deducted from ${formData.fundType === "petty_cash" ? "Petty Cash" : "Profit Bank"}`);
+        } catch (error) {
+          console.error("Error processing payment:", error);
+          toast.error(`Payment processing failed: ${error instanceof Error ? error.message : "Unknown error"}`);
+          // We don't return here, as the inventory item was created successfully
+        }
+      }
       
       onInventoryAdded(newItem);
       toast.success(`${formData.type.toLowerCase()} created successfully`);
@@ -1027,26 +1075,64 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                     </Select>
                   </div>
                   
-                  {formData.paymentStatus === "DP" && (
+                  {/* Fund selection for LUNAS or DP payment types */}
+                  {(formData.paymentStatus === "LUNAS" || formData.paymentStatus === "DP") && (
                     <div className="space-y-2">
-                      <Label htmlFor="downPaymentAmount">Down Payment Amount (Rp) *</Label>
-                      <Input
-                        id="downPaymentAmount"
-                        name="downPaymentAmount"
-                        type="number"
-                        min="0"
-                        max={formData.cost}
-                        value={formData.downPaymentAmount}
-                        onChange={handleTextChange}
-                        placeholder="Enter down payment amount"
-                        className={formErrors.downPaymentAmount ? "border-red-500" : ""}
-                      />
-                      {formErrors.downPaymentAmount && (
-                        <p className="text-red-500 text-xs mt-1">{formErrors.downPaymentAmount}</p>
+                      <Label htmlFor="fundType">Fund Source *</Label>
+                      <Select
+                        value={formData.fundType}
+                        onValueChange={(value) => handleSelectChange("fundType", value)}
+                      >
+                        <SelectTrigger id="fundType" className={formErrors.fundType ? "border-red-500" : ""}>
+                          <div className="flex items-center">
+                            <CreditCard className="h-4 w-4 mr-2 text-gray-500" />
+                            <SelectValue placeholder="Select fund source" />
+                          </div>
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="petty_cash">Petty Cash</SelectItem>
+                          <SelectItem value="profit_bank">Profit Bank</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {formErrors.fundType && (
+                        <p className="text-red-500 text-xs mt-1">{formErrors.fundType}</p>
                       )}
+                      <p className="text-xs text-muted-foreground">
+                        {formData.paymentStatus === "LUNAS" ? 
+                          "The full amount will be deducted from the selected fund" : 
+                          "The down payment amount will be deducted from the selected fund"}
+                      </p>
                     </div>
                   )}
                 </div>
+                
+                {/* Down Payment Amount - only show for DP payment status */}
+                {formData.paymentStatus === "DP" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="downPaymentAmount">Down Payment Amount (Rp) *</Label>
+                    <Input
+                      id="downPaymentAmount"
+                      name="downPaymentAmount"
+                      type="number"
+                      min="0"
+                      max={formData.cost}
+                      value={formData.downPaymentAmount}
+                      onChange={handleTextChange}
+                      placeholder="Enter down payment amount"
+                      className={formErrors.downPaymentAmount ? "border-red-500" : ""}
+                    />
+                    {formErrors.downPaymentAmount && (
+                      <p className="text-red-500 text-xs mt-1">{formErrors.downPaymentAmount}</p>
+                    )}
+                    {formData.downPaymentAmount && formData.cost && (
+                      <p className="text-xs text-muted-foreground">
+                        Remaining: Rp{formatRupiah(
+                          parseFloat(formData.cost) - parseFloat(formData.downPaymentAmount) || 0
+                        )}
+                      </p>
+                    )}
+                  </div>
+                )}
                 
                 <div className="space-y-2">
                   <Label htmlFor="vendor">Vendor (Optional)</Label>

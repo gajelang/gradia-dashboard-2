@@ -18,7 +18,6 @@ import {
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/api";
 import { formatRupiah } from "@/lib/formatters";
-import AddSubscriptionModal from "./AddSubscriptionModal";
 import {
   Dialog,
   DialogContent,
@@ -328,11 +327,6 @@ export default function SubscriptionManagement() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-xl font-bold">Subscription Management</h2>
-        <AddSubscriptionModal onSubscriptionAdded={handleSubscriptionAdded} />
-      </div>
-      
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "upcoming" | "all")}>
         <TabsList className="mb-4">
           <TabsTrigger value="upcoming" className="relative">

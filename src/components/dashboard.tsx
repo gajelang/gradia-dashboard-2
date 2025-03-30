@@ -6,23 +6,19 @@ import { Download } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import AddTransactionModal from "@/components/AddTransactionModal"
-import InsightCards from "@/components/InsightCards"
-import { TransactionProfitabilityCard } from "@/components/TransactionProfitabilityCard"
-import OperationalCostAnalysis from "@/components/OperationalCostAnalysis"
-import TopExpenseCategories from "@/components/TopExpenseCategories"
 import TransactionTable from "@/components/transactions/TransactionTable"
 import ExpensesTable from "@/components/ExpensesTable"
 import ResourcesTab from "@/components/ResourceTab"
 import InvoiceCreator from "@/components/InvoiceCreator"
-import InvoiceList from "@/components/InvoiceList" // Import the InvoiceList component
-import ProjectCalendar from "@/components/ProjectCalendar"
+import InvoiceList from "@/components/InvoiceList"
 import DashboardHeader from "@/components/dashboard-header"
 import FinancialAnalysis from "@/components/FinanceAnalysis"
 import CompanyFinance from "@/components/CompanyFinance"
+import { TransactionProfitabilityCard } from "@/components/TransactionProfitabilityCard"
+import Overview from "@/components/overview" // Import Overview component
 import { useAuth } from "@/contexts/AuthContext"
 import { fetchWithAuth } from "@/lib/api"
 import { toast } from "react-hot-toast"
-import { DateRange as RDPDateRange } from "react-day-picker"
 import { Transaction, TransactionData, convertToTransaction } from "@/app/types/transaction"
 
 // Load Inter font
@@ -32,15 +28,8 @@ const inter = Inter({
   display: "swap",
 })
 
-// Define a DateRange for chart components
-interface DateRange {
-  from: Date;
-  to: Date;
-}
-
 export default function Dashboard() {
   const { isAuthenticated } = useAuth();
-  const [selectedDateRange, setSelectedDateRange] = useState<RDPDateRange | undefined>(undefined);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -78,22 +67,6 @@ export default function Dashboard() {
     setTransactions((prev) => [newTransaction, ...prev]);
   }
 
-  // Handle date range changes for the chart
-  const handleDateRangeChange = (dateRange: RDPDateRange | undefined) => {
-    setSelectedDateRange(dateRange);
-  };
-
-  // Convert RDPDateRange to a DateRange type for the chart
-  const getChartDateRange = (): DateRange | undefined => {
-    if (selectedDateRange?.from && selectedDateRange?.to) {
-      return {
-        from: selectedDateRange.from,
-        to: selectedDateRange.to
-      };
-    }
-    return undefined;
-  };
-
   const handleDownloadReport = () => {
     toast.success("Report download feature will be implemented soon");
   }
@@ -119,38 +92,13 @@ export default function Dashboard() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
-            <TabsTrigger value="invoices">Invoices</TabsTrigger> {/* New tab for invoices */}
+            <TabsTrigger value="invoices">Invoices</TabsTrigger> 
             <TabsTrigger value="analysis">Project Financial</TabsTrigger>
             <TabsTrigger value="company-finance">Company Finance</TabsTrigger>
             <TabsTrigger value="resources">Resources</TabsTrigger>
           </TabsList>
           <TabsContent value="overview" className="space-y-4">
-            <InsightCards onDateRangeChange={handleDateRangeChange} />
-            
-            {/* Transaction Profitability Card (Full Width) */}
-            <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-1">
-              <TransactionProfitabilityCard />
-            </div>
-            
-            {/* TopExpenseCategories and OperationalCostAnalysis Side by Side */}
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-              <div>
-                <TopExpenseCategories 
-                  currentPeriod={getChartDateRange()} 
-                  limit={5} 
-                />
-              </div>
-              <div>
-                <OperationalCostAnalysis 
-                  currentPeriod={getChartDateRange()} 
-                />
-              </div>
-            </div>
-            
-            {/* ProjectCalendar Full Width Below */}
-            <div className="mt-4">
-              <ProjectCalendar />
-            </div>
+            <Overview />
           </TabsContent>
           
           <TabsContent value="projects" className="space-y-4">
@@ -161,7 +109,6 @@ export default function Dashboard() {
             <ExpensesTable />
           </TabsContent>
           
-          {/* New Invoices Tab Content */}
           <TabsContent value="invoices" className="space-y-4">
             <InvoiceList />
           </TabsContent>

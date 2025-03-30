@@ -323,7 +323,7 @@ export function TransactionProfitabilityCard() {
           <div className="space-y-1">
             <CardTitle className="text-2xl flex items-center gap-2">
               <ReceiptCent className="h-6 w-6 text-primary/80" />
-              Transaction Profitability
+              Project Profitability
             </CardTitle>
             <CardDescription>
               Analisis margin keuntungan per transaksi untuk {formatPeriodLabel(periodFilter)}

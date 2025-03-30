@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -20,7 +20,10 @@ import {
   Phone,
   FileText,
   Calendar,
-  Info
+  Info,
+  ArrowLeft,
+  ArrowRight,
+  RefreshCw
 } from "lucide-react";
 import { 
   format, 
@@ -35,7 +38,10 @@ import {
   addDays,
   isSameDay,
   isBefore,
-  isAfter
+  isAfter,
+  isSameMonth,
+  getMonth,
+  getYear
 } from "date-fns";
 import { id } from "date-fns/locale";
 import {
@@ -47,7 +53,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { fetchWithAuth } from "@/lib/api"; // Import the fetchWithAuth utility
+import { fetchWithAuth } from "@/lib/api";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Import Inter font
 import { Inter } from "next/font/google";
@@ -75,7 +87,7 @@ interface Project {
   phone?: string;
   date?: string;
   paymentProofLink?: string;
-  isDeleted?: boolean; // Added isDeleted flag
+  isDeleted?: boolean;
 }
 
 // Transaction type for API response
@@ -106,10 +118,18 @@ interface CalendarProject extends Project {
   dayStart: number;
   dayEnd: number;
   rowIndex: number;
+  startsBeforeMonth: boolean;
+  endsAfterMonth: boolean;
 }
 
 interface WeekProjects {
   [key: number]: CalendarProject[];
+}
+
+interface MonthData {
+  year: number;
+  month: number;
+  hasProjects: boolean;
 }
 
 const STATUS_COLORS = {
@@ -132,17 +152,24 @@ export default function ProjectCalendar() {
   const [viewType, setViewType] = useState<"calendar" | "list">("calendar");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [adjacentMonths, setAdjacentMonths] = useState<{prev: MonthData, next: MonthData}>({
+    prev: { year: 0, month: 0, hasProjects: false },
+    next: { year: 0, month: 0, hasProjects: false }
+  });
+  const [lastVisitedProject, setLastVisitedProject] = useState<string | null>(null);
+  
   // Open modal with selected project
   const handleProjectClick = (project: Project) => {
     setSelectedProject(project);
     setIsModalOpen(true);
+    setLastVisitedProject(project.id);
   };
 
   // Close modal
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setTimeout(() => setSelectedProject(null), 300); // Clear selection after animation
+    setTimeout(() => setSelectedProject(null), 300);
   };
 
   // Format currency
@@ -155,52 +182,94 @@ export default function ProjectCalendar() {
     }).format(amount);
   };
 
-  // Fetch projects data (filtered from transactions with start/end dates)
-  useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        setLoading(true);
-        const res = await fetchWithAuth("/api/transactions", { cache: "no-store" });
-        if (!res.ok) throw new Error("Failed to fetch projects");
-        
-        const data = await res.json();
-        
-        // Filter transactions that:
-        // 1. Have at least a startDate or endDate
-        // 2. Are NOT archived (isDeleted !== true)
-        // 3. Map all additional transaction fields per the database
-        const projectsData = data
-          .filter((tx: TransactionApiResponse) => (tx.startDate || tx.endDate) && !tx.isDeleted)
-          .map((tx: TransactionApiResponse) => ({
-            id: tx.id,
-            name: tx.name || "Untitled Project",
-            description: tx.description || "",
-            startDate: tx.startDate,
-            endDate: tx.endDate,
-            paymentStatus: tx.paymentStatus || tx.status || "Belum Bayar",
-            amount: tx.amount,
-            projectValue: tx.projectValue,
-            totalProfit: tx.totalProfit,
-            downPaymentAmount: tx.downPaymentAmount,
-            remainingAmount: tx.remainingAmount,
-            email: tx.email,
-            phone: tx.phone,
-            date: tx.date,
-            paymentProofLink: tx.paymentProofLink,
-            isDeleted: tx.isDeleted || false // Explicitly track isDeleted status
-          }));
-        
-        setProjects(projectsData);
-      } catch (err) {
-        console.error("Error fetching projects:", err);
-        setError("Failed to load project data");
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchProjects();
+  // Fetch projects data
+  const fetchProjects = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetchWithAuth("/api/transactions", { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to fetch projects");
+      
+      const data = await res.json();
+      
+      // Filter transactions with start/end dates and not archived
+      const projectsData = data
+        .filter((tx: TransactionApiResponse) => (tx.startDate || tx.endDate) && !tx.isDeleted)
+        .map((tx: TransactionApiResponse) => ({
+          id: tx.id,
+          name: tx.name || "Untitled Project",
+          description: tx.description || "",
+          startDate: tx.startDate,
+          endDate: tx.endDate,
+          paymentStatus: tx.paymentStatus || tx.status || "Belum Bayar",
+          amount: tx.amount,
+          projectValue: tx.projectValue,
+          totalProfit: tx.totalProfit,
+          downPaymentAmount: tx.downPaymentAmount,
+          remainingAmount: tx.remainingAmount,
+          email: tx.email,
+          phone: tx.phone,
+          date: tx.date,
+          paymentProofLink: tx.paymentProofLink,
+          isDeleted: tx.isDeleted || false
+        }));
+      
+      setProjects(projectsData);
+    } catch (err) {
+      console.error("Error fetching projects:", err);
+      setError("Failed to load project data");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+  
+  // Refresh projects data
+  const refreshProjects = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
+  
+  // Initial fetch and refresh when triggered
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects, refreshTrigger]);
+
+  // Determine if a month has projects
+  const checkMonthHasProjects = useCallback((year: number, month: number) => {
+    const monthStart = new Date(year, month, 1);
+    const monthEnd = endOfMonth(monthStart);
+    
+    return projects.some(project => {
+      if (!project.startDate || !project.endDate) return false;
+      
+      try {
+        const startDate = parseISO(project.startDate);
+        const endDate = parseISO(project.endDate);
+        
+        // Check if project overlaps with this month
+        return !(isAfter(startDate, monthEnd) || isBefore(endDate, monthStart));
+      } catch (e) {
+        return false;
+      }
+    });
+  }, [projects]);
+  
+  // Update adjacent months data when current month or projects change
+  useEffect(() => {
+    const prevMonth = subMonths(currentMonth, 1);
+    const nextMonth = addMonths(currentMonth, 1);
+    
+    setAdjacentMonths({
+      prev: {
+        year: getYear(prevMonth),
+        month: getMonth(prevMonth),
+        hasProjects: checkMonthHasProjects(getYear(prevMonth), getMonth(prevMonth))
+      },
+      next: {
+        year: getYear(nextMonth),
+        month: getMonth(nextMonth),
+        hasProjects: checkMonthHasProjects(getYear(nextMonth), getMonth(nextMonth))
+      }
+    });
+  }, [currentMonth, projects, checkMonthHasProjects]);
 
   // Handle month navigation
   const handlePreviousMonth = () => {
@@ -222,7 +291,7 @@ export default function ProjectCalendar() {
   };
 
   // Generate calendar data with projects spanning multiple days
-  const generateCalendarData = () => {
+  const generateCalendarData = useCallback(() => {
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(currentMonth);
     const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -230,11 +299,13 @@ export default function ProjectCalendar() {
     const weeks: Date[][] = [];
     let week: Date[] = [];
     
+    // Create first week with padding days
     const firstDayOfWeek = getDay(monthStart);
     for (let i = 0; i < firstDayOfWeek; i++) {
       week.push(addDays(monthStart, i - firstDayOfWeek));
     }
     
+    // Fill in all days of the month
     days.forEach((day) => {
       week.push(day);
       if (week.length === 7) {
@@ -243,6 +314,7 @@ export default function ProjectCalendar() {
       }
     });
     
+    // Add padding to the last week
     if (week.length > 0) {
       const lastDayOfMonth = days[days.length - 1];
       const daysToAdd = 7 - week.length;
@@ -252,94 +324,122 @@ export default function ProjectCalendar() {
       weeks.push(week);
     }
     
-    const validProjects = projects.filter(project => 
-      project.startDate && project.endDate && !project.isDeleted
-    ).map(project => {
-      const startDateObj = parseISO(project.startDate!);
-      const endDateObj = parseISO(project.endDate!);
-      return { ...project, startDateObj, endDateObj };
-    });
+    // Process projects for the calendar
+    const validProjects = projects
+      .filter(project => {
+        if (!project.startDate || !project.endDate || project.isDeleted) return false;
+        
+        try {
+          const startDate = parseISO(project.startDate);
+          const endDate = parseISO(project.endDate);
+          
+          // Only exclude projects that don't overlap with current month at all
+          return !(isAfter(startDate, monthEnd) || isBefore(endDate, monthStart));
+        } catch (e) {
+          return false;
+        }
+      })
+      .map(project => {
+        const startDateObj = parseISO(project.startDate!);
+        const endDateObj = parseISO(project.endDate!);
+        
+        // Check if project starts before or ends after current month
+        const startsBeforeMonth = isBefore(startDateObj, monthStart);
+        const endsAfterMonth = isAfter(endDateObj, monthEnd);
+        
+        return { 
+          ...project, 
+          startDateObj, 
+          endDateObj, 
+          startsBeforeMonth,
+          endsAfterMonth
+        };
+      });
     
     const weekProjects: WeekProjects = {};
     weeks.forEach((_, weekIndex) => {
       weekProjects[weekIndex] = [];
     });
     
+    // Place projects in their respective weeks
     validProjects.forEach(project => {
-      const { startDateObj, endDateObj } = project;
+      const { startDateObj, endDateObj, startsBeforeMonth, endsAfterMonth } = project;
       
-      if (
-        (isBefore(startDateObj, monthStart) && isBefore(endDateObj, monthStart)) ||
-        (isAfter(startDateObj, monthEnd) && isAfter(endDateObj, monthEnd))
-      ) {
-        return;
-      }
+      // Determine display start/end dates clamped to current month if needed
+      const displayStart = startsBeforeMonth ? monthStart : startDateObj;
+      const displayEnd = endsAfterMonth ? monthEnd : endDateObj;
       
-      const displayStart = isBefore(startDateObj, monthStart) ? monthStart : startDateObj;
-      const displayEnd = isAfter(endDateObj, monthEnd) ? monthEnd : endDateObj;
-      
+      // Assign project to each week it spans
       weeks.forEach((weekDays, weekIndex) => {
         const weekStart = weekDays[0];
         const weekEnd = weekDays[6];
         
+        // Check if project overlaps with this week
         if (
           (isWithinInterval(displayStart, { start: weekStart, end: weekEnd }) ||
            isWithinInterval(displayEnd, { start: weekStart, end: weekEnd })) ||
           (isBefore(displayStart, weekStart) && isAfter(displayEnd, weekEnd))
         ) {
+          // Calculate day start and end indexes within the week
           let dayStart = 0;
           let dayEnd = 6;
           
-          for (let i = 0; i < 7; i++) {
-            if (isSameDay(weekDays[i], displayStart) || 
-                (i === 0 && isBefore(displayStart, weekDays[i]))) {
-              dayStart = i;
-              break;
-            } else if (isAfter(displayStart, weekDays[i]) && 
-                      (i === 6 || isBefore(displayStart, weekDays[i + 1]))) {
-              dayStart = i + 1;
-              break;
+          // For projects that start within this week
+          if (!startsBeforeMonth || isSameMonth(displayStart, weekStart)) {
+            for (let i = 0; i < 7; i++) {
+              if (isSameDay(weekDays[i], displayStart)) {
+                dayStart = i;
+                break;
+              } else if (i < 6 && isAfter(displayStart, weekDays[i]) && isBefore(displayStart, weekDays[i + 1])) {
+                dayStart = i + 1;
+                break;
+              }
             }
-          }
-          
-          for (let i = 6; i >= 0; i--) {
-            if (isSameDay(weekDays[i], displayEnd) || 
-                (i === 6 && isAfter(displayEnd, weekDays[i]))) {
-              dayEnd = i;
-              break;
-            } else if (isBefore(displayEnd, weekDays[i]) && 
-                      (i === 0 || isAfter(displayEnd, weekDays[i - 1]))) {
-              dayEnd = i - 1;
-              break;
-            }
-          }
-          
-          if (isBefore(displayStart, weekDays[0]) && isAfter(displayEnd, weekDays[6])) {
+          } else if (startsBeforeMonth && weekIndex === 0) {
+            // Project starts before this month and we're in the first week
             dayStart = 0;
+          }
+          
+          // For projects that end within this week
+          if (!endsAfterMonth || isSameMonth(displayEnd, weekEnd)) {
+            for (let i = 6; i >= 0; i--) {
+              if (isSameDay(weekDays[i], displayEnd)) {
+                dayEnd = i;
+                break;
+              } else if (i > 0 && isAfter(displayEnd, weekDays[i - 1]) && isBefore(displayEnd, weekDays[i])) {
+                dayEnd = i - 1;
+                break;
+              }
+            }
+          } else if (endsAfterMonth && weekIndex === weeks.length - 1) {
+            // Project ends after this month and we're in the last week
             dayEnd = 6;
           }
           
-          if (dayStart < 0) dayStart = 0;
-          if (dayEnd > 6) dayEnd = 6;
-          if (dayStart > dayEnd) return;
-          
-          const calendarProject: CalendarProject = {
-            ...project,
-            weekIndex,
-            dayStart,
-            dayEnd,
-            rowIndex: 0
-          };
-          
-          weekProjects[weekIndex].push(calendarProject);
+          // Ensure valid day ranges
+          if (dayStart <= dayEnd) {
+            const calendarProject: CalendarProject = {
+              ...project,
+              weekIndex,
+              dayStart,
+              dayEnd,
+              rowIndex: 0, // Will be assigned later
+              startsBeforeMonth,
+              endsAfterMonth
+            };
+            
+            weekProjects[weekIndex].push(calendarProject);
+          }
         }
       });
     });
     
+    // Assign row positions for all projects in each week
     Object.keys(weekProjects).forEach(weekIndexStr => {
       const weekIndex = parseInt(weekIndexStr);
       const projectsInWeek = weekProjects[weekIndex];
       
+      // Sort projects by start day and then by duration (shorter first)
       projectsInWeek.sort((a, b) => {
         if (a.dayStart !== b.dayStart) return a.dayStart - b.dayStart;
         const aDuration = a.dayEnd - a.dayStart;
@@ -347,16 +447,21 @@ export default function ProjectCalendar() {
         return aDuration - bDuration;
       });
       
+      // Initialize an empty grid to track occupied positions
       const occupiedPositions: boolean[][] = [];
       
+      // Find a row for each project
       projectsInWeek.forEach(project => {
         let rowIndex = 0;
         let foundPosition = false;
+        
         while (!foundPosition) {
+          // Initialize this row if it doesn't exist
           if (!occupiedPositions[rowIndex]) {
             occupiedPositions[rowIndex] = Array(7).fill(false);
           }
           
+          // Check if all positions for this project are available
           let positionAvailable = true;
           for (let day = project.dayStart; day <= project.dayEnd; day++) {
             if (occupiedPositions[rowIndex][day]) {
@@ -366,12 +471,14 @@ export default function ProjectCalendar() {
           }
           
           if (positionAvailable) {
-            foundPosition = true;
+            // Mark positions as occupied
             for (let day = project.dayStart; day <= project.dayEnd; day++) {
               occupiedPositions[rowIndex][day] = true;
             }
             project.rowIndex = rowIndex;
+            foundPosition = true;
           } else {
+            // Try next row
             rowIndex++;
           }
         }
@@ -379,11 +486,14 @@ export default function ProjectCalendar() {
     });
     
     return { weeks, weekProjects };
-  };
+  }, [currentMonth, projects]);
+
+  // Memoized calendar data
+  const calendarData = useMemo(() => generateCalendarData(), [generateCalendarData]);
 
   // Render calendar view
   const renderCalendarView = () => {
-    const { weeks, weekProjects } = generateCalendarData();
+    const { weeks, weekProjects } = calendarData;
     
     return (
       <div className="space-y-4">
@@ -395,22 +505,62 @@ export default function ProjectCalendar() {
             </h3>
           </div>
           <div className="flex items-center gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    onClick={handlePreviousMonth}
+                    className={`rounded-full ${adjacentMonths.prev.hasProjects ? "border-blue-300" : ""}`}
+                    variant="outline"
+                    size="icon"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                    {adjacentMonths.prev.hasProjects && (
+                      <span className="absolute w-2 h-2 bg-blue-500 rounded-full -top-1 -right-1"></span>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>
+                    {format(subMonths(currentMonth, 1), "MMMM yyyy", { locale: id })}
+                    {adjacentMonths.prev.hasProjects ? " (has projects)" : ""}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            
             <Button 
-              onClick={handlePreviousMonth}
+              onClick={refreshProjects}
               className="rounded-full"
               variant="outline"
               size="icon"
             >
-              <ChevronLeft className="h-5 w-5" />
+              <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button 
-              onClick={handleNextMonth}
-              className="rounded-full"
-              variant="outline"
-              size="icon"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </Button>
+            
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    onClick={handleNextMonth}
+                    className={`rounded-full ${adjacentMonths.next.hasProjects ? "border-blue-300" : ""}`}
+                    variant="outline"
+                    size="icon"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                    {adjacentMonths.next.hasProjects && (
+                      <span className="absolute w-2 h-2 bg-blue-500 rounded-full -top-1 -right-1"></span>
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>
+                    {format(addMonths(currentMonth, 1), "MMMM yyyy", { locale: id })}
+                    {adjacentMonths.next.hasProjects ? " (has projects)" : ""}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
         </div>
         
@@ -427,7 +577,7 @@ export default function ProjectCalendar() {
           {/* Weeks */}
           {weeks.map((week, weekIndex) => {
             const projectsInWeek = weekProjects[weekIndex] || [];
-            // Increase the maxRows to accommodate the expanded project cards
+            // Use max rows with a minimum to ensure consistent height
             const maxRows = Math.max(
               ...projectsInWeek.map(p => p.rowIndex + 1),
               3
@@ -463,45 +613,74 @@ export default function ProjectCalendar() {
                 <div 
                   className="grid grid-cols-7 relative"
                   style={{
-                    height: `${Math.min(maxRows * 30, 200)}px`, // Increase height for more space
+                    height: `${Math.min(maxRows * 30, 200)}px`,
                   }}
                 >
-                  {week.map((_unused, dayIndex) => (
-                    <div 
-                      key={`day-col-${dayIndex}`} 
-                      className="border-r last:border-r-0 h-full"
-                    ></div>
-                  ))}
+                  {week.map((day, dayIndex) => {
+                    const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
+                    return (
+                      <div 
+                        key={`day-col-${dayIndex}`} 
+                        className={`border-r last:border-r-0 h-full ${
+                          isCurrentMonth ? '' : 'bg-gray-50'
+                        }`}
+                      ></div>
+                    );
+                  })}
                   
                   {projectsInWeek.map((project, projectIndex) => {
                     const projectStyle = {
                       gridColumnStart: project.dayStart + 1,
                       gridColumnEnd: project.dayEnd + 2,
-                      top: `${project.rowIndex * 40 + 4}px`, // Increased spacing between rows
-                      width: `calc(100% * ${project.dayEnd - project.dayStart + 1} - 8px)`,
+                      top: `${project.rowIndex * 40 + 4}px`,
                       left: `calc(${(100 / 7) * project.dayStart}% + 4px)`,
+                      width: `calc(${(100 / 7) * (project.dayEnd - project.dayStart + 1)}% - 8px)`,
                       height: 'auto',
-                      minHeight: '36px', // Taller project boxes
-                      maxHeight: '70px', // Limit max height
-                      overflow: 'hidden'
+                      minHeight: '36px',
+                      maxHeight: '70px',
+                      overflow: 'hidden',
+                      zIndex: 10
                     };
+                    
+                    // Highlight previously selected project
+                    const isHighlighted = project.id === lastVisitedProject;
                     
                     return (
                       <button
                         key={`project-${project.id}-${weekIndex}-${projectIndex}`}
-                        className={`absolute rounded-md px-2 py-1.5 text-xs flex flex-col border cursor-pointer transition-all hover:shadow-md hover:opacity-90 ${
+                        className={`absolute rounded-md px-2 py-1.5 text-xs flex flex-col border cursor-pointer transition-all ${
+                          isHighlighted ? 'ring-2 ring-blue-400 shadow-md' : 'hover:shadow-md hover:opacity-90'
+                        } ${
+                          project.startsBeforeMonth && project.dayStart === 0 ? 'border-l-4 border-l-blue-500' : ''
+                        } ${
+                          project.endsAfterMonth && project.dayEnd === 6 ? 'border-r-4 border-r-blue-500' : ''
+                        } ${
                           STATUS_COLORS[project.paymentStatus as keyof typeof STATUS_COLORS] || 
                           "bg-gray-100 border-gray-300 text-gray-800"
                         }`}
                         style={projectStyle}
                         onClick={() => handleProjectClick(project)}
                       >
+                        {/* Start indicator for projects continuing from previous month */}
+                        {project.startsBeforeMonth && project.dayStart === 0 && (
+                          <div className="absolute -left-2 top-1/2 -translate-y-1/2 text-blue-500">
+                            <ArrowLeft className="h-3 w-3" />
+                          </div>
+                        )}
+                        
                         <div className="font-medium truncate w-full text-left">
                           {project.name}
                         </div>
-                        <div className="text-2xs opacity-75 line-clamp-2 w-full text-left mt-0.5">
+                        <div className="text-2xs opacity-75 line-clamp-1 w-full text-left mt-0.5">
                           {project.description || "No description"}
                         </div>
+                        
+                        {/* End indicator for projects continuing to next month */}
+                        {project.endsAfterMonth && project.dayEnd === 6 && (
+                          <div className="absolute -right-2 top-1/2 -translate-y-1/2 text-blue-500">
+                            <ArrowRight className="h-3 w-3" />
+                          </div>
+                        )}
                       </button>
                     );
                   })}
@@ -509,6 +688,18 @@ export default function ProjectCalendar() {
               </div>
             );
           })}
+        </div>
+        
+        {/* Legend for cross-month projects */}
+        <div className="flex items-center gap-4 text-xs text-gray-500 mt-2">
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 border-l-4 border-l-blue-500 border rounded"></div>
+            <span>Continues from previous month</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 border-r-4 border-r-blue-500 border rounded"></div>
+            <span>Continues to next month</span>
+          </div>
         </div>
       </div>
     );
@@ -541,9 +732,45 @@ export default function ProjectCalendar() {
       }
     });
     
+    // If a project spans multiple months, add it to all months it spans
+    sortedProjects.forEach(project => {
+      if (!project.startDate || !project.endDate) return;
+      
+      try {
+        const startDate = parseISO(project.startDate);
+        const endDate = parseISO(project.endDate);
+        const startMonthKey = format(startDate, "yyyy-MM");
+        
+        let currentDate = addMonths(startDate, 1);
+        while (isBefore(currentDate, endDate) || isSameMonth(currentDate, endDate)) {
+          const monthKey = format(currentDate, "yyyy-MM");
+          if (monthKey !== startMonthKey) {
+            if (!projectsByMonth[monthKey]) {
+              projectsByMonth[monthKey] = [];
+            }
+            
+            // Add only if not already in this month
+            if (!projectsByMonth[monthKey].some(p => p.id === project.id)) {
+              const projectWithNote = {
+                ...project,
+                description: `${project.description || ""} (Continues from ${format(startDate, "MMMM yyyy", { locale: id })})`,
+              };
+              projectsByMonth[monthKey].push(projectWithNote);
+            }
+          }
+          currentDate = addMonths(currentDate, 1);
+        }
+      } catch {
+        // Skip invalid dates
+      }
+    });
+    
+    // Sort month keys chronologically
+    const sortedMonthKeys = Object.keys(projectsByMonth).sort();
+    
     return (
       <div className="space-y-6">
-        {Object.entries(projectsByMonth).map(([monthKey, monthProjects]) => (
+        {sortedMonthKeys.map((monthKey) => (
           <div key={monthKey} className="space-y-3">
             <div className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-gray-500" />
@@ -552,32 +779,49 @@ export default function ProjectCalendar() {
               </h3>
             </div>
             <div className="space-y-2">
-              {monthProjects.map(project => (
-                <div 
-                  key={project.id} 
-                  className="p-4 border rounded-lg hover:bg-gray-50 transition-colors shadow-sm cursor-pointer"
-                  onClick={() => handleProjectClick(project)}
-                >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-medium">{project.name}</h4>
-                      <p className="text-sm text-gray-600 mt-1">{project.description}</p>
+              {projectsByMonth[monthKey].map(project => {
+                // Highlight previously selected project
+                const isHighlighted = project.id === lastVisitedProject;
+                
+                // Determine if project spans multiple months
+                const isMultiMonth = (() => {
+                  if (!project.startDate || !project.endDate) return false;
+                  const startDate = parseISO(project.startDate);
+                  const endDate = parseISO(project.endDate);
+                  return !isSameMonth(startDate, endDate);
+                })();
+                
+                return (
+                  <div 
+                    key={`${project.id}-${monthKey}`} 
+                    className={`p-4 border rounded-lg transition-colors shadow-sm cursor-pointer ${
+                      isHighlighted ? 'bg-blue-50 border-blue-300' : 'hover:bg-gray-50'
+                    } ${
+                      isMultiMonth ? 'border-l-4 border-l-blue-500' : ''
+                    }`}
+                    onClick={() => handleProjectClick(project)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-medium">{project.name}</h4>
+                        <p className="text-sm text-gray-600 mt-1">{project.description}</p>
+                      </div>
+                      <Badge 
+                        className={STATUS_BADGES[project.paymentStatus as keyof typeof STATUS_BADGES] || "bg-gray-100"}
+                        variant="outline"
+                      >
+                        {project.paymentStatus}
+                      </Badge>
                     </div>
-                    <Badge 
-                      className={STATUS_BADGES[project.paymentStatus as keyof typeof STATUS_BADGES] || "bg-gray-100"}
-                      variant="outline"
-                    >
-                      {project.paymentStatus}
-                    </Badge>
+                    <div className="flex mt-3 text-sm text-gray-500">
+                      <span className="inline-flex items-center">
+                        <CalendarIcon className="h-4 w-4 mr-1.5" />
+                        {formatDate(project.startDate)} - {formatDate(project.endDate)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex mt-3 text-sm text-gray-500">
-                    <span className="inline-flex items-center">
-                      <CalendarIcon className="h-4 w-4 mr-1.5" />
-                      {formatDate(project.startDate)} - {formatDate(project.endDate)}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))}
@@ -755,28 +999,38 @@ export default function ProjectCalendar() {
         <CardHeader className="pb-3">
           <div className="flex justify-between items-center">
             <CardTitle className="text-xl">Project Broadcast Schedule</CardTitle>
-            <Select 
-              value={viewType} 
-              onValueChange={(value) => setViewType(value as "calendar" | "list")}
-            >
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="View Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="calendar">
-                  <div className="flex items-center gap-2">
-                    <CalendarIcon className="h-4 w-4" />
-                    Calendar View
-                  </div>
-                </SelectItem>
-                <SelectItem value="list">
-                  <div className="flex items-center gap-2">
-                    <ClipboardList className="h-4 w-4" />
-                    List View
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <Select 
+                value={viewType} 
+                onValueChange={(value) => setViewType(value as "calendar" | "list")}
+              >
+                <SelectTrigger className="w-[150px]">
+                  <SelectValue placeholder="View Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="calendar">
+                    <div className="flex items-center gap-2">
+                      <CalendarIcon className="h-4 w-4" />
+                      Calendar View
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="list">
+                    <div className="flex items-center gap-2">
+                      <ClipboardList className="h-4 w-4" />
+                      List View
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={refreshProjects}
+                title="Refresh projects"
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
