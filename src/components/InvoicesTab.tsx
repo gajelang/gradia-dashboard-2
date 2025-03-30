@@ -1,3 +1,4 @@
+// src/components/InvoicesTab.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -12,15 +13,15 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   FileText,
-  Download,
   ExternalLink,
   Loader2,
   PlusCircle,
 } from "lucide-react";
-import { formatRupiah } from "@/lib/formatters";
 import { toast } from "react-hot-toast";
 import { fetchWithAuth } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import InvoiceDetail from "./InvoiceDetail";
+import { formatRupiah, formatDate, getStatusColor, Invoice } from "@/lib/invoiceUtils";
 
 interface InvoicesTabProps {
   transaction: any;
@@ -28,8 +29,10 @@ interface InvoicesTabProps {
 
 export default function InvoicesTab({ transaction }: InvoicesTabProps) {
   const router = useRouter();
-  const [invoices, setInvoices] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
   // Fetch invoices related to this transaction
   useEffect(() => {
@@ -57,33 +60,16 @@ export default function InvoicesTab({ transaction }: InvoicesTabProps) {
     fetchInvoices();
   }, [transaction]);
 
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("id-ID", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
   // Handle navigation to create invoice page
   const handleCreateInvoice = () => {
     // We'll use a query parameter to pre-fill the invoice form
     router.push(`/invoices/create?transactionId=${transaction.id}`);
   };
 
-  // Get status badge styling
-  const getStatusBadgeClass = (status: string) => {
-    switch (status) {
-      case "Lunas":
-        return "bg-green-100 text-green-800";
-      case "DP":
-        return "bg-yellow-100 text-yellow-800";
-      case "Belum Bayar":
-      default:
-        return "bg-red-100 text-red-800";
-    }
+  // Handle view invoice
+  const handleViewInvoice = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setDetailDialogOpen(true);
   };
 
   return (
@@ -140,7 +126,7 @@ export default function InvoicesTab({ transaction }: InvoicesTabProps) {
                     Rp{formatRupiah(invoice.totalAmount)}
                   </TableCell>
                   <TableCell>
-                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getStatusBadgeClass(invoice.paymentStatus)}`}>
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(invoice.paymentStatus)}`}>
                       {invoice.paymentStatus}
                     </span>
                   </TableCell>
@@ -150,23 +136,9 @@ export default function InvoicesTab({ transaction }: InvoicesTabProps) {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
-                        onClick={() => {
-                          // Here you would implement view details
-                          router.push(`/invoices/${invoice.id}`);
-                        }}
+                        onClick={() => handleViewInvoice(invoice)}
                       >
                         <ExternalLink className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => {
-                          // Here you would implement PDF download
-                          toast.success(`Downloading invoice ${invoice.invoiceNumber}...`);
-                        }}
-                      >
-                        <Download className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
@@ -176,6 +148,13 @@ export default function InvoicesTab({ transaction }: InvoicesTabProps) {
           </Table>
         </div>
       )}
+
+      {/* Invoice Detail Dialog */}
+      <InvoiceDetail
+        invoice={selectedInvoice}
+        isOpen={detailDialogOpen}
+        onClose={() => setDetailDialogOpen(false)}
+      />
     </div>
   );
 }

@@ -320,18 +320,6 @@ export default function InventoryTab() {
           </AlertDescription>
         </Alert>
       )}
-      
-      {/* Upcoming renewals warning */}
-      {!loading && stats.upcomingRenewals > 0 && (
-        <Alert className="bg-yellow-50 border-yellow-200 mb-6">
-          <Calendar className="h-4 w-4 text-yellow-600" />
-          <AlertTitle>Upcoming Subscription Renewals</AlertTitle>
-          <AlertDescription>
-            {stats.upcomingRenewals} subscriptions are due for renewal in the next 30 days.
-            Visit the Subscriptions tab to manage them.
-          </AlertDescription>
-        </Alert>
-      )}
 
       {/* Main content with tabs */}
       <div className="flex flex-col lg:flex-row gap-6">

@@ -42,6 +42,7 @@ import {
   DollarSign,
   ArrowUp,
   ArrowDown,
+  CheckCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { formatRupiah } from "@/lib/formatters";
@@ -55,6 +56,7 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
+  SheetFooter,
 } from "@/components/ui/sheet";
 
 // Transaction type definition
@@ -70,6 +72,17 @@ interface Subscription {
   nextBillingDate: string;
   isRecurring: boolean;
   paymentStatus: string;
+}
+
+// Client interface
+interface Client {
+  id: string;
+  code: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  description?: string;
 }
 
 // Form data interface
@@ -97,6 +110,21 @@ interface FormData {
   isRecurringExpense: boolean;
   recurringFrequency: string;
   nextBillingDate: string;
+}
+
+// Form validation errors
+interface FormErrors {
+  [key: string]: string;
+}
+
+// New client form data
+interface NewClientData {
+  code: string;
+  name: string;
+  email: string;
+  phone: string;
+  address: string;
+  description: string;
 }
 
 interface AddTransactionModalProps {
@@ -144,12 +172,14 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     nextBillingDate: "",
   });
   
+  // Form validation
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+  
   // Other state variables
   const [profit, setProfit] = useState(0);
   const [remainingAmount, setRemainingAmount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [showPaymentProofField, setShowPaymentProofField] = useState(true);
   
   // Subscription state
@@ -159,7 +189,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   const [showSubscriptionDetails, setShowSubscriptionDetails] = useState(false);
   
   // Client, vendor, PIC, and transactions state
-  const [clients, setClients] = useState<any[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
   const [pics, setPics] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -171,7 +201,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   
   // New client state
   const [isNewClientSheetOpen, setIsNewClientSheetOpen] = useState(false);
-  const [newClientData, setNewClientData] = useState({
+  const [newClientData, setNewClientData] = useState<NewClientData>({
     code: "",
     name: "",
     email: "",
@@ -179,6 +209,8 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     address: "",
     description: "",
   });
+  const [newClientErrors, setNewClientErrors] = useState<FormErrors>({});
+  const [isCreatingClient, setIsCreatingClient] = useState(false);
 
   // Category and payment options
   const expenseCategories: string[] = [
@@ -299,6 +331,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       }
     } catch (error) {
       console.error("Error fetching clients:", error);
+      toast.error("Failed to load clients");
     } finally {
       setLoadingClients(false);
     }
@@ -446,6 +479,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       address: "",
       description: "",
     });
+    setNewClientErrors({});
   };
 
   // Handle form changes
@@ -471,13 +505,20 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
 
   // Handle client change
   const handleClientChange = (value: string) => {
+    if (value === "new") {
+      // Open the new client sheet instead of setting clientId
+      setIsNewClientSheetOpen(true);
+      return;
+    }
+    
     setFormData((prev) => ({ ...prev, clientId: value === "none" ? "" : value }));
+    
     if (value && value !== "none") {
       const selectedClient = clients.find((client) => client.id === value);
       if (selectedClient) {
         setFormData((prev) => ({
           ...prev,
-          name: selectedClient.name,
+          clientId: selectedClient.id,
           email: selectedClient.email || prev.email,
           phone: selectedClient.phone || prev.phone,
         }));
@@ -551,6 +592,30 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   // Handle recurring expense checkbox
   const handleRecurringExpenseChange = (checked: boolean) => {
     setFormData(prev => ({ ...prev, isRecurringExpense: checked }));
+    
+    // If enabling recurring expense and we have a subscription, set next billing date
+    if (checked && selectedSubscription && !formData.nextBillingDate) {
+      // Calculate next billing date based on frequency
+      const currentDate = new Date();
+      let nextDate = new Date(currentDate);
+      
+      switch(formData.recurringFrequency) {
+        case "MONTHLY":
+          nextDate.setMonth(currentDate.getMonth() + 1);
+          break;
+        case "QUARTERLY":
+          nextDate.setMonth(currentDate.getMonth() + 3);
+          break;
+        case "ANNUALLY":
+          nextDate.setFullYear(currentDate.getFullYear() + 1);
+          break;
+      }
+      
+      setFormData(prev => ({
+        ...prev,
+        nextBillingDate: nextDate.toISOString().split('T')[0]
+      }));
+    }
   };
 
   // Handle recurring frequency change
@@ -558,7 +623,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     setFormData(prev => ({ ...prev, recurringFrequency: value }));
     
     // Update next billing date based on frequency
-    if (selectedSubscription) {
+    if (formData.isRecurringExpense) {
       const currentDate = new Date();
       let nextDate = new Date(currentDate);
       
@@ -590,6 +655,15 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   const handleNewClientChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setNewClientData((prev) => ({ ...prev, [name]: value }));
+    
+    // Clear errors when field is edited
+    if (newClientErrors[name]) {
+      setNewClientErrors(prev => {
+        const updatedErrors = { ...prev };
+        delete updatedErrors[name];
+        return updatedErrors;
+      });
+    }
   };
 
   // Handle tab change
@@ -606,13 +680,41 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     }
   };
 
+  // Validate new client form
+  const validateNewClientForm = (): boolean => {
+    const errors: FormErrors = {};
+    
+    if (!newClientData.code.trim()) {
+      errors.code = "Client code is required";
+    }
+    
+    if (!newClientData.name.trim()) {
+      errors.name = "Client name is required";
+    }
+    
+    if (newClientData.email && !isValidEmail(newClientData.email)) {
+      errors.email = "Please enter a valid email address";
+    }
+    
+    setNewClientErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+  
+  // Validate email format
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return email === "" || emailRegex.test(email);
+  };
+
   // Handle client creation
   const handleCreateClient = async () => {
-    if (!newClientData.code || !newClientData.name) {
-      toast.error("Client code and name are required");
+    if (!validateNewClientForm()) {
       return;
     }
+
     try {
+      setIsCreatingClient(true);
+      
       const res = await fetchWithAuth("/api/clients", {
         method: "POST",
         body: JSON.stringify({
@@ -620,32 +722,45 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           createdById: user?.userId,
         }),
       });
+      
       if (!res.ok) {
-        throw new Error("Failed to create client");
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to create client");
       }
+      
       const newClient = await res.json();
+      
+      // Add the new client to the clients list
       setClients((prev) => [...prev, newClient]);
+      
+      // Update the form data with the new client info
       setFormData((prev) => ({
         ...prev,
         clientId: newClient.id,
         email: newClientData.email || prev.email,
         phone: newClientData.phone || prev.phone,
       }));
+      
+      // Reset and close the new client form
       resetNewClientForm();
       setIsNewClientSheetOpen(false);
+      
       toast.success("Client created successfully");
     } catch (error) {
       console.error("Error creating client:", error);
-      toast.error("Failed to create client");
+      toast.error(error instanceof Error ? error.message : "Failed to create client");
+    } finally {
+      setIsCreatingClient(false);
     }
   };
 
   // Form validation
   const validateForm = (): boolean => {
-    const errors: Record<string, string> = {};
+    const errors: FormErrors = {};
     if (transactionType === "transaction") {
       if (!formData.name.trim()) errors.name = "Transaction name is required";
-      if (!formData.projectValue) errors.projectValue = "Project value is required";
+      if (!formData.projectValue || parseFloat(formData.projectValue) <= 0) 
+        errors.projectValue = "Valid project value is required";
       if (!formData.date) errors.date = "Date is required";
       if (!formData.fundType) errors.fundType = "Fund destination is required";
       if (profit < 0) errors.profit = "Profit cannot be negative";
@@ -657,6 +772,9 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
         } else if (parseFloat(formData.downPaymentAmount) > profit) {
           errors.downPaymentAmount = "Down payment cannot exceed profit";
         }
+      }
+      if (formData.email && !isValidEmail(formData.email)) {
+        errors.email = "Please enter a valid email address";
       }
     } else {
       if (!formData.category) errors.category = "Category is required";
@@ -695,150 +813,150 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   };
 
   // Form submission
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (isSubmitting) return;
-  if (!validateForm()) {
-    toast.error("Please correct the errors in the form");
-    return;
-  }
-  setIsSubmitting(true);
-  try {
-    let payload: any = {};
-    let apiEndpoint;
-    
-    if (transactionType === "transaction") {
-      let revenueAmount = 0;
-      if (formData.paymentStatus === "Lunas") {
-        revenueAmount = profit;
-      } else if (formData.paymentStatus === "DP") {
-        revenueAmount = parseFloat(formData.downPaymentAmount) || 0;
-      }
-      payload = {
-        name: formData.name || "Transaction",
-        projectValue: parseFloat(formData.projectValue) || 0,
-        totalProfit: profit,
-        amount: revenueAmount,
-        paymentStatus: formData.paymentStatus,
-        downPaymentAmount: formData.paymentStatus === "DP" ? parseFloat(formData.downPaymentAmount) : 0,
-        remainingAmount: remainingAmount,
-        email: formData.email || "",
-        phone: formData.phone || "",
-        description: formData.description || "",
-        date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
-        startDate: formData.startDate ? new Date(formData.startDate).toISOString() : null,
-        endDate: formData.endDate ? new Date(formData.endDate).toISOString() : null,
-        clientId: formData.clientId || null,
-        picId: formData.picId || null,
-        fundType: formData.fundType, // Include fund type for transactions
-      };
-      if (showPaymentProofField && formData.paymentProofLink) {
-        payload.paymentProofLink = formData.paymentProofLink;
-      }
-      apiEndpoint = "/api/transactions";
-    } else {
-      payload = {
-        category: formData.category,
-        amount: parseFloat(formData.amount),
-        description: formData.description || "",
-        date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
-        vendorId: formData.vendorId || null,
-        transactionId: formData.transactionId || null,
-        fundType: formData.fundType,
-      };
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSubmitting) return;
+    if (!validateForm()) {
+      toast.error("Please correct the errors in the form");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      let payload: any = {};
+      let apiEndpoint;
       
-      // Add subscription-specific fields
-      if (formData.category === "Subscription" && formData.subscriptionId) {
-        payload.inventoryId = formData.subscriptionId;
+      if (transactionType === "transaction") {
+        let revenueAmount = 0;
+        if (formData.paymentStatus === "Lunas") {
+          revenueAmount = profit;
+        } else if (formData.paymentStatus === "DP") {
+          revenueAmount = parseFloat(formData.downPaymentAmount) || 0;
+        }
+        payload = {
+          name: formData.name || "Transaction",
+          projectValue: parseFloat(formData.projectValue) || 0,
+          totalProfit: profit,
+          amount: revenueAmount,
+          paymentStatus: formData.paymentStatus,
+          downPaymentAmount: formData.paymentStatus === "DP" ? parseFloat(formData.downPaymentAmount) : 0,
+          remainingAmount: remainingAmount,
+          email: formData.email || "",
+          phone: formData.phone || "",
+          description: formData.description || "",
+          date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
+          startDate: formData.startDate ? new Date(formData.startDate).toISOString() : null,
+          endDate: formData.endDate ? new Date(formData.endDate).toISOString() : null,
+          clientId: formData.clientId || null,
+          picId: formData.picId || null,
+          fundType: formData.fundType, // Include fund type for transactions
+        };
+        if (showPaymentProofField && formData.paymentProofLink) {
+          payload.paymentProofLink = formData.paymentProofLink;
+        }
+        apiEndpoint = "/api/transactions";
+      } else {
+        payload = {
+          category: formData.category,
+          amount: parseFloat(formData.amount),
+          description: formData.description || "",
+          date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
+          vendorId: formData.vendorId || null,
+          transactionId: formData.transactionId || null,
+          fundType: formData.fundType,
+        };
         
-        // Add recurring payment info
-        if (formData.isRecurringExpense) {
-          payload.isRecurringExpense = true;
-          payload.recurringFrequency = formData.recurringFrequency;
-          payload.nextBillingDate = formData.nextBillingDate 
-            ? new Date(formData.nextBillingDate).toISOString() 
-            : null;
+        // Add subscription-specific fields
+        if (formData.category === "Subscription" && formData.subscriptionId) {
+          payload.inventoryId = formData.subscriptionId;
+          
+          // Add recurring payment info
+          if (formData.isRecurringExpense) {
+            payload.isRecurringExpense = true;
+            payload.recurringFrequency = formData.recurringFrequency;
+            payload.nextBillingDate = formData.nextBillingDate 
+              ? new Date(formData.nextBillingDate).toISOString() 
+              : null;
+          }
+        }
+        
+        if (showPaymentProofField && formData.paymentProofLink) {
+          payload.paymentProofLink = formData.paymentProofLink;
+        }
+        apiEndpoint = "/api/expenses";
+      }
+      
+      console.log("Sending payload:", payload);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const res = await fetchWithAuth(apiEndpoint, {
+        method: "POST",
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!res.ok) {
+        // Improved error handling with detailed logging
+        const errorText = await res.text();
+        console.error("Full server error response:", errorText);
+        
+        try {
+          const errorData = JSON.parse(errorText);
+          throw new Error(errorData.message || errorData.error || `Server error: ${res.status}`);
+        } catch (e) {
+          throw new Error(`Server error (${res.status}): ${errorText.slice(0, 100)}`);
         }
       }
       
-      if (showPaymentProofField && formData.paymentProofLink) {
-        payload.paymentProofLink = formData.paymentProofLink;
-      }
-      apiEndpoint = "/api/expenses";
-    }
-    
-    console.log("Sending payload:", payload);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
-    const res = await fetchWithAuth(apiEndpoint, {
-      method: "POST",
-      body: JSON.stringify(payload),
-      signal: controller.signal,
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (!res.ok) {
-      // Improved error handling with detailed logging
-      const errorText = await res.text();
-      console.error("Full server error response:", errorText);
-      
+      let responseData: Record<string, unknown> = {};
       try {
-        const errorData = JSON.parse(errorText);
-        throw new Error(errorData.message || errorData.error || `Server error: ${res.status}`);
-      } catch (e) {
-        throw new Error(`Server error (${res.status}): ${errorText.slice(0, 100)}`);
+        responseData = await res.json();
+        console.log("Server response:", responseData);
+      } catch (jsonError) {
+        console.error("Failed to parse server response:", jsonError);
       }
+      
+      const transactionData =
+        (responseData?.transaction as TransactionData) ||
+        (responseData?.expense as TransactionData) ||
+        (responseData as unknown as TransactionData) ||
+        (payload as unknown as TransactionData);
+      
+      if (user) {
+        transactionData.createdBy = {
+          id: user.userId,
+          name: user.name,
+          email: user.email,
+        };
+      }
+      
+      onTransactionAdded(transactionData);
+      
+      // Show success message
+      toast.success(`${transactionType === "transaction" ? "Transaction" : "Expense"} added successfully!`);
+      
+      // Refresh fund balances
+      fetchFundBalances();
+      
+      // If it was a subscription payment, refresh the subscriptions list
+      if (transactionType === "expense" && formData.category === "Subscription" && formData.subscriptionId) {
+        // Wait a moment for the database to update
+        setTimeout(() => {
+          fetchSubscriptions();
+        }, 1000);
+      }
+      
+      resetForm();
+      setIsOpen(false);
+    } catch (error) {
+      console.error("Error with full details:", error);
+      toast.error(`Failed to add ${transactionType}: ${error instanceof Error ? error.message : "Unknown error"}`);
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    let responseData: Record<string, unknown> = {};
-    try {
-      responseData = await res.json();
-      console.log("Server response:", responseData);
-    } catch (jsonError) {
-      console.error("Failed to parse server response:", jsonError);
-    }
-    
-    const transactionData =
-      (responseData?.transaction as TransactionData) ||
-      (responseData?.expense as TransactionData) ||
-      (responseData as unknown as TransactionData) ||
-      (payload as unknown as TransactionData);
-    
-    if (user) {
-      transactionData.createdBy = {
-        id: user.userId,
-        name: user.name,
-        email: user.email,
-      };
-    }
-    
-    onTransactionAdded(transactionData);
-    
-    // Show success message
-    toast.success(`${transactionType === "transaction" ? "Transaction" : "Expense"} added successfully!`);
-    
-    // Refresh fund balances
-    fetchFundBalances();
-    
-    // If it was a subscription payment, refresh the subscriptions list
-    if (transactionType === "expense" && formData.category === "Subscription" && formData.subscriptionId) {
-      // Wait a moment for the database to update
-      setTimeout(() => {
-        fetchSubscriptions();
-      }, 1000);
-    }
-    
-    resetForm();
-    setIsOpen(false);
-  } catch (error) {
-    console.error("Error with full details:", error);
-    toast.error(`Failed to add ${transactionType}: ${error instanceof Error ? error.message : "Unknown error"}`);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
   // Helper to get fund balance display with formatting
   const getFundBalanceDisplay = (fundType: string) => {
@@ -1021,9 +1139,15 @@ const handleSubmit = async (e: React.FormEvent) => {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">No client</SelectItem>
+                            <SelectItem value="new" className="text-blue-600 font-medium">
+                              <div className="flex items-center">
+                                <User className="h-4 w-4 mr-2" />
+                                Create new client
+                              </div>
+                            </SelectItem>
                             {clients.map((client) => (
                               <SelectItem key={client.id} value={client.id}>
-                                {client.name}
+                                {client.name} ({client.code})
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -1049,7 +1173,11 @@ const handleSubmit = async (e: React.FormEvent) => {
                           value={formData.email}
                           onChange={handleChange}
                           placeholder="client@example.com"
+                          className={formErrors.email ? "border-red-500" : ""}
                         />
+                        {formErrors.email && (
+                          <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>
+                        )}
                       </div>
                       <div>
                         <label className="text-sm font-medium mb-1 block">Phone</label>
@@ -1657,7 +1785,11 @@ const handleSubmit = async (e: React.FormEvent) => {
                 value={newClientData.code}
                 onChange={handleNewClientChange}
                 placeholder="e.g., CLIENT001"
+                className={newClientErrors.code ? "border-red-500" : ""}
               />
+              {newClientErrors.code && (
+                <p className="text-red-500 text-xs mt-1">{newClientErrors.code}</p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">Client Name*</label>
@@ -1666,7 +1798,11 @@ const handleSubmit = async (e: React.FormEvent) => {
                 value={newClientData.name}
                 onChange={handleNewClientChange}
                 placeholder="Enter client name"
+                className={newClientErrors.name ? "border-red-500" : ""}
               />
+              {newClientErrors.name && (
+                <p className="text-red-500 text-xs mt-1">{newClientErrors.name}</p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">Email</label>
@@ -1676,7 +1812,11 @@ const handleSubmit = async (e: React.FormEvent) => {
                 value={newClientData.email}
                 onChange={handleNewClientChange}
                 placeholder="client@example.com"
+                className={newClientErrors.email ? "border-red-500" : ""}
               />
+              {newClientErrors.email && (
+                <p className="text-red-500 text-xs mt-1">{newClientErrors.email}</p>
+              )}
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">Phone</label>
@@ -1708,15 +1848,31 @@ const handleSubmit = async (e: React.FormEvent) => {
               />
             </div>
           </div>
-          <div className="flex justify-end gap-2 mt-4">
+          <SheetFooter className="mt-4">
             <Button
               variant="outline"
               onClick={() => setIsNewClientSheetOpen(false)}
+              disabled={isCreatingClient}
             >
               Cancel
             </Button>
-            <Button onClick={handleCreateClient}>Create Client</Button>
-          </div>
+            <Button 
+              onClick={handleCreateClient}
+              disabled={isCreatingClient}
+            >
+              {isCreatingClient ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creating...
+                </>
+              ) : (
+                <>
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Create Client
+                </>
+              )}
+            </Button>
+          </SheetFooter>
         </SheetContent>
       </Sheet>
     </>

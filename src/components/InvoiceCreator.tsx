@@ -1,6 +1,7 @@
+// src/components/InvoiceCreator.tsx
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -32,12 +33,11 @@ import {
   Loader2,
   SearchIcon
 } from "lucide-react";
-import { formatRupiah } from "@/lib/formatters";
 import { toast } from "react-hot-toast";
-import html2canvas from "html2canvas";
-import jsPDF from "jspdf";
 import { fetchWithAuth } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import InvoicePreview from "@/components/InvoicePreview";
+import { generateInvoicePDF } from "@/lib/invoiceUtils";
 
 // Types
 interface Transaction {
@@ -68,11 +68,31 @@ interface Client {
   address?: string;
 }
 
+interface InvoiceData {
+  invoiceNumber: string;
+  date: string;
+  dueDate: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  clientId: string;
+  projectName: string;
+  description: string;
+  amount: number;
+  tax: number;
+  totalAmount: number;
+  paymentStatus: string;
+  startDate: string;
+  endDate: string;
+  transactionId: string;
+}
+
 export default function InvoiceCreator() {
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
   
   // State for transactions and clients
@@ -86,7 +106,7 @@ export default function InvoiceCreator() {
   const [filteredTransactions, setFilteredTransactions] = useState<Transaction[]>([]);
 
   // Invoice state
-  const [invoiceData, setInvoiceData] = useState({
+  const [invoiceData, setInvoiceData] = useState<InvoiceData>({
     invoiceNumber: `INV-${new Date().getFullYear()}${(new Date().getMonth() + 1)
       .toString()
       .padStart(2, "0")}${Math.floor(Math.random() * 1000)
@@ -258,71 +278,32 @@ export default function InvoiceCreator() {
     }
   };
 
-  // Function to download invoice as PDF
   // Function to download invoice as PDF with proper A4 proportions
-const handleDownloadPDF = async () => {
-  if (!invoiceRef.current) return;
+  const handleDownloadPDF = async () => {
+    if (!invoiceRef.current) return;
 
-  try {
-    // Capture invoice element as canvas
-    const canvas = await html2canvas(invoiceRef.current, {
-      scale: 2, // Higher scale for better quality
-      logging: false,
-      useCORS: true
-    });
-    
-    // A4 dimensions in mm and points (used by jsPDF)
-    const a4Width = 210; // mm
-    const a4Height = 297; // mm
-    
-    // Create PDF with A4 size
-    const pdf = new jsPDF({
-      orientation: "portrait",
-      unit: "mm",
-      format: "a4",
-    });
-    
-    // Get the dimensions of the canvas
-    const canvasWidth = canvas.width;
-    const canvasHeight = canvas.height;
-    
-    // Calculate the aspect ratio
-    const aspectRatio = canvasWidth / canvasHeight;
-    
-    // Calculate dimensions to fit within A4 without stretching
-    let pdfWidth = a4Width;
-    let pdfHeight = pdfWidth / aspectRatio;
-    
-    // If the calculated height is greater than A4 height, adjust
-    if (pdfHeight > a4Height) {
-      pdfHeight = a4Height;
-      pdfWidth = pdfHeight * aspectRatio;
+    setIsDownloading(true);
+    try {
+      const fileName = `${invoiceData.invoiceNumber}.pdf`;
+      const success = await generateInvoicePDF(invoiceRef, fileName);
+      
+      if (success) {
+        toast.success("Invoice downloaded successfully!");
+      } else {
+        throw new Error("Failed to generate PDF");
+      }
+    } catch (error) {
+      console.error("Failed to download PDF:", error);
+      toast.error("An error occurred while generating the PDF.");
+    } finally {
+      setIsDownloading(false);
     }
-    
-    // Calculate centering position
-    const xPosition = (a4Width - pdfWidth) / 2;
-    let yPosition = 30; // Leave space at the top for company logo (30mm from top)
-    
-    // Get canvas data
-    const imgData = canvas.toDataURL('image/png');
-    
-    // Add image to PDF (centered and scaled properly)
-    pdf.addImage(imgData, 'PNG', xPosition, yPosition, pdfWidth, pdfHeight);
-    
-    // Save the PDF
-    pdf.save(`${invoiceData.invoiceNumber}.pdf`);
-
-    toast.success("Invoice berhasil diunduh sebagai PDF!");
-  } catch (error) {
-    console.error("Gagal mengunduh PDF:", error);
-    toast.error("Terjadi kesalahan saat mengunduh PDF.");
-  }
-};
+  };
 
   // Submit invoice
   const handleSubmitInvoice = async () => {
     if (!invoiceData.clientName || !invoiceData.projectName || !invoiceData.amount) {
-      toast.error("Client name, project name, dan amount wajib diisi");
+      toast.error("Client name, project name, and amount are required");
       return;
     }
 
@@ -357,12 +338,12 @@ const handleDownloadPDF = async () => {
         throw new Error("Failed to create invoice");
       }
 
-      toast.success("Invoice berhasil dibuat!");
+      toast.success("Invoice created successfully!");
       setIsOpen(false);
       resetForm();
     } catch (error) {
-      console.error("Error membuat invoice:", error);
-      toast.error("Gagal membuat invoice");
+      console.error("Error creating invoice:", error);
+      toast.error("Failed to create invoice");
     } finally {
       setIsSubmitting(false);
     }
@@ -398,6 +379,33 @@ const handleDownloadPDF = async () => {
     setSelectedTransaction("");
     setSelectedClient("");
     setActiveTab("details");
+  };
+
+  // Prepare invoice for display
+  const getInvoiceForPreview = () => {
+    return {
+      id: "preview",
+      invoiceNumber: invoiceData.invoiceNumber,
+      date: invoiceData.date,
+      dueDate: invoiceData.dueDate,
+      amount: invoiceData.amount,
+      tax: invoiceData.tax,
+      totalAmount: invoiceData.totalAmount,
+      paymentStatus: invoiceData.paymentStatus,
+      description: invoiceData.description,
+      client: {
+        id: invoiceData.clientId || "preview",
+        code: "",
+        name: invoiceData.clientName,
+        email: invoiceData.clientEmail,
+        phone: invoiceData.clientPhone,
+      },
+      transaction: {
+        id: invoiceData.transactionId || "preview",
+        name: invoiceData.projectName,
+        description: invoiceData.description,
+      }
+    };
   };
 
   return (
@@ -456,7 +464,7 @@ const handleDownloadPDF = async () => {
                       <div className="flex justify-between mb-1">
                         <h3 className="font-medium">{transaction.name}</h3>
                         <span className="text-sm">
-                          Rp{formatRupiah(transaction.projectValue || 0)}
+                          Rp{transaction.projectValue?.toLocaleString() || 0}
                         </span>
                       </div>
                       <p className="text-sm text-gray-600 mb-2">{transaction.description}</p>
@@ -574,14 +582,13 @@ const handleDownloadPDF = async () => {
                         <SelectValue placeholder="Select existing client" />
                       </SelectTrigger>
                       <SelectContent>
-  <SelectItem value="new">Create new client</SelectItem>
-  {clients.map(client => (
-    <SelectItem key={client.id} value={client.id}>
-      {client.name} ({client.code})
-    </SelectItem>
-  ))}
-</SelectContent>
-
+                        <SelectItem value="none">Select a client</SelectItem>
+                        {clients.map(client => (
+                          <SelectItem key={client.id} value={client.id}>
+                            {client.name} ({client.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
                     </Select>
                   )}
                 </div>
@@ -726,164 +733,8 @@ const handleDownloadPDF = async () => {
 
             {/* Preview & Save */}
             <TabsContent value="preview" className="space-y-4">
-              <div className="border rounded-md p-6 bg-white" ref={invoiceRef}>
-                {/* Invoice Header */}
-                <div className="flex justify-between items-start mb-8">
-                  <div>
-                    <h1 className="text-xl font-bold text-gray-800">
-                      INVOICE
-                    </h1>
-                    <p className="text-sm text-gray-600">
-                      {invoiceData.invoiceNumber}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <h2 className="text-lg font-bold text-gray-800">
-                      Your Company Name
-                    </h2>
-                    <p className="text-sm text-gray-600">123 Business Street</p>
-                    <p className="text-sm text-gray-600">
-                      Jakarta, Indonesia 12345
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      contact@yourcompany.com
-                    </p>
-                    <p className="text-sm text-gray-600">+62 21 1234 5678</p>
-                  </div>
-                </div>
-
-                {/* Bill To & Invoice Info */}
-                <div className="flex justify-between mb-8">
-                  <div className="w-1/2">
-                    <h3 className="font-bold text-gray-800 mb-1">Bill To:</h3>
-                    <p className="text-sm font-semibold">
-                      {invoiceData.clientName}
-                    </p>
-                    <p className="text-sm text-gray-700">
-                      {invoiceData.clientEmail}
-                    </p>
-                    <p className="text-sm text-gray-700">
-                      {invoiceData.clientPhone}
-                    </p>
-                  </div>
-                  <div className="w-1/3">
-                    <div className="flex justify-between mb-1">
-                      <span className="font-semibold">Invoice Date:</span>
-                      <span>
-                        {new Date(invoiceData.date).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between mb-1">
-                      <span className="font-semibold">Due Date:</span>
-                      <span>
-                        {new Date(invoiceData.dueDate).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between mb-1">
-                      <span className="font-semibold">Project:</span>
-                      <span>{invoiceData.projectName}</span>
-                    </div>
-                    <div className="flex justify-between mb-1">
-                      <span className="font-semibold">Status:</span>
-                      <span
-                        className={
-                          invoiceData.paymentStatus === "Lunas"
-                            ? "text-green-600 font-semibold"
-                            : invoiceData.paymentStatus === "DP"
-                            ? "text-yellow-600 font-semibold"
-                            : "text-red-600 font-semibold"
-                        }
-                      >
-                        {invoiceData.paymentStatus}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Invoice Items */}
-                <div className="mb-8">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="text-left py-2 px-4">
-                          Description
-                        </th>
-                        <th className="text-right py-2 px-4">Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-b">
-                        <td className="py-2 px-4">
-                          {invoiceData.projectName} - {invoiceData.description}
-                        </td>
-                        <td className="py-2 px-4 text-right">
-                          Rp{formatRupiah(invoiceData.amount)}
-                        </td>
-                      </tr>
-                    </tbody>
-                    <tfoot>
-                      <tr>
-                        <td className="text-right py-2 px-4">
-                          Tax (11%):
-                        </td>
-                        <td className="text-right py-2 px-4">
-                          Rp{formatRupiah(invoiceData.tax)}
-                        </td>
-                      </tr>
-                      <tr className="font-bold">
-                        <td className="text-right py-2 px-4">
-                          Total Amount:
-                        </td>
-                        <td className="text-right py-2 px-4">
-                          Rp{formatRupiah(invoiceData.totalAmount)}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-
-                {/* Project Period */}
-                {(invoiceData.startDate || invoiceData.endDate) && (
-                  <div className="mb-8">
-                    <h3 className="font-bold text-gray-800 mb-2">
-                      Project Period
-                    </h3>
-                    <p className="text-sm">
-                      {invoiceData.startDate && (
-                        <span>
-                          Start Date:{" "}
-                          {new Date(invoiceData.startDate).toLocaleDateString()}
-                        </span>
-                      )}
-                      {invoiceData.startDate && invoiceData.endDate && (
-                        <span> - </span>
-                      )}
-                      {invoiceData.endDate && (
-                        <span>
-                          End Date:{" "}
-                          {new Date(invoiceData.endDate).toLocaleDateString()}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                )}
-
-                {/* Notes and Terms */}
-                <div className="mb-8">
-                  <h3 className="font-bold text-gray-800 mb-2">Notes</h3>
-                  <p className="text-sm text-gray-700">
-                    Payment is due within 14 days of invoice date.
-                  </p>
-                </div>
-
-                <div>
-                  <h3 className="font-bold text-gray-800 mb-2">
-                    Terms and Conditions
-                  </h3>
-                  <p className="text-sm text-gray-700">
-                    Late payment is subject to a 2% monthly interest charge.
-                  </p>
-                </div>
+              <div ref={invoiceRef}>
+                <InvoicePreview invoice={getInvoiceForPreview()} />
               </div>
 
               <div className="pt-4 flex justify-between">
@@ -895,9 +746,19 @@ const handleDownloadPDF = async () => {
                     variant="outline"
                     className="gap-2"
                     onClick={handleDownloadPDF}
+                    disabled={isDownloading}
                   >
-                    <Download className="h-4 w-4" />
-                    Download PDF
+                    {isDownloading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Downloading...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4 mr-2" />
+                        Download PDF
+                      </>
+                    )}
                   </Button>
                   <Button
                     className="gap-2"
@@ -905,11 +766,16 @@ const handleDownloadPDF = async () => {
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
                     ) : (
-                      <Save className="h-4 w-4" />
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Invoice
+                      </>
                     )}
-                    Save Invoice
                   </Button>
                 </div>
               </div>

@@ -1,3 +1,4 @@
+// src/components/InvoiceList.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -34,7 +35,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,21 +52,28 @@ import {
   Download,
   Trash2,
   Edit,
-  Link as LinkIcon,
   Eye,
   Loader2,
-  Calendar,
   Filter,
   X,
 } from "lucide-react";
-import { formatRupiah } from "@/lib/formatters";
 import { toast } from "react-hot-toast";
 import { fetchWithAuth } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import InvoiceDetail from "./InvoiceDetail";
+import { 
+  Invoice, 
+  formatDate, 
+  formatRupiah, 
+  getStatusColor 
+} from "@/lib/invoiceUtils";
 
-const InvoiceList = () => {
+export default function InvoiceList() {
+  const router = useRouter();
+  
   // State
-  const [invoices, setInvoices] = useState<any[]>([]);
-  const [filteredInvoices, setFilteredInvoices] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -79,18 +86,18 @@ const InvoiceList = () => {
   });
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   
-  // Edit invoice status dialog
+  // Dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [currentInvoice, setCurrentInvoice] = useState<any>(null);
+  const [currentInvoice, setCurrentInvoice] = useState<Invoice | null>(null);
   const [newStatus, setNewStatus] = useState("");
   
   // Delete confirmation dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [invoiceToDelete, setInvoiceToDelete] = useState<any>(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
   
-  // View invoice dialog
-  const [viewDialogOpen, setViewDialogOpen] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  // Invoice detail dialog
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
   // Fetch invoices from API
   const fetchInvoices = async () => {
@@ -104,9 +111,8 @@ const InvoiceList = () => {
       setFilteredInvoices(data);
       
       // Extract years for filtering
-      // Fix: Use a Set with explicit number type and convert to array
       const yearsSet = new Set<number>();
-      data.forEach((invoice: any) => {
+      data.forEach((invoice: Invoice) => {
         const date = new Date(invoice.date);
         yearsSet.add(date.getFullYear());
       });
@@ -170,16 +176,6 @@ const InvoiceList = () => {
     setFilteredInvoices(filtered);
   }, [invoices, searchTerm, statusFilter, dateFilter]);
 
-  // Format date for display
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("id-ID", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  };
-
   // Handle invoice status update
   const handleUpdateInvoiceStatus = async () => {
     if (!currentInvoice || !newStatus) return;
@@ -234,18 +230,18 @@ const InvoiceList = () => {
     }
   };
 
-  // Handle invoice download (simple version - redirects to create invoice with data)
-  const handleDownloadInvoice = (invoice: any) => {
-    // This is a simple implementation - in a full solution you would use
-    // similar PDF generation as in InvoiceCreator component
-    
-    // For now, we'll just show a toast message
-    toast.success(`Downloading invoice ${invoice.invoiceNumber}...`);
-    
-    // Here you would normally:
-    // 1. Fetch the full invoice data if needed
-    // 2. Generate the PDF using similar code to InvoiceCreator
-    // 3. Trigger the download
+  // Handle invoice view
+  const handleViewInvoice = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setDetailDialogOpen(true);
+  };
+
+  // Handle edit invoice
+  const handleEditInvoice = (invoice: Invoice) => {
+    setCurrentInvoice(invoice);
+    setNewStatus(invoice.paymentStatus);
+    setEditDialogOpen(true);
+    setDetailDialogOpen(false);
   };
 
   // Clear all filters
@@ -253,19 +249,6 @@ const InvoiceList = () => {
     setSearchTerm("");
     setStatusFilter("all");
     setDateFilter({ month: null, year: null });
-  };
-
-  // Get status badge color
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Lunas":
-        return "bg-green-100 text-green-800";
-      case "DP":
-        return "bg-yellow-100 text-yellow-800";
-      case "Belum Bayar":
-      default:
-        return "bg-red-100 text-red-800";
-    }
   };
 
   // Month names for filter dropdown
@@ -279,7 +262,7 @@ const InvoiceList = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start md:items-center gap-4">
         <h2 className="text-2xl font-bold">Invoice Management</h2>
         
-        <Button onClick={() => {/* Navigate to create invoice */}}>
+        <Button onClick={() => router.push('/invoices/create')}>
           <FileText className="mr-2 h-4 w-4" />
           Create New Invoice
         </Button>
@@ -362,7 +345,7 @@ const InvoiceList = () => {
             </SelectContent>
           </Select>
           
-          {(searchTerm || statusFilter !== "all" || dateFilter.month !== null || dateFilter.year !== null) && (
+          {(searchTerm || statusFilter !== "all"|| dateFilter.month !== null || dateFilter.year !== null) && (
             <Button variant="ghost" size="icon" onClick={clearFilters} title="Clear filters">
               <X className="h-4 w-4" />
             </Button>
@@ -411,10 +394,7 @@ const InvoiceList = () => {
               </TableRow>
             ) : (
               filteredInvoices.map((invoice) => (
-                <TableRow key={invoice.id} className="cursor-pointer hover:bg-gray-50" onClick={() => {
-                  setSelectedInvoice(invoice);
-                  setViewDialogOpen(true);
-                }}>
+                <TableRow key={invoice.id} className="cursor-pointer hover:bg-gray-50" onClick={() => handleViewInvoice(invoice)}>
                   <TableCell className="font-medium">{invoice.invoiceNumber}</TableCell>
                   <TableCell>{invoice.client?.name || "-"}</TableCell>
                   <TableCell>{invoice.transaction?.name || "-"}</TableCell>
@@ -437,16 +417,9 @@ const InvoiceList = () => {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => {
-                          setSelectedInvoice(invoice);
-                          setViewDialogOpen(true);
-                        }}>
+                        <DropdownMenuItem onClick={() => handleViewInvoice(invoice)}>
                           <Eye className="mr-2 h-4 w-4" />
                           View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDownloadInvoice(invoice)}>
-                          <Download className="mr-2 h-4 w-4" />
-                          Download
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => {
                           setCurrentInvoice(invoice);
@@ -482,13 +455,11 @@ const InvoiceList = () => {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Update Invoice Status</DialogTitle>
-            <DialogDescription>
-              Change the payment status for invoice {currentInvoice?.invoiceNumber}
-            </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="space-y-2">
+              <p className="text-sm font-medium">Invoice: {currentInvoice?.invoiceNumber}</p>
               <p className="text-sm font-medium">Current Status:</p>
               <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
                 getStatusColor(currentInvoice?.paymentStatus || "Belum Bayar")
@@ -547,134 +518,13 @@ const InvoiceList = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* View Invoice Dialog */}
-      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Invoice Details</DialogTitle>
-          </DialogHeader>
-          
-          {selectedInvoice && (
-            <div className="space-y-6">
-              {/* Invoice Header */}
-              <div className="flex justify-between items-start">
-                <div>
-                  <h2 className="text-xl font-bold">INVOICE</h2>
-                  <p className="text-sm text-gray-600">
-                    {selectedInvoice.invoiceNumber}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm">Status:</p>
-                  <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-                    getStatusColor(selectedInvoice.paymentStatus)
-                  }`}>
-                    {selectedInvoice.paymentStatus}
-                  </span>
-                </div>
-              </div>
-              
-              {/* Client and Dates */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <h3 className="text-sm font-semibold">Client:</h3>
-                  <p>{selectedInvoice.client?.name || "-"}</p>
-                  <p className="text-sm">{selectedInvoice.client?.email || "-"}</p>
-                  <p className="text-sm">{selectedInvoice.client?.phone || "-"}</p>
-                </div>
-                <div className="space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span className="font-medium">Invoice Date:</span>
-                    <span>{formatDate(selectedInvoice.date)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="font-medium">Due Date:</span>
-                    <span>{formatDate(selectedInvoice.dueDate)}</span>
-                  </div>
-                  {selectedInvoice.transaction && (
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium">Project:</span>
-                      <span>{selectedInvoice.transaction.name}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {/* Invoice Details */}
-              <div className="border rounded-md overflow-hidden">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Description
-                      </th>
-                      <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    <tr>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {selectedInvoice.description || "Project services"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                        Rp{formatRupiah(selectedInvoice.amount)}
-                      </td>
-                    </tr>
-                    {selectedInvoice.tax > 0 && (
-                      <tr>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          Tax (11%)
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                          Rp{formatRupiah(selectedInvoice.tax)}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                  <tfoot className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-right text-sm font-medium">
-                        Total:
-                      </th>
-                      <th className="px-6 py-3 text-right text-sm font-medium">
-                        Rp{formatRupiah(selectedInvoice.totalAmount)}
-                      </th>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-              
-              {/* Actions */}
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDownloadInvoice(selectedInvoice)}
-                >
-                  <Download className="mr-2 h-4 w-4" />
-                  Download
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setViewDialogOpen(false);
-                    setCurrentInvoice(selectedInvoice);
-                    setNewStatus(selectedInvoice.paymentStatus);
-                    setEditDialogOpen(true);
-                  }}
-                >
-                  <Edit className="mr-2 h-4 w-4" />
-                  Update Status
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Invoice Detail Dialog */}
+      <InvoiceDetail
+        invoice={selectedInvoice}
+        isOpen={detailDialogOpen}
+        onClose={() => setDetailDialogOpen(false)}
+        onEdit={handleEditInvoice}
+      />
     </div>
   );
-};
-
-export default InvoiceList;
+}
