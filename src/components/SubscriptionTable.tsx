@@ -19,7 +19,10 @@ import {
   ArrowUpDown, 
   Filter, 
   MoreHorizontal,
-  AlertCircle
+  AlertCircle,
+  Archive,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { 
   DropdownMenu, 
@@ -33,6 +36,15 @@ import { toast } from "react-hot-toast";
 import { formatRupiah } from "@/lib/formatters";
 import { fetchWithAuth } from "@/lib/api"; // Use authenticated fetch
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface Subscription {
   id: string;
@@ -44,6 +56,12 @@ export interface Subscription {
   isRecurring: boolean;
   recurringType?: 'MONTHLY' | 'QUARTERLY' | 'ANNUALLY' | null;
   reminderDays?: number;
+  isDeleted?: boolean;
+  deletedBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
   createdAt: string;
   updatedAt: string;
 }
@@ -68,6 +86,7 @@ function daysUntil(dateStr: string | null | undefined): number | null {
 }
 
 export default function SubscriptionTable() {
+  const { user } = useAuth();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,14 +94,27 @@ export default function SubscriptionTable() {
   const [sortColumn, setSortColumn] = useState<keyof Subscription | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filterStatus, setFilterStatus] = useState<Subscription['paymentStatus'] | 'ALL'>('ALL');
+  const [viewMode, setViewMode] = useState<"active" | "archived">("active");
+  
+  // State for archiving dialog
+  const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+  const [subscriptionToArchive, setSubscriptionToArchive] = useState<Subscription | null>(null);
+  const [confirmArchiveText, setConfirmArchiveText] = useState("");
+  
+  // State for restoring dialog
+  const [isRestoreDialogOpen, setIsRestoreDialogOpen] = useState(false);
+  const [subscriptionToRestore, setSubscriptionToRestore] = useState<Subscription | null>(null);
 
   const fetchSubscriptions = async () => {
     try {
       setLoading(true);
       setError(null);
-  
+      
+      // Add query parameter for archived subscriptions
+      const queryParam = viewMode === "archived" ? "?deleted=true" : "";
+      
       // Use authenticated fetch
-      const response = await fetchWithAuth('/api/subscriptions');
+      const response = await fetchWithAuth(`/api/subscriptions${queryParam}`);
       
       if (!response.ok) {
         const errorData = await response.json();
@@ -105,7 +137,7 @@ export default function SubscriptionTable() {
 
   useEffect(() => {
     fetchSubscriptions();
-  }, []);
+  }, [viewMode]);
 
   const filteredSubs = useMemo(() => {
     return subscriptions
@@ -156,6 +188,85 @@ export default function SubscriptionTable() {
       default: return 'default';
     }
   };
+  
+  // Handle archive subscription
+  const handleArchiveClick = (subscription: Subscription) => {
+    setSubscriptionToArchive(subscription);
+    setConfirmArchiveText("");
+    setIsArchiveDialogOpen(true);
+  };
+
+  const handleArchiveSubscription = async () => {
+    if (!subscriptionToArchive || confirmArchiveText !== "ARCHIVE") {
+      toast.error("Please type ARCHIVE to confirm");
+      return;
+    }
+    
+    try {
+      const res = await fetchWithAuth("/api/subscriptions/softDelete", {
+        method: "POST",
+        body: JSON.stringify({
+          id: subscriptionToArchive.id,
+          deletedById: user?.userId
+        }),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to archive subscription");
+      }
+      
+      toast.success("Subscription archived successfully");
+      
+      // Refetch subscriptions
+      fetchSubscriptions();
+      
+      // Close dialog
+      setIsArchiveDialogOpen(false);
+      setSubscriptionToArchive(null);
+      setConfirmArchiveText("");
+    } catch (error) {
+      console.error("Error archiving subscription:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to archive subscription");
+    }
+  };
+  
+  // Handle restore subscription
+  const handleRestoreClick = (subscription: Subscription) => {
+    setSubscriptionToRestore(subscription);
+    setIsRestoreDialogOpen(true);
+  };
+
+  const handleRestoreSubscription = async () => {
+    if (!subscriptionToRestore) return;
+    
+    try {
+      const res = await fetchWithAuth("/api/subscriptions/restore", {
+        method: "POST",
+        body: JSON.stringify({
+          id: subscriptionToRestore.id,
+          restoredById: user?.userId
+        }),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to restore subscription");
+      }
+      
+      toast.success("Subscription restored successfully");
+      
+      // Refetch subscriptions
+      fetchSubscriptions();
+      
+      // Close dialog
+      setIsRestoreDialogOpen(false);
+      setSubscriptionToRestore(null);
+    } catch (error) {
+      console.error("Error restoring subscription:", error);
+      toast.error(error instanceof Error ? error.message : "Failed to restore subscription");
+    }
+  };
 
   if (loading) {
     return (
@@ -185,6 +296,29 @@ export default function SubscriptionTable() {
 
   return (
     <div className="p-4 space-y-4">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-semibold">Subscriptions</h2>
+        
+        <div className="flex items-center gap-2">
+          <Button 
+            variant={viewMode === "active" ? "default" : "outline"}
+            onClick={() => setViewMode("active")}
+            className="flex items-center gap-1"
+          >
+            <Eye className="h-4 w-4" />
+            Active
+          </Button>
+          <Button 
+            variant={viewMode === "archived" ? "default" : "outline"}
+            onClick={() => setViewMode("archived")}
+            className="flex items-center gap-1"
+          >
+            <EyeOff className="h-4 w-4" />
+            Archived
+          </Button>
+        </div>
+      </div>
+      
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Input
@@ -323,23 +457,39 @@ export default function SubscriptionTable() {
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem>View Details</DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => {
-                            // Get inventory ID for this subscription
-                            const inventoryId = sub.id;
-                            // Open inventory edit dialog using the inventory ID
-                            const editButton = document.getElementById(`update-inventory-${inventoryId}`);
-                            if (editButton) {
-                              editButton.click();
-                            } else {
-                              toast.error("Edit dialog not found");
-                            }
-                          }}
-                        >
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>Make Payment</DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600">Cancel Subscription</DropdownMenuItem>
+                        {viewMode === "active" ? (
+                          <>
+                            <DropdownMenuItem
+                              onClick={() => {
+                                // Get inventory ID for this subscription
+                                const inventoryId = sub.id;
+                                // Open inventory edit dialog using the inventory ID
+                                const editButton = document.getElementById(`update-inventory-${inventoryId}`);
+                                if (editButton) {
+                                  editButton.click();
+                                } else {
+                                  toast.error("Edit dialog not found");
+                                }
+                              }}
+                            >
+                              Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>Make Payment</DropdownMenuItem>
+                            <DropdownMenuItem 
+                              className="text-red-600"
+                              onClick={() => handleArchiveClick(sub)}
+                            >
+                              Archive Subscription
+                            </DropdownMenuItem>
+                          </>
+                        ) : (
+                          <DropdownMenuItem
+                            className="text-green-600"
+                            onClick={() => handleRestoreClick(sub)}
+                          >
+                            Restore Subscription
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                     
@@ -354,6 +504,66 @@ export default function SubscriptionTable() {
           )}
         </TableBody>
       </Table>
+      
+      {/* Archive Confirmation Dialog */}
+      <Dialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Archive Subscription</DialogTitle>
+            <DialogDescription>
+              This subscription will be archived. You can restore it later if needed.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p className="mb-2 font-medium">Subscription: {subscriptionToArchive?.name}</p>
+            <p className="mb-4 text-sm text-muted-foreground">Type &quot;ARCHIVE&quot; to confirm.</p>
+            <Input
+              value={confirmArchiveText}
+              onChange={(e) => setConfirmArchiveText(e.target.value)}
+              placeholder="Type ARCHIVE to confirm"
+            />
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsArchiveDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleArchiveSubscription}
+              disabled={confirmArchiveText !== "ARCHIVE"}
+            >
+              Archive Subscription
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Restore Confirmation Dialog */}
+      <Dialog open={isRestoreDialogOpen} onOpenChange={setIsRestoreDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Restore Subscription</DialogTitle>
+            <DialogDescription>
+              This subscription will be restored and will appear in the active list again.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p>Are you sure you want to restore subscription &quot;{subscriptionToRestore?.name}&quot;?</p>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRestoreDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRestoreSubscription}>
+              Restore Subscription
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

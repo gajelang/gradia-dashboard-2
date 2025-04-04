@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -10,986 +12,675 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  ArrowUpDown, 
-  Edit, 
-  Search, 
-  Plus, 
-  Minus, 
-  Archive, 
-  RefreshCw, 
-  Package2, 
-  Calendar, 
-  AlertTriangle,
-  CreditCard,
-  X,
-  Filter,
-  MoreHorizontal,
-  FileText,
-} from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  // Removed unused DialogTrigger
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { fetchWithAuth } from "@/lib/api";
 import { toast } from "react-hot-toast";
-import { formatRupiah } from "@/lib/formatters";
-import UpdateInventoryDialog from "./UpdateInventoryDialog";
-import InventoryDetailDialog from "./InventoryDetailDialog";
-import UpdateInventoryQuantityDialog from "./UpdateInventoryQuantityDialog";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { useRouter } from "next/navigation";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@radix-ui/react-select";
-import { Inventory } from "@/app/types/inventory";
+  Search,
+  Loader2,
+  Plus,
+  Edit,
+  Trash2,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Mail,
+  Phone,
+  MapPin,
+  // Removed unused Info
+  User,
+  Clock
+} from "lucide-react";
+import { fetchWithAuth } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { Badge } from "@/components/ui/badge";
 
-// Payment Button Component
-function InventoryPaymentButton({ 
-  item, 
-  onPaymentProcessed 
-}: { 
-  item: Inventory; 
-  onPaymentProcessed?: () => void 
-}) {
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [fundType, setFundType] = useState("petty_cash");
-  const router = useRouter();
-
-  // Only render for unpaid or partially paid items
-  if (item.paymentStatus !== 'BELUM_BAYAR' && item.paymentStatus !== 'DP') {
-    return null;
-  }
-
-  const handleProcessPayment = async () => {
-    setIsLoading(true);
-    
-    try {
-      // Create an expense record for this inventory payment
-      const payload = {
-        category: item.type === 'SUBSCRIPTION' ? 'Subscription' : 'Inventaris',
-        amount: parseFloat(item.cost.toString()),
-        description: `Payment for ${item.name}`,
-        date: new Date().toISOString(),
-        inventoryId: item.id,
-        fundType: fundType, // Use the selected fund type
-      };
-      
-      const response = await fetchWithAuth("/api/expenses", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || errorData.message || "Failed to process payment");
-      }
-      
-      toast.success("Payment processed successfully");
-      setIsDialogOpen(false);
-      
-      // Call callback if provided
-      if (onPaymentProcessed) {
-        onPaymentProcessed();
-      }
-    } catch (error) {
-      console.error("Error processing payment:", error);
-      toast.error(`Payment failed: ${error instanceof Error ? error.message : "Unknown error"}`);
-    } finally {
-      setIsLoading(false);
-    }
+interface Client {
+  id: string;
+  code: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  description?: string;
+  isDeleted?: boolean;
+  createdBy?: {
+    id: string;
+    name: string;
+    email: string;
   };
-
-  return (
-    <>
-      <Button
-        variant="outline"
-        size="sm"
-        className="bg-green-50 text-green-700 hover:bg-green-100 border-green-200"
-        onClick={() => setIsDialogOpen(true)}
-        title="Process Payment"
-      >
-        <CreditCard className="h-4 w-4" />
-      </Button>
-
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Process Payment</DialogTitle>
-            <DialogDescription>
-              You're about to process a payment for this {item.type.toLowerCase()}.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="py-4">
-            <p className="font-medium">{item.name}</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Amount: Rp{formatRupiah(item.cost)}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Current Status: {item.paymentStatus === 'BELUM_BAYAR' ? 'Unpaid' : 'Partially Paid'}
-            </p>
-            
-            {/* Fund type selection */}
-            <div className="mt-4">
-              <label className="text-sm font-medium mb-1 block">Fund Source</label>
-              <Select 
-                value={fundType} 
-                onValueChange={setFundType}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Fund Source" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="petty_cash">Petty Cash</SelectItem>
-                  <SelectItem value="profit_bank">Profit Bank</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Select which fund to use for this payment
-              </p>
-            </div>
-          </div>
-          
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsDialogOpen(false)}
-              disabled={isLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleProcessPayment}
-              disabled={isLoading}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              {isLoading ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                "Process Payment"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
+  updatedBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  deletedBy?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  createdAt?: string;
+  updatedAt?: string;
+  deletedAt?: string;
 }
 
-interface InventoryTableProps {
-  inventory: Inventory[];
-  isLoading: boolean;
-  isArchived?: boolean;
-  onUpdate?: (updatedItem: Inventory) => void;
-  onArchive?: (item: Inventory) => void;
-  onRestore?: (item: Inventory) => void;
-  categories: string[];
-  categoryFilter?: string | null;
-  searchTerm?: string;
-}
-
-type SortField = 'name' | 'category' | 'quantity' | 'unitPrice' | 'totalValue' | 'status' | 'updatedAt';
-type SortDirection = 'asc' | 'desc';
-
-export default function InventoryTable({
-  inventory,
-  isLoading,
-  isArchived = false,
-  onUpdate,
-  onArchive,
-  onRestore,
-  categories,
-  categoryFilter = null,
-  searchTerm = '',
-}: InventoryTableProps) {
-  const [filteredInventory, setFilteredInventory] = useState<Inventory[]>([]);
-  const [sortField, setSortField] = useState<SortField>('updatedAt');
-  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
-  const [typeFilter, setTypeFilter] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [showQuantityDialog, setShowQuantityDialog] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<Inventory | null>(null);
-  const [adjustmentType, setAdjustmentType] = useState<"increase" | "decrease">("increase");
-  const [showArchiveDialog, setShowArchiveDialog] = useState(false);
-  const [confirmArchiveText, setConfirmArchiveText] = useState("");
-  const [itemToArchive, setItemToArchive] = useState<Inventory | null>(null);
-  const [itemToRestore, setItemToRestore] = useState<Inventory | null>(null);
-  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
-  const [archiving, setArchiving] = useState(false);
-  const [restoring, setRestoring] = useState(false);
+export default function ClientTable() {
+  const { user } = useAuth();
+  const [clients, setClients] = useState<Client[]>([]);
+  const [filteredClients, setFilteredClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState<"active" | "deleted">("active");
   
-  const [localCategoryFilter, setLocalCategoryFilter] = useState<string | null>(categoryFilter);
-  const [localSearchTerm, setLocalSearchTerm] = useState(searchTerm);
+  // State for add/edit client dialog
+  const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [clientFormData, setClientFormData] = useState<Omit<Client, 'id'>>({
+    code: "",
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
+    description: "",
+  });
+  const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
+  
+  // State for delete dialog
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+  const [confirmDeleteText, setConfirmDeleteText] = useState("");
+  
+  // State for restore dialog
+  const [isRestoreDialogOpen, setIsRestoreDialogOpen] = useState(false);
+  const [clientToRestore, setClientToRestore] = useState<Client | null>(null);
 
-  // Use the passed filters or local state
-  useEffect(() => {
-    setLocalCategoryFilter(categoryFilter);
-  }, [categoryFilter]);
-
-  useEffect(() => {
-    setLocalSearchTerm(searchTerm);
-  }, [searchTerm]);
-
-  // Filter inventory based on all filters
-  useEffect(() => {
-    const applyFilters = () => {
-      let filtered = [...inventory];
+  // Define fetchClients with useCallback to avoid dependency issues
+  const fetchClients = useCallback(async () => {
+    try {
+      setLoading(true);
+      const queryParam = viewMode === "deleted" ? "?deleted=true" : "";
+      const res = await fetchWithAuth(`/api/clients${queryParam}`, { cache: "no-store" });
       
-      // Apply search filter
-      if (localSearchTerm) {
-        const term = localSearchTerm.toLowerCase();
-        filtered = filtered.filter(
-          (item) =>
-            item.name.toLowerCase().includes(term) ||
-            (item.description && item.description.toLowerCase().includes(term)) ||
-            (item.category && item.category.toLowerCase().includes(term)) ||
-            (item.supplier && item.supplier.toLowerCase().includes(term)) ||
-            (item.vendor?.name && item.vendor.name.toLowerCase().includes(term)) ||
-            (item.location && item.location.toLowerCase().includes(term))
-        );
+      if (!res.ok) {
+        throw new Error("Failed to fetch clients");
       }
       
-      // Apply category filter
-      if (localCategoryFilter) {
-        filtered = filtered.filter((item) => item.category === localCategoryFilter);
-      }
-      
-      // Apply type filter
-      if (typeFilter) {
-        filtered = filtered.filter((item) => item.type === typeFilter);
-      }
-      
-      // Apply status filter
-      if (statusFilter) {
-        filtered = filtered.filter((item) => item.status === statusFilter);
-      }
-      
-      // Apply sorting
-      filtered.sort((a, b) => {
-        let compareA: string | number | Date = a[sortField] as any || "";
-        let compareB: string | number | Date = b[sortField] as any || "";
-        
-        // Special handling for dates
-        if (sortField === 'updatedAt') {
-          compareA = new Date(a.updatedAt);
-          compareB = new Date(b.updatedAt);
-        }
-        
-        // Handle strings
-        if (typeof compareA === 'string' && typeof compareB === 'string') {
-          return sortDirection === 'asc'
-            ? compareA.localeCompare(compareB)
-            : compareB.localeCompare(compareA);
-        }
-        
-        // Handle numbers and dates
-        return sortDirection === 'asc'
-          ? (compareA as any) - (compareB as any)
-          : (compareB as any) - (compareA as any);
-      });
-      
-      setFilteredInventory(filtered);
-    };
-    
-    applyFilters();
-  }, [inventory, localSearchTerm, localCategoryFilter, typeFilter, statusFilter, sortField, sortDirection]);
-
-  // Handle sort
-  const handleSort = (field: SortField) => {
-    if (field === sortField) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortDirection('asc');
+      const data = await res.json();
+      setClients(data);
+      setFilteredClients(data);
+    } catch (error) {
+      console.error("Error fetching clients:", error);
+      toast.error("Failed to load clients");
+      setClients([]);
+      setFilteredClients([]);
+    } finally {
+      setLoading(false);
     }
+  }, [viewMode]); // Add viewMode as dependency
+
+  // Fetch clients
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]); // Now fetchClients is properly defined before being used
+
+  // Search clients
+  const handleSearch = () => {
+    if (!searchTerm.trim()) {
+      setFilteredClients(clients);
+      return;
+    }
+    
+    const lowerCaseSearch = searchTerm.toLowerCase();
+    const results = clients.filter(client => 
+      client.code.toLowerCase().includes(lowerCaseSearch) ||
+      client.name.toLowerCase().includes(lowerCaseSearch) ||
+      (client.email && client.email.toLowerCase().includes(lowerCaseSearch)) ||
+      (client.phone && client.phone.toLowerCase().includes(lowerCaseSearch)) ||
+      (client.description && client.description.toLowerCase().includes(lowerCaseSearch))
+    );
+    
+    setFilteredClients(results);
   };
 
-  // Format date for display
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return "—";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("id-ID", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
+  // Reset client form
+  const resetClientForm = () => {
+    setClientFormData({
+      code: "",
+      name: "",
+      email: "",
+      phone: "",
+      address: "",
+      description: "",
     });
+    setClientToEdit(null);
+    setIsEditMode(false);
   };
 
-  // Handle archive confirmation
-  const handleConfirmArchive = async () => {
-    if (!itemToArchive) return;
-    if (confirmArchiveText !== "ARCHIVE") {
-      toast.error("Please type ARCHIVE to confirm");
+  // Handle dialog open for adding new client
+  const handleAddClient = () => {
+    resetClientForm();
+    setIsEditMode(false);
+    setIsClientDialogOpen(true);
+  };
+
+  // Handle dialog open for editing client
+  const handleEditClient = (client: Client) => {
+    setClientToEdit(client);
+    setClientFormData({
+      code: client.code,
+      name: client.name,
+      email: client.email || "",
+      phone: client.phone || "",
+      address: client.address || "",
+      description: client.description || "",
+    });
+    setIsEditMode(true);
+    setIsClientDialogOpen(true);
+  };
+
+  // Handle form changes
+  const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setClientFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Submit client form (add or edit)
+  const handleSubmitClient = async () => {
+    // Validate form
+    if (!clientFormData.code || !clientFormData.name) {
+      toast.error("Client code and name are required");
       return;
     }
     
     try {
-      setArchiving(true);
-      const res = await fetchWithAuth("/api/inventory/softDelete", {
-        method: "POST",
-        body: JSON.stringify({ id: itemToArchive.id }),
-      });
-      
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Failed to archive item");
+      if (isEditMode && clientToEdit) {
+        // Update existing client
+        const res = await fetchWithAuth(`/api/clients/${clientToEdit.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            ...clientFormData,
+            updatedById: user?.userId
+          }),
+        });
+        
+        if (!res.ok) {
+          throw new Error("Failed to update client");
+        }
+        
+        const updatedClient = await res.json();
+        
+        // Update state
+        setClients(prev => prev.map(c => 
+          c.id === updatedClient.id ? updatedClient : c
+        ));
+        setFilteredClients(prev => prev.map(c => 
+          c.id === updatedClient.id ? updatedClient : c
+        ));
+        
+        toast.success("Client updated successfully");
+      } else {
+        // Add new client
+        const res = await fetchWithAuth("/api/clients", {
+          method: "POST",
+          body: JSON.stringify({
+            ...clientFormData,
+            createdById: user?.userId
+          }),
+        });
+        
+        if (!res.ok) {
+          throw new Error("Failed to create client");
+        }
+        
+        const newClient = await res.json();
+        
+        // Update state
+        setClients(prev => [...prev, newClient]);
+        setFilteredClients(prev => [...prev, newClient]);
+        
+        toast.success("Client created successfully");
       }
       
-      const data = await res.json();
-      toast.success("Item archived successfully");
-      
-      if (onArchive) {
-        onArchive(data.item);
-      }
-      
-      setShowArchiveDialog(false);
-      setItemToArchive(null);
-      setConfirmArchiveText("");
+      // Close dialog and reset form
+      setIsClientDialogOpen(false);
+      resetClientForm();
     } catch (error) {
-      console.error("Error archiving item:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to archive item");
-    } finally {
-      setArchiving(false);
+      console.error("Error saving client:", error);
+      toast.error("Failed to save client");
     }
   };
-  
-  // Handle restore
-  const handleRestore = async () => {
-    if (!itemToRestore) return;
+
+  // Handle soft delete
+  const handleDeleteClick = (client: Client) => {
+    setClientToDelete(client);
+    setConfirmDeleteText("");
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleSoftDelete = async () => {
+    if (!clientToDelete || confirmDeleteText !== "DELETE") {
+      toast.error("Please type DELETE to confirm");
+      return;
+    }
     
     try {
-      setRestoring(true);
-      const res = await fetchWithAuth("/api/inventory/restore", {
+      const res = await fetchWithAuth("/api/clients/softDelete", {
         method: "POST",
-        body: JSON.stringify({ id: itemToRestore.id }),
+        body: JSON.stringify({
+          id: clientToDelete.id,
+          deletedById: user?.userId
+        }),
       });
       
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || "Failed to restore item");
+        throw new Error("Failed to archive client");
       }
       
-      const data = await res.json();
-      toast.success("Item restored successfully");
+      // Update state
+      setClients(prev => prev.filter(c => c.id !== clientToDelete.id));
+      setFilteredClients(prev => prev.filter(c => c.id !== clientToDelete.id));
       
-      if (onRestore) {
-        onRestore(data.item);
-      }
+      setIsDeleteDialogOpen(false);
+      setClientToDelete(null);
+      setConfirmDeleteText("");
       
-      setShowRestoreDialog(false);
-      setItemToRestore(null);
+      toast.success("Client archived successfully");
     } catch (error) {
-      console.error("Error restoring item:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to restore item");
-    } finally {
-      setRestoring(false);
+      console.error("Error archiving client:", error);
+      toast.error("Failed to archive client");
     }
   };
 
-  // Handle quantity adjustment
-  const handleQuantityAdjustment = (item: Inventory, type: "increase" | "decrease") => {
-    setSelectedItem(item);
-    setAdjustmentType(type);
-    setShowQuantityDialog(true);
+  // Handle restore
+  const handleRestoreClick = (client: Client) => {
+    setClientToRestore(client);
+    setIsRestoreDialogOpen(true);
   };
 
-  // Handle quantity update
-  const handleQuantityUpdated = (updatedItem: Inventory) => {
-    if (onUpdate) {
-      onUpdate(updatedItem);
+  const handleRestore = async () => {
+    if (!clientToRestore) return;
+    
+    try {
+      const res = await fetchWithAuth("/api/clients/restore", {
+        method: "POST",
+        body: JSON.stringify({
+          id: clientToRestore.id,
+          restoredById: user?.userId
+        }),
+      });
+      
+      if (!res.ok) {
+        throw new Error("Failed to restore client");
+      }
+      
+      // Update state
+      setClients(prev => prev.filter(c => c.id !== clientToRestore.id));
+      setFilteredClients(prev => prev.filter(c => c.id !== clientToRestore.id));
+      
+      setIsRestoreDialogOpen(false);
+      setClientToRestore(null);
+      
+      toast.success("Client restored successfully");
+    } catch (error) {
+      console.error("Error restoring client:", error);
+      toast.error("Failed to restore client");
     }
-  };
-  
-  // Get item type display with icon
-  const renderItemType = (type: string) => {
-    switch (type) {
-      case "EQUIPMENT":
-        return (
-          <div className="flex items-center gap-1">
-            <Package2 className="h-4 w-4 text-blue-500" />
-            <span>Equipment</span>
-          </div>
-        );
-      case "SUBSCRIPTION":
-        return (
-          <div className="flex items-center gap-1">
-            <Calendar className="h-4 w-4 text-purple-500" />
-            <span>Subscription</span>
-          </div>
-        );
-      default:
-        return (
-          <div className="flex items-center gap-1">
-            <Package2 className="h-4 w-4 text-amber-500" />
-            <span>Other</span>
-          </div>
-        );
-    }
-  };
-  
-  // Get status badge
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "ACTIVE":
-        return "bg-green-100 text-green-800";
-      case "INACTIVE":
-        return "bg-red-100 text-red-800";
-      case "MAINTENANCE":
-        return "bg-yellow-100 text-yellow-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-  
-  // Get payment status badge
-  const getPaymentStatusBadge = (status: string | undefined) => {
-    if (!status) return "";
-    
-    switch (status) {
-      case "LUNAS":
-        return "bg-green-100 text-green-800";
-      case "DP":
-        return "bg-blue-100 text-blue-800";
-      case "BELUM_BAYAR":
-        return "bg-red-100 text-red-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-  
-  // Get payment status display
-  const getPaymentStatusDisplay = (status: string | undefined) => {
-    if (!status) return "—";
-    
-    switch (status) {
-      case "LUNAS":
-        return "Paid";
-      case "DP":
-        return "Partial";
-      case "BELUM_BAYAR":
-        return "Unpaid";
-      default:
-        return status;
-    }
-  };
-  
-  // Check if date is within 30 days
-  const isUpcomingDate = (dateString: string | undefined) => {
-    if (!dateString) return false;
-    
-    const date = new Date(dateString);
-    const today = new Date();
-    const thirtyDaysFromNow = new Date();
-    thirtyDaysFromNow.setDate(today.getDate() + 30);
-    
-    return date <= thirtyDaysFromNow && date >= today;
-  };
-  
-  // Get days until date
-  const getDaysUntil = (dateString: string | undefined) => {
-    if (!dateString) return null;
-    
-    const date = new Date(dateString);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const diffTime = date.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    return diffDays;
-  };
-  
-  // Render sort indicator
-  const renderSortIndicator = (field: SortField) => {
-    if (sortField !== field) {
-      return <ArrowUpDown className="ml-1 h-4 w-4" />;
-    }
-    
-    return sortDirection === 'asc' 
-      ? <ArrowUpDown className="ml-1 h-4 w-4 transform rotate-0" /> 
-      : <ArrowUpDown className="ml-1 h-4 w-4 transform rotate-180" />;
-  };
-  
-  // Reset all filters
-  const resetFilters = () => {
-    setLocalCategoryFilter(null);
-    setLocalSearchTerm("");
-    setTypeFilter(null);
-    setStatusFilter(null);
   };
 
-  // Skeleton loader
-  if (isLoading) {
-    return (
-      <div className="space-y-4">
-        <div className="flex justify-between items-center">
-          <Skeleton className="h-8 w-64" />
-          <div className="flex gap-2">
-            <Skeleton className="h-10 w-32" />
-            <Skeleton className="h-10 w-32" />
-          </div>
-        </div>
-        
-        <div className="border rounded-md p-6">
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <Skeleton className="h-6 w-full max-w-md" />
-            </div>
-            
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="flex gap-4">
-                <Skeleton className="h-12 w-full" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Format datetime with time
+  const formatDateTime = (dateString?: string) => {
+    if (!dateString) return "-";
+    return new Date(dateString).toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
   return (
-    <div className="space-y-4 w-full">
-      <div className="flex flex-col md:flex-row justify-between gap-4">
-        <div className="flex items-center flex-wrap gap-2">
-          <div className="relative mr-2">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search inventory..."
-              value={localSearchTerm}
-              onChange={(e) => setLocalSearchTerm(e.target.value)}
-              className="pl-10 w-[200px]"
-            />
-          </div>
-          
-          <Select value={localCategoryFilter || "all"} onValueChange={(value) => setLocalCategoryFilter(value === "all" ? null : value)}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="All Categories" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {categories.map((category) => (
-                <SelectItem key={category} value={category}>{category}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          
-          <Select value={typeFilter || "all"} onValueChange={(value) => setTypeFilter(value === "all" ? null : value)}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="All Types" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              <SelectItem value="EQUIPMENT">Equipment</SelectItem>
-              <SelectItem value="SUBSCRIPTION">Subscription</SelectItem>
-              <SelectItem value="OTHER">Other</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Select value={statusFilter || "all"} onValueChange={(value) => setStatusFilter(value === "all" ? null : value)}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="All Statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="ACTIVE">Active</SelectItem>
-              <SelectItem value="INACTIVE">Inactive</SelectItem>
-              <SelectItem value="MAINTENANCE">Maintenance</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          {(localSearchTerm || localCategoryFilter || typeFilter || statusFilter) && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={resetFilters}
-              title="Clear filters"
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          )}
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-semibold">Clients</h2>
+        
+        <div className="flex items-center gap-2">
+          <Button 
+            variant={viewMode === "active" ? "default" : "outline"}
+            onClick={() => setViewMode("active")}
+            className="flex items-center gap-1"
+          >
+            <Eye className="h-4 w-4" />
+            Active
+          </Button>
+          <Button 
+            variant={viewMode === "deleted" ? "default" : "outline"}
+            onClick={() => setViewMode("deleted")}
+            className="flex items-center gap-1"
+          >
+            <EyeOff className="h-4 w-4" />
+            Archived
+          </Button>
         </div>
       </div>
       
-      <div className="border rounded-md w-full inventory-table-container">
-        <Table className="w-full inventory-table">
-          <TableCaption>
-            {isArchived 
-              ? "Archived inventory items" 
-              : `Showing ${filteredInventory.length} of ${inventory.length} inventory items`}
-          </TableCaption>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[250px]">
-                <Button 
-                  variant="ghost" 
-                  onClick={() => handleSort('name')}
-                  className="flex items-center p-0 hover:bg-transparent"
-                >
-                  Item Name {renderSortIndicator('name')}
-                </Button>
-              </TableHead>
-              <TableHead>
-                <Button 
-                  variant="ghost" 
-                  onClick={() => handleSort('category')}
-                  className="flex items-center p-0 hover:bg-transparent"
-                >
-                  Category {renderSortIndicator('category')}
-                </Button>
-              </TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="text-right">
-                <Button 
-                  variant="ghost" 
-                  onClick={() => handleSort('quantity')}
-                  className="flex items-center justify-end p-0 hover:bg-transparent"
-                >
-                  Quantity {renderSortIndicator('quantity')}
-                </Button>
-              </TableHead>
-              <TableHead className="text-right">
-                <Button 
-                  variant="ghost" 
-                  onClick={() => handleSort('unitPrice')}
-                  className="flex items-center justify-end p-0 hover:bg-transparent"
-                >
-                  Unit Price {renderSortIndicator('unitPrice')}
-                </Button>
-              </TableHead>
-              <TableHead className="text-right">
-                <Button 
-                  variant="ghost" 
-                  onClick={() => handleSort('totalValue')}
-                  className="flex items-center justify-end p-0 hover:bg-transparent"
-                >
-                  Total Value {renderSortIndicator('totalValue')}
-                </Button>
-              </TableHead>
-              <TableHead className="text-center">
-                <Button 
-                  variant="ghost" 
-                  onClick={() => handleSort('status')}
-                  className="flex items-center justify-center p-0 hover:bg-transparent"
-                >
-                  Status {renderSortIndicator('status')}
-                </Button>
-              </TableHead>
-              <TableHead className="text-center">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filteredInventory.length > 0 ? (
-              filteredInventory.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell className="font-medium">
-                    <div>
-                      <div className="font-medium">{item.name}</div>
-                      {item.expiryDate && (
-                        <div className={`text-xs ${
-                          new Date(item.expiryDate) < new Date() 
-                            ? "text-red-600"
-                            : "text-muted-foreground"
-                        }`}>
-                          Expires: {formatDate(item.expiryDate)}
-                        </div>
-                      )}
-                      {item.type === "SUBSCRIPTION" && item.nextBillingDate && (
-                        <div className={`text-xs ${
-                          isUpcomingDate(item.nextBillingDate) 
-                            ? "text-yellow-600 font-medium"
-                            : "text-muted-foreground"
-                        }`}>
-                          Next billing: {formatDate(item.nextBillingDate)}
-                          {isUpcomingDate(item.nextBillingDate) && getDaysUntil(item.nextBillingDate) !== null && (
-                            <span className="text-xs ml-1">
-                              (in {getDaysUntil(item.nextBillingDate)} days)
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {item.category ? (
-                      <Badge variant="outline" className="font-normal">
-                        {item.category}
-                      </Badge>
-                    ) : (
-                      "—"
-                    )}
-                  </TableCell>
-                  <TableCell>{renderItemType(item.type)}</TableCell>
-                  <TableCell className="text-right">
-                    {item.type === "SUBSCRIPTION" ? (
-                      <Badge 
-                        className={getPaymentStatusBadge(item.paymentStatus)}
-                      >
-                        {getPaymentStatusDisplay(item.paymentStatus)}
-                      </Badge>
-                    ) : (
-                      <div className="flex flex-col items-end">
-                        <span className={(item.quantity || 0) <= (item.minimumStock || 0) && (item.quantity || 0) > 0 ? "text-red-600 font-bold" : ""}>
-                          {item.quantity ?? 0}
-                        </span>
-                        {item.minimumStock && (item.quantity || 0) <= item.minimumStock && (item.quantity || 0) > 0 && (
-                          <span className="text-xs text-red-600">
-                            Low Stock
-                          </span>
+      <div className="flex flex-col sm:flex-row gap-4 justify-between">
+        <div className="flex-1 flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search clients..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 w-full"
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            />
+          </div>
+          <Button onClick={handleSearch}>Search</Button>
+        </div>
+        
+        {viewMode === "active" && (
+          <Button onClick={handleAddClient} className="flex items-center gap-1">
+            <Plus className="h-4 w-4" />
+            Add Client
+          </Button>
+        )}
+      </div>
+      
+      {/* Loading indicator */}
+      {loading && (
+        <div className="flex items-center justify-center py-8">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <span className="ml-2">Loading clients...</span>
+        </div>
+      )}
+      
+      {/* Clients table */}
+      {!loading && (
+        <div className="border rounded-md">
+          <Table>
+            <TableCaption>
+              {viewMode === "active" ? "List of active clients" : "List of archived clients"}
+            </TableCaption>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Client Code</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Contact</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Audit</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredClients.length > 0 ? (
+                filteredClients.map((client) => (
+                  <TableRow key={client.id} className={client.isDeleted ? "bg-gray-50" : ""}>
+                    <TableCell className="font-medium">{client.code}</TableCell>
+                    <TableCell>{client.name}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1">
+                        {client.email && (
+                          <div className="flex items-center text-xs">
+                            <Mail className="h-3 w-3 mr-1 text-gray-500" />
+                            <span>{client.email}</span>
+                          </div>
+                        )}
+                        {client.phone && (
+                          <div className="flex items-center text-xs">
+                            <Phone className="h-3 w-3 mr-1 text-gray-500" />
+                            <span>{client.phone}</span>
+                          </div>
+                        )}
+                        {client.address && (
+                          <div className="flex items-center text-xs">
+                            <MapPin className="h-3 w-3 mr-1 text-gray-500" />
+                            <span className="truncate max-w-[200px]">{client.address}</span>
+                          </div>
                         )}
                       </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    Rp{formatRupiah(item.unitPrice || item.cost)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    Rp{formatRupiah(item.totalValue || item.currentValue || item.cost)}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge 
-                      className={getStatusBadge(item.status)}
-                    >
-                      {item.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-center space-x-1">
-                      {!isArchived ? (
-                        <>
-                          {/* Payment Button - New Addition */}
-                          {(item.paymentStatus === 'BELUM_BAYAR' || item.paymentStatus === 'DP') && (
-                            <InventoryPaymentButton 
-                              item={item} 
-                              onPaymentProcessed={() => onUpdate && onUpdate(item)} 
-                            />
-                          )}
-                          
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                              
-                              {item.type !== "SUBSCRIPTION" && (
-                                <>
-                                  <DropdownMenuItem
-                                    onClick={() => handleQuantityAdjustment(item, "increase")}
-                                  >
-                                    <Plus className="h-4 w-4 mr-2" />
-                                    Add Stock
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() => handleQuantityAdjustment(item, "decrease")}
-                                    disabled={(item.quantity || 0) <= 0}
-                                  >
-                                    <Minus className="h-4 w-4 mr-2" />
-                                    Reduce Stock
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                </>
-                              )}
-                              
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  // Open update dialog through UpdateInventoryDialog component
-                                  document.getElementById(`update-inventory-${item.id}`)?.click();
-                                }}
-                              >
-                                <Edit className="h-4 w-4 mr-2" />
-                                Edit Item
-                              </DropdownMenuItem>
-                              
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  // Open details dialog through InventoryDetailDialog component
-                                  document.getElementById(`view-inventory-${item.id}`)?.click();
-                                }}
-                              >
-                                <FileText className="h-4 w-4 mr-2" />
-                                View Details
-                              </DropdownMenuItem>
-                              
-                              <DropdownMenuSeparator />
-                              
-                              <DropdownMenuItem
-                                className="text-red-600"
-                                onClick={() => {
-                                  setItemToArchive(item);
-                                  setConfirmArchiveText("");
-                                  setShowArchiveDialog(true);
-                                }}
-                              >
-                                <Archive className="h-4 w-4 mr-2" />
-                                Archive Item
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </>
+                    </TableCell>
+                    <TableCell>
+                      <div className="max-w-[200px]">
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <p className="truncate">
+                                {client.description || "No description"}
+                              </p>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p className="max-w-xs">{client.description || "No description"}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col gap-1 text-xs">
+                        <div className="flex items-center gap-1">
+                          <User className="h-3 w-3" />
+                          <span>{client.createdBy?.name || "Unknown"}</span>
+                        </div>
+                        {client.createdAt && (
+                          <div className="flex items-center gap-1 text-gray-500">
+                            <Clock className="h-3 w-3" />
+                            <span>{formatDateTime(client.createdAt)}</span>
+                          </div>
+                        )}
+                        {client.isDeleted && client.deletedBy && (
+                          <Badge variant="outline" className="bg-red-50 text-red-800 text-xs mt-1">
+                            Archived by {client.deletedBy.name}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {viewMode === "active" ? (
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handleEditClient(client)}
+                            className="h-8 px-2"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            size="sm" 
+                            onClick={() => handleDeleteClick(client)}
+                            className="h-8 px-2"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       ) : (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setItemToRestore(item);
-                            setShowRestoreDialog(true);
-                          }}
-                          title="Restore item"
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => handleRestoreClick(client)}
+                          className="h-8 px-2 text-green-600"
                         >
                           <RefreshCw className="h-4 w-4" />
                         </Button>
                       )}
-                      
-                      {/* Hidden button triggers for update and view dialogs */}
-                      <div className="hidden">
-                        <UpdateInventoryDialog
-                          item={item}
-                          categories={categories}
-                          onItemUpdated={onUpdate}
-                          triggerId={`update-inventory-${item.id}`}
-                        />
-                        
-                        <InventoryDetailDialog
-                          item={item}
-                          triggerId={`view-inventory-${item.id}`}
-                        />
-                      </div>
-                    </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
+                    {viewMode === "active" 
+                      ? "No active clients found" 
+                      : "No archived clients found"}
                   </TableCell>
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={8} className="text-center py-10 text-muted-foreground">
-                  No {isArchived ? "archived" : "active"} inventory items found
-                  {(localSearchTerm || localCategoryFilter || typeFilter || statusFilter) ? (
-                    <p className="mt-2">Try adjusting your search or filter criteria.</p>
-                  ) : null}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-      
-      {/* Quantity dialog */}
-      {showQuantityDialog && selectedItem && (
-        <UpdateInventoryQuantityDialog
-          isOpen={showQuantityDialog}
-          onClose={() => setShowQuantityDialog(false)}
-          item={selectedItem}
-          adjustmentType={adjustmentType}
-          onQuantityUpdated={handleQuantityUpdated}
-        />
+              )}
+            </TableBody>
+          </Table>
+        </div>
       )}
       
-      {/* Archive confirmation dialog */}
-      <Dialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
-        <DialogContent>
+      {/* Add/Edit Client Dialog */}
+      <Dialog open={isClientDialogOpen} onOpenChange={setIsClientDialogOpen}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Archive Inventory Item</DialogTitle>
+            <DialogTitle>{isEditMode ? "Edit Client" : "Add New Client"}</DialogTitle>
             <DialogDescription>
-              This will move the item to the archive. You can restore it later if needed.
+              {isEditMode 
+                ? "Update client information" 
+                : "Fill in the details to create a new client"}
             </DialogDescription>
           </DialogHeader>
           
-          {itemToArchive && (
-            <div className="py-4">
-              <p className="font-medium">{itemToArchive.name}</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Type "ARCHIVE" below to confirm
-              </p>
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Client Code</label>
+                <Input
+                  name="code"
+                  value={clientFormData.code}
+                  onChange={handleFormChange}
+                  placeholder="Unique client code"
+                  required
+                  disabled={isEditMode} // Don't allow changing code in edit mode
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Client Name</label>
+                <Input
+                  name="name"
+                  value={clientFormData.name}
+                  onChange={handleFormChange}
+                  placeholder="Client name"
+                  required
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Email</label>
               <Input
-                className="mt-2"
-                value={confirmArchiveText}
-                onChange={(e) => setConfirmArchiveText(e.target.value)}
-                placeholder="Type ARCHIVE to confirm"
+                name="email"
+                type="email"
+                value={clientFormData.email}
+                onChange={handleFormChange}
+                placeholder="Email address"
               />
             </div>
-          )}
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Phone</label>
+              <Input
+                name="phone"
+                value={clientFormData.phone}
+                onChange={handleFormChange}
+                placeholder="Phone number"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Address</label>
+              <Input
+                name="address"
+                value={clientFormData.address}
+                onChange={handleFormChange}
+                placeholder="Address"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description</label>
+              <Input
+                name="description"
+                value={clientFormData.description}
+                onChange={handleFormChange}
+                placeholder="Brief description"
+              />
+            </div>
+          </div>
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowArchiveDialog(false)} disabled={archiving}>
+            <Button variant="outline" onClick={() => setIsClientDialogOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" onClick={handleConfirmArchive} disabled={archiving || confirmArchiveText !== "ARCHIVE"}>
-              {archiving ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Archiving...
-                </>
-              ) : (
-                <>
-                  <Archive className="mr-2 h-4 w-4" />
-                  Archive Item
-                </>
-              )}
+            <Button onClick={handleSubmitClient}>
+              {isEditMode ? "Update Client" : "Add Client"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       
-      {/* Restore confirmation dialog */}
-      <Dialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
-        <DialogContent>
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Restore Inventory Item</DialogTitle>
+            <DialogTitle>Archive Client</DialogTitle>
             <DialogDescription>
-              This will restore the item from the archive to the active inventory.
+              This client will be archived. You can restore it later if needed.
             </DialogDescription>
           </DialogHeader>
           
-          {itemToRestore && (
-            <div className="py-4">
-              <p className="font-medium">{itemToRestore.name}</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Are you sure you want to restore this item?
-              </p>
-            </div>
-          )}
+          <div className="py-4">
+            <p className="mb-2 font-medium">Client: {clientToDelete?.name} ({clientToDelete?.code})</p>
+            <p className="mb-4 text-sm text-muted-foreground">Type &quot;DELETE&quot; to confirm.</p>
+            <Input
+              value={confirmDeleteText}
+              onChange={(e) => setConfirmDeleteText(e.target.value)}
+              placeholder="Type DELETE to confirm"
+            />
+          </div>
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowRestoreDialog(false)} disabled={restoring}>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button variant="default" onClick={handleRestore} disabled={restoring} className="bg-green-600 hover:bg-green-700">
-              {restoring ? (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                  Restoring...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Restore Item
-                </>
-              )}
+            <Button 
+              variant="destructive" 
+              onClick={handleSoftDelete}
+              disabled={confirmDeleteText !== "DELETE"}
+            >
+              Archive Client
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Restore Confirmation Dialog */}
+      <Dialog open={isRestoreDialogOpen} onOpenChange={setIsRestoreDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Restore Client</DialogTitle>
+            <DialogDescription>
+              This client will be restored and will appear in the active list again.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p>Are you sure you want to restore client &quot;{clientToRestore?.name}&quot;?</p>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRestoreDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleRestore}>
+              Restore Client
             </Button>
           </DialogFooter>
         </DialogContent>

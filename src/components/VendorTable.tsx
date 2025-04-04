@@ -33,7 +33,6 @@ import {
   Plus,
   Edit,
   Trash2,
-  RefreshCw,
   Eye,
   EyeOff,
   Mail,
@@ -100,10 +99,6 @@ export default function VendorTable() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [vendorToDelete, setVendorToDelete] = useState<Vendor | null>(null);
   const [confirmDeleteText, setConfirmDeleteText] = useState("");
-  
-  // State for restore dialog
-  const [isRestoreDialogOpen, setIsRestoreDialogOpen] = useState(false);
-  const [vendorToRestore, setVendorToRestore] = useState<Vendor | null>(null);
 
   // Fetch vendors
   const fetchVendors = useCallback(async () => {
@@ -298,42 +293,6 @@ export default function VendorTable() {
     }
   };
 
-  // Handle restore
-  const handleRestoreClick = (vendor: Vendor) => {
-    setVendorToRestore(vendor);
-    setIsRestoreDialogOpen(true);
-  };
-
-  const handleRestore = async () => {
-    if (!vendorToRestore) return;
-    
-    try {
-      const res = await fetchWithAuth("/api/vendors/restore", {
-        method: "POST",
-        body: JSON.stringify({
-          id: vendorToRestore.id,
-          restoredById: user?.userId
-        }),
-      });
-      
-      if (!res.ok) {
-        throw new Error("Failed to restore vendor");
-      }
-      
-      // Update state
-      setVendors(prev => prev.filter(v => v.id !== vendorToRestore.id));
-      setFilteredVendors(prev => prev.filter(v => v.id !== vendorToRestore.id));
-      
-      setIsRestoreDialogOpen(false);
-      setVendorToRestore(null);
-      
-      toast.success("Vendor restored successfully");
-    } catch (error) {
-      console.error("Error restoring vendor:", error);
-      toast.error("Failed to restore vendor");
-    }
-  };
-
   // Format datetime with time
   const formatDateTime = (dateString?: string) => {
     if (!dateString) return "-";
@@ -502,14 +461,9 @@ export default function VendorTable() {
                           </Button>
                         </div>
                       ) : (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => handleRestoreClick(vendor)}
-                          className="h-8 px-2 text-green-600"
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </Button>
+                        <div className="text-sm text-muted-foreground">
+                          Archived
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
@@ -613,7 +567,7 @@ export default function VendorTable() {
           <DialogHeader>
             <DialogTitle>Archive Vendor</DialogTitle>
             <DialogDescription>
-              This vendor will be archived. You can restore it later if needed.
+              This vendor will be archived.
             </DialogDescription>
           </DialogHeader>
           
@@ -637,31 +591,6 @@ export default function VendorTable() {
               disabled={confirmDeleteText !== "DELETE"}
             >
               Archive Vendor
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Restore Confirmation Dialog */}
-      <Dialog open={isRestoreDialogOpen} onOpenChange={setIsRestoreDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Restore Vendor</DialogTitle>
-            <DialogDescription>
-              This vendor will be restored and will appear in the active list again.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="py-4">
-            <p>Are you sure you want to restore vendor &quot;{vendorToRestore?.name}&quot;?</p>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRestoreDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleRestore}>
-              Restore Vendor
             </Button>
           </DialogFooter>
         </DialogContent>

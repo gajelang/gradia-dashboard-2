@@ -1,8 +1,9 @@
-"use client"
-import { useState, useEffect, useCallback } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { 
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
   ArrowUpDown, 
   ChevronUp, 
   ChevronDown, 
@@ -11,9 +12,6 @@ import {
   ExternalLink,
   Tag,
   Archive,
-  RefreshCw,
-  User,
-  Clock,
   Eye,
   Calendar,
   Wallet,
@@ -25,9 +23,11 @@ import {
   CheckCircle,
   XCircle,
   Loader2,
-  Package2
-} from "lucide-react"
-import { toast } from "react-hot-toast"
+  Package2,
+  User,
+  Clock
+} from "lucide-react";
+import { toast } from "react-hot-toast";
 import {
   Dialog,
   DialogContent,
@@ -36,14 +36,14 @@ import {
   DialogTrigger,
   DialogFooter,
   DialogDescription
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -52,18 +52,18 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
-import { formatRupiah } from "@/lib/formatters"
-import UpdateExpenseDialog from "@/components/UpdateExpenseDialog"
+} from "@/components/ui/table";
+import { formatRupiah } from "@/lib/formatters";
+import UpdateExpenseDialog from "@/components/UpdateExpenseDialog";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger
-} from "@/components/ui/tooltip"
-import { fetchWithAuth } from "@/lib/api" // Import the authentication utility
-import { useAuth } from "@/contexts/AuthContext" // Import auth context for current user
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+} from "@/components/ui/tooltip";
+import { fetchWithAuth } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,14 +71,14 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+} from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type SortDirection = "asc" | "desc" | null;
 type SortField = "category" | "amount" | "description" | "date" | "transactionId" | "createdBy" | "nextBillingDate" | null;
@@ -136,7 +136,7 @@ interface Expense {
 }
 
 export default function ExpensesTable() {
-  const { user } = useAuth(); // Get current user from auth context
+  const { user } = useAuth();
   
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [deletedExpenses, setDeletedExpenses] = useState<Expense[]>([]);
@@ -163,10 +163,6 @@ export default function ExpensesTable() {
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmDeleteText, setConfirmDeleteText] = useState("");
-  
-  // State for restore
-  const [expenseToRestore, setExpenseToRestore] = useState<Expense | null>(null);
-  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
   
   // State for recurring expense management
   const [recurringExpenseDetails, setRecurringExpenseDetails] = useState<Expense | null>(null);
@@ -509,41 +505,6 @@ export default function ExpensesTable() {
       console.error("Error archiving expense:", error);
       toast.error(`Failed to archive expense: ${error instanceof Error ? error.message : "Unknown error"}`, 
         { id: "deleteExpense" });
-    }
-  };
-
-  // Restore expense function
-  const restoreExpense = async () => {
-    if (!expenseToRestore) return;
-
-    try {
-      toast.loading("Restoring expense...", { id: "restoreExpense" });
-
-      const res = await fetchWithAuth("/api/expenses/restore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          id: expenseToRestore.id,
-          restoredBy: user?.userId
-        }),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || "Failed to restore expense");
-      }
-
-      toast.success("Expense restored successfully", { id: "restoreExpense" });
-      
-      setDeletedExpenses(prev => prev.filter(exp => exp.id !== expenseToRestore.id));
-      setFilteredExpenses(prev => prev.filter(exp => exp.id !== expenseToRestore.id));
-      
-      setRestoreDialogOpen(false);
-      setExpenseToRestore(null);
-    } catch (error) {
-      console.error("Error restoring expense:", error);
-      toast.error(`Failed to restore expense: ${error instanceof Error ? error.message : "Unknown error"}`, 
-        { id: "restoreExpense" });
     }
   };
 
@@ -1112,18 +1073,9 @@ export default function ExpensesTable() {
                         </Button>
                       </>
                     ) : viewMode === "deleted" ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setExpenseToRestore(exp);
-                          setRestoreDialogOpen(true);
-                        }}
-                        className="text-green-600"
-                        title="Restore Expense"
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
+                      <div className="text-sm text-muted-foreground">
+                        Archived
+                      </div>
                     ) : (
                       // Recurring expense actions
                       <DropdownMenu>
@@ -1203,20 +1155,23 @@ export default function ExpensesTable() {
 
       {/* Soft Delete Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Confirm Archive</DialogTitle>
+            <DialogTitle>Archive Expense</DialogTitle>
             <DialogDescription>
-              This expense will be archived and won't appear in the active expenses list.
-              You can restore it from the archive view if needed.
+              This expense will be archived.
             </DialogDescription>
           </DialogHeader>
-          <p className="mb-2">Type "DELETE" to confirm.</p>
-          <Input
-            value={confirmDeleteText}
-            onChange={(e) => setConfirmDeleteText(e.target.value)}
-            placeholder="Type DELETE to confirm"
-          />
+          
+          <div className="py-4">
+            <p className="mb-2">Type "DELETE" to confirm.</p>
+            <Input
+              value={confirmDeleteText}
+              onChange={(e) => setConfirmDeleteText(e.target.value)}
+              placeholder="Type DELETE to confirm"
+            />
+          </div>
+          
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
             <Button 
@@ -1225,28 +1180,6 @@ export default function ExpensesTable() {
               disabled={confirmDeleteText !== "DELETE"}
             >
               Archive Expense
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Restore Confirmation Dialog */}
-      <Dialog open={restoreDialogOpen} onOpenChange={setRestoreDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Confirm Restore</DialogTitle>
-            <DialogDescription>
-              This expense will be restored and will appear in the active expenses list again.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setRestoreDialogOpen(false)}>Cancel</Button>
-            <Button 
-              variant="default" 
-              onClick={restoreExpense}
-              className="bg-green-600 hover:bg-green-700"
-            >
-              Restore Expense
             </Button>
           </DialogFooter>
         </DialogContent>

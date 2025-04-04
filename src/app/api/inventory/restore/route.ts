@@ -11,60 +11,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { id } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: 'Inventory item ID is required' }, { status: 400 });
-    }
-
-    // Find the inventory item to ensure it exists
-    const inventoryItem = await prisma.inventory.findUnique({
-      where: { id }
-    });
-    
-    if (!inventoryItem) {
-      return NextResponse.json({ error: 'Inventory item not found' }, { status: 404 });
-    }
-    
-    // Check if the item is already active
-    if (!inventoryItem.isDeleted) {
-      return NextResponse.json({ error: 'Inventory item is already active' }, { status: 400 });
-    }
-
-    // Restore the inventory item
-    const updatedItem = await prisma.inventory.update({
-      where: { id },
-      data: {
-        isDeleted: false,
-        deletedAt: null,
-        deletedById: null,
-        updatedAt: new Date(),
-        updatedById: authResult.user?.userId || null
-      },
-      include: {
-        vendor: {
-          select: {
-            id: true,
-            name: true,
-            serviceDesc: true
-          }
-        },
-        createdBy: {
-          select: { id: true, name: true, email: true }
-        },
-        updatedBy: {
-          select: { id: true, name: true, email: true }
-        }
-      }
-    });
-
-    return NextResponse.json({
-      message: 'Inventory item restored successfully',
-      item: updatedItem
-    });
+    // Return error since restore functionality has been disabled
+    return NextResponse.json({ 
+      error: 'Restore functionality has been disabled. Please contact an administrator for assistance.' 
+    }, { status: 403 });
   } catch (error) {
-    console.error('Error restoring inventory item:', error);
+    console.error('Error in restore endpoint:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

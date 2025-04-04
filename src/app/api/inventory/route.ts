@@ -1,10 +1,10 @@
 // app/api/inventory/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuthToken } from '@/lib/auth';
 
 // Handler for GET requests - Fetch inventory items
-export async function GET(request) {
+export async function GET(request: NextRequest) {
   try {
     // Verify authentication
     const authResult = await verifyAuthToken(request);
@@ -73,7 +73,7 @@ export async function GET(request) {
 }
 
 // Handler for POST requests - Create new inventory item
-export async function POST(request) {
+export async function POST(request: NextRequest) {
   try {
     const authResult = await verifyAuthToken(request);
     if (!authResult.isAuthenticated) {
@@ -175,7 +175,7 @@ export async function POST(request) {
 }
 
 // Handler for PATCH requests - Update inventory item
-export async function PATCH(request) {
+export async function PATCH(request: NextRequest) {
   try {
     const authResult = await verifyAuthToken(request);
     if (!authResult.isAuthenticated) {

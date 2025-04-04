@@ -14,124 +14,14 @@ export async function POST(request) {
   }
   
   try {
-    const { id, restoredBy } = await request.json();
-    
-    if (!id) {
-      return createSafeResponse({ message: "Expense ID is required" }, 400);
-    }
-
-    // Find the expense to ensure it exists and is deleted
-    const expense = await prisma.expense.findUnique({
-      where: { id }
-    });
-    
-    if (!expense) {
-      return createSafeResponse({ message: "Expense not found" }, 404);
-    }
-    
-    // Check if the expense is already active
-    if (!expense.isDeleted) {
-      return createSafeResponse({ message: "Expense is already active" }, 400);
-    }
-
-    // Use a transaction to ensure atomicity
-    const result = await prisma.$transaction(async (tx) => {
-      // Adjust fund balance if this expense had a fund association
-      if (expense.amount > 0 && expense.fundType) {
-        try {
-          // Get the fund balance
-          const fund = await tx.fundBalance.findUnique({
-            where: { fundType: expense.fundType }
-          });
-          
-          if (fund) {
-            // Update fund balance (subtract the amount since expense is being restored)
-            const newBalance = fund.currentBalance - expense.amount;
-            await tx.fundBalance.update({
-              where: { fundType: expense.fundType },
-              data: { currentBalance: newBalance }
-            });
-            
-            // Create a fund transaction record for this adjustment
-            await tx.fundTransaction.create({
-              data: {
-                fundType: expense.fundType,
-                transactionType: "adjustment",
-                amount: -expense.amount,
-                balanceAfter: newBalance,
-                description: `Expense restored from archive: ${expense.category || 'Unnamed expense'}`,
-                sourceType: "expense_restore",
-                sourceId: expense.id,
-                createdById: restoredBy || user?.userId
-              }
-            });
-            
-            console.log(`Adjusted ${expense.fundType} balance: -${expense.amount} for restored expense ${expense.id}`);
-          }
-        } catch (fundError) {
-          console.error("Fund balance adjustment error:", fundError);
-          // Continue even if fund adjustment fails
-        }
-      }
-
-      // Restore the expense
-      const updatedExpense = await tx.expense.update({
-        where: { id },
-        data: {
-          isDeleted: false,
-          deletedAt: null,
-          deletedById: null,
-          updatedAt: new Date(),
-          updatedById: restoredBy || user?.userId
-        }
-      });
-      
-      // If the expense is associated with a transaction, recalculate the capital cost
-      if (expense.transactionId) {
-        try {
-          // Check if the transaction exists
-          const transaction = await tx.transaction.findUnique({
-            where: { id: expense.transactionId }
-          });
-          
-          if (transaction) {
-            // Find all active expenses for this transaction (including the newly restored one)
-            const activeExpenses = await tx.expense.findMany({
-              where: {
-                transactionId: expense.transactionId,
-                isDeleted: false
-              }
-            });
-            
-            // Calculate the new total expenses (capital cost)
-            const newCapitalCost = activeExpenses.reduce(
-              (sum, exp) => sum + (exp.amount || 0), 
-              0
-            );
-            
-            // Update the transaction with the new capital cost
-            await tx.transaction.update({
-              where: { id: expense.transactionId },
-              data: { capitalCost: newCapitalCost }
-            });
-          }
-        } catch (transactionError) {
-          console.error("Error updating transaction capital cost:", transactionError);
-          // Continue even if transaction update fails - don't block the expense restoration
-        }
-      }
-
-      return { expense: updatedExpense };
-    });
-
+    // Return error since restore functionality has been disabled
     return createSafeResponse({ 
-      message: "Expense restored successfully",
-      expense: result.expense
-    });
+      message: "Restore functionality has been disabled. Please contact an administrator for assistance." 
+    }, 403);
   } catch (error) {
-    console.error("Error in expense restore:", error);
+    console.error("Error in expense restore endpoint:", error);
     return createSafeResponse({ 
-      message: "Failed to restore expense", 
+      message: "Failed to process request", 
       error: error instanceof Error ? error.message : String(error) 
     }, 500);
   }

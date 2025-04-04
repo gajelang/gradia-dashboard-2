@@ -17,7 +17,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  // Removed unused DialogTrigger
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
@@ -34,13 +33,11 @@ import {
   Plus,
   Edit,
   Trash2,
-  RefreshCw,
   Eye,
   EyeOff,
   Mail,
   Phone,
   MapPin,
-  // Removed unused Info
   User,
   Clock
 } from "lucide-react";
@@ -102,10 +99,6 @@ export default function ClientTable() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
   const [confirmDeleteText, setConfirmDeleteText] = useState("");
-  
-  // State for restore dialog
-  const [isRestoreDialogOpen, setIsRestoreDialogOpen] = useState(false);
-  const [clientToRestore, setClientToRestore] = useState<Client | null>(null);
 
   // Define fetchClients with useCallback to avoid dependency issues
   const fetchClients = useCallback(async () => {
@@ -304,42 +297,6 @@ export default function ClientTable() {
     }
   };
 
-  // Handle restore
-  const handleRestoreClick = (client: Client) => {
-    setClientToRestore(client);
-    setIsRestoreDialogOpen(true);
-  };
-
-  const handleRestore = async () => {
-    if (!clientToRestore) return;
-    
-    try {
-      const res = await fetchWithAuth("/api/clients/restore", {
-        method: "POST",
-        body: JSON.stringify({
-          id: clientToRestore.id,
-          restoredById: user?.userId
-        }),
-      });
-      
-      if (!res.ok) {
-        throw new Error("Failed to restore client");
-      }
-      
-      // Update state
-      setClients(prev => prev.filter(c => c.id !== clientToRestore.id));
-      setFilteredClients(prev => prev.filter(c => c.id !== clientToRestore.id));
-      
-      setIsRestoreDialogOpen(false);
-      setClientToRestore(null);
-      
-      toast.success("Client restored successfully");
-    } catch (error) {
-      console.error("Error restoring client:", error);
-      toast.error("Failed to restore client");
-    }
-  };
-
   // Format datetime with time
   const formatDateTime = (dateString?: string) => {
     if (!dateString) return "-";
@@ -509,14 +466,9 @@ export default function ClientTable() {
                           </Button>
                         </div>
                       ) : (
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => handleRestoreClick(client)}
-                          className="h-8 px-2 text-green-600"
-                        >
-                          <RefreshCw className="h-4 w-4" />
-                        </Button>
+                        <div className="text-sm text-muted-foreground">
+                          Archived
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
@@ -632,7 +584,7 @@ export default function ClientTable() {
           <DialogHeader>
             <DialogTitle>Archive Client</DialogTitle>
             <DialogDescription>
-              This client will be archived. You can restore it later if needed.
+              This client will be archived.
             </DialogDescription>
           </DialogHeader>
           
@@ -656,31 +608,6 @@ export default function ClientTable() {
               disabled={confirmDeleteText !== "DELETE"}
             >
               Archive Client
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      
-      {/* Restore Confirmation Dialog */}
-      <Dialog open={isRestoreDialogOpen} onOpenChange={setIsRestoreDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Restore Client</DialogTitle>
-            <DialogDescription>
-              This client will be restored and will appear in the active list again.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="py-4">
-            <p>Are you sure you want to restore client &quot;{clientToRestore?.name}&quot;?</p>
-          </div>
-          
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRestoreDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleRestore}>
-              Restore Client
             </Button>
           </DialogFooter>
         </DialogContent>
