@@ -1,4 +1,4 @@
-// Modified src/app/api/transactions/softDelete/route.js
+// Fixed src/app/api/transactions/softDelete/route.js
 import { PrismaClient } from "@prisma/client";
 import { verifyAuthToken } from "@/lib/auth";
 import { createSafeResponse } from "@/lib/api";
@@ -50,28 +50,38 @@ export async function POST(req) {
           });
           
           if (fund) {
-            // Update fund balance (subtract the amount that was added when transaction was created)
-            const newBalance = fund.currentBalance - transaction.amount;
-            await tx.fundBalance.update({
-              where: { fundType: transaction.fundType },
-              data: { currentBalance: newBalance }
-            });
+            // Calculate amount to subtract based on payment status
+            let amountToSubtract = 0;
+            if (transaction.paymentStatus === "Lunas") {
+              amountToSubtract = transaction.projectValue || transaction.amount || 0;
+            } else if (transaction.paymentStatus === "DP") {
+              amountToSubtract = transaction.downPaymentAmount || 0;
+            }
             
-            // Create a fund transaction record for this adjustment
-            await tx.fundTransaction.create({
-              data: {
-                fundType: transaction.fundType,
-                transactionType: "adjustment",
-                amount: -transaction.amount,
-                balanceAfter: newBalance,
-                description: `Revenue reversed due to archived transaction: ${transaction.name || 'Unnamed transaction'}`,
-                sourceType: "transaction_archive",
-                sourceId: transaction.id,
-                createdById: deletedBy || user?.userId
-              }
-            });
-            
-            console.log(`Adjusted ${transaction.fundType} balance: -${transaction.amount} for archived transaction ${transaction.id}`);
+            if (amountToSubtract > 0) {
+              // Update fund balance (subtract the amount that was added when transaction was created)
+              const newBalance = fund.currentBalance - amountToSubtract;
+              await tx.fundBalance.update({
+                where: { fundType: transaction.fundType },
+                data: { currentBalance: newBalance }
+              });
+              
+              // Create a fund transaction record for this adjustment
+              await tx.fundTransaction.create({
+                data: {
+                  fundType: transaction.fundType,
+                  transactionType: "adjustment",
+                  amount: -amountToSubtract,
+                  balanceAfter: newBalance,
+                  description: `Revenue reversed due to archived transaction: ${transaction.name || 'Unnamed transaction'}`,
+                  sourceType: "transaction_archive",
+                  sourceId: transaction.id,
+                  createdById: deletedBy || user?.userId
+                }
+              });
+              
+              console.log(`Adjusted ${transaction.fundType} balance: -${amountToSubtract} for archived transaction ${transaction.id}`);
+            }
           }
         } catch (fundError) {
           console.error("Fund balance adjustment error:", fundError);
@@ -90,9 +100,7 @@ export async function POST(req) {
       });
       
       // 3. Find and soft delete all connected expenses
-      const relatedExpenses = await tx.expense.findMany({
-        where: { transactionId: id, isDeleted: false }
-      });
+      const relatedExpenses = transaction.expenses;
       
       // Track how many expenses were archived
       let archivedExpensesCount = 0;
@@ -136,12 +144,10 @@ export async function POST(req) {
             // Continue even if fund adjustment fails
           }
         }
-      }
-      
-      // Update all expenses as deleted
-      if (relatedExpenses.length > 0) {
-        const updateResults = await tx.expense.updateMany({
-          where: { transactionId: id, isDeleted: false },
+        
+        // Now soft delete the expense
+        await tx.expense.update({
+          where: { id: expense.id },
           data: {
             isDeleted: true,
             deletedAt: new Date(),
@@ -149,7 +155,7 @@ export async function POST(req) {
           }
         });
         
-        archivedExpensesCount = updateResults.count;
+        archivedExpensesCount++;
       }
       
       return { 

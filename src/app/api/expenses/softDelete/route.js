@@ -1,4 +1,4 @@
-// file: app/api/expenses/softDelete/route.js
+// Fixed src/app/api/expenses/softDelete/route.js
 import { PrismaClient } from "@prisma/client";
 import { verifyAuthToken } from "@/lib/auth";
 import { createSafeResponse } from "@/lib/api";

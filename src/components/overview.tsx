@@ -2,67 +2,53 @@
 "use client";
 
 import { useState } from "react";
-import InsightCards from "@/components/InsightCards";
-import { TransactionProfitabilityCard } from "@/components/TransactionProfitabilityCard";
-import TopExpenseCategories from "@/components/TopExpenseCategories";
-import OperationalCostAnalysis from "@/components/OperationalCostAnalysis";
-import ProjectCalendar from "@/components/ProjectCalendar";
-import { DateRange } from "react-day-picker";
-
-// Define a DateRange for chart components
-interface ChartDateRange {
-  from: Date;
-  to: Date;
-}
+import TotalRevenueCard from "@/components/TotalRevenueCard";
+import TotalExpensesCard from "@/components/TotalExpensesCard";
+import NetProfitCard from "@/components/NetProfitCard";
+import RecentFundTransactionsCard from "@/components/RecentFundTransactionsCard";
+import RecentTransactionsCard from "@/components/RecentTransactionsCard";
+import AccountBalanceComparisonCard from "@/components/AccountBalanceComparisonCard";
+import TimeRangeFilter from "@/components/TimeRangeFilter";
+import { TimeRange } from "@/lib/apiController";
+import ProjectCalendar from "./ProjectCalendar";
 
 export default function Overview() {
-  const [selectedDateRange, setSelectedDateRange] = useState<DateRange | undefined>(undefined);
-
-  // Handle date range changes for the chart
-  const handleDateRangeChange = (dateRange: DateRange | undefined) => {
-    setSelectedDateRange(dateRange);
-    console.log("Date range changed in Overview:", dateRange); // Debug log
-  };
-
-  // Convert DateRange to a ChartDateRange type for the chart components
-  const getChartDateRange = (): ChartDateRange | undefined => {
-    if (selectedDateRange?.from && selectedDateRange?.to) {
-      return {
-        from: selectedDateRange.from,
-        to: selectedDateRange.to
-      };
-    }
-    return undefined;
+  const [timeRange, setTimeRange] = useState<TimeRange>({ type: 'all_time' });
+  const [dataVersion, setDataVersion] = useState(0);
+  
+  const handleFilterChange = (newTimeRange: TimeRange) => {
+    setTimeRange(newTimeRange);
+    setDataVersion(prev => prev + 1); // Increment to trigger refreshes
   };
 
   return (
-    <div className="space-y-6">
-      {/* Key Metrics Cards */}
-      <InsightCards onDateRangeChange={handleDateRangeChange} />
+    <div className="space-y-4">
+      {/* Time Range Filter */}
+      <TimeRangeFilter 
+        timeRange={timeRange} 
+        onFilterChange={handleFilterChange} 
+      />
       
-      {/* Transaction Profitability Card (Full Width) */}
-      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-1">
-        <TransactionProfitabilityCard />
+      {/* Top Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <TotalRevenueCard key={`revenue-${dataVersion}`} timeRange={timeRange} />
+        <TotalExpensesCard key={`expenses-${dataVersion}`} timeRange={timeRange} />
+        <NetProfitCard key={`profit-${dataVersion}`} timeRange={timeRange} />
       </div>
       
-      {/* TopExpenseCategories and OperationalCostAnalysis Side by Side */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
-        <div>
-          <TopExpenseCategories 
-            currentPeriod={getChartDateRange()} 
-            limit={5} 
-          />
-        </div>
-        <div>
-          <OperationalCostAnalysis 
-            currentPeriod={getChartDateRange()} 
-          />
-        </div>
+      {/* Middle Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <RecentFundTransactionsCard />
+        <AccountBalanceComparisonCard />
       </div>
       
-      {/* ProjectCalendar Full Width Below */}
-      <div className="mt-4">
-        <ProjectCalendar />
+      {/* Bottom Card */}
+      <div className="grid grid-cols-1 gap-4">
+        <RecentTransactionsCard timeRange={timeRange} />
+      </div>
+
+      <div>
+        <ProjectCalendar/>
       </div>
     </div>
   );

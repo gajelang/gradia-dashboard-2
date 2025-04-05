@@ -4,9 +4,11 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatRupiah } from "@/lib/formatters";
-import { ArrowUpIcon, ArrowDownIcon, Loader2, AlertCircle, CheckCircle, CircleOff } from "lucide-react";
+import { ArrowUpIcon, ArrowDownIcon, Loader2, AlertCircle, CheckCircle, CircleOff, RefreshCw } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { fetchProfitData, ProfitData } from "@/lib/apiController";
+import { fetchProfitData, ProfitData, TimeRange, formatTimePeriodLabel } from "@/lib/apiController";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Default data if API fails
 const defaultProfitData = {
@@ -16,49 +18,61 @@ const defaultProfitData = {
   profitMargin: 0,
   isAboveTarget: false,
   targetProfit: 0,
-  month: new Date().toLocaleString('default', { month: 'long' }),
+  month: 'All Time',
   year: new Date().getFullYear()
 };
 
-export default function NetProfitCard() {
+interface NetProfitCardProps {
+  timeRange?: TimeRange;
+}
+
+export default function NetProfitCard({ timeRange = { type: 'all_time' } }: NetProfitCardProps) {
   const [data, setData] = useState<ProfitData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [useFallbackData, setUseFallbackData] = useState<boolean>(false);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  useEffect(() => {
-    const loadProfitData = async () => {
-      try {
-        setLoading(true);
-        
-        // Fetch profit data from API controller
-        const profitData = await fetchProfitData();
-        
-        // Validate the data
-        if (profitData && typeof profitData.currentAmount === 'number' && !isNaN(profitData.currentAmount)) {
-          setData(profitData);
-          setUseFallbackData(false);
-        } else {
-          console.warn("Invalid profit data returned:", profitData);
+  const loadProfitData = async () => {
+    try {
+      setIsRefreshing(true);
+      
+      // Fetch profit data from API controller
+      const profitData = await fetchProfitData(timeRange);
+      
+      // Validate the data
+      if (profitData && typeof profitData.currentAmount === 'number' && !isNaN(profitData.currentAmount)) {
+        setData(profitData);
+        setUseFallbackData(false);
+        setError(null);
+      } else {
+        console.warn("Invalid profit data returned:", profitData);
+        if (!data) {
           setData(defaultProfitData);
           setUseFallbackData(true);
         }
-      } catch (err) {
-        console.error("Error calculating profit data:", err);
-        setError(err instanceof Error ? err.message : "Unknown error occurred");
+        throw new Error("Invalid profit data format");
+      }
+    } catch (err) {
+      console.error("Error calculating profit data:", err);
+      setError(err instanceof Error ? err.message : "Unknown error occurred");
+      if (!data) {
         setData(defaultProfitData);
         setUseFallbackData(true);
-      } finally {
-        setLoading(false);
       }
-    };
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     loadProfitData();
-  }, []);
+  }, [timeRange]);
 
-  if (loading) {
+  if (loading && !data) {
     return (
-      <Card>
+      <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
         </CardHeader>
@@ -71,12 +85,15 @@ export default function NetProfitCard() {
 
   if (error && !data) {
     return (
-      <Card>
+      <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-sm text-red-500">Failed to calculate profit data</div>
+          <Button onClick={loadProfitData} variant="outline" size="sm" className="mt-2">
+            Retry
+          </Button>
         </CardContent>
       </Card>
     );
@@ -84,7 +101,7 @@ export default function NetProfitCard() {
 
   if (!data) {
     return (
-      <Card>
+      <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Net Profit</CardTitle>
         </CardHeader>
@@ -107,14 +124,31 @@ export default function NetProfitCard() {
 
   return (
     <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium">
-          Net Profit
-          {useFallbackData && <span className="text-xs text-amber-500 ml-2">(Default Data)</span>}
-        </CardTitle>
-        <p className="text-xs text-muted-foreground">
-          {data.month} {data.year}
-        </p>
+      <CardHeader className="pb-2 flex flex-row items-center justify-between">
+        <div>
+          <CardTitle className="text-sm font-medium">
+            Net Profit
+            {useFallbackData && <span className="text-xs text-amber-500 ml-2">(Default Data)</span>}
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            {formatTimePeriodLabel(timeRange)}
+          </p>
+        </div>
+        
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="h-6 w-6 p-0"
+          onClick={loadProfitData}
+          disabled={isRefreshing}
+          title="Refresh data"
+        >
+          {isRefreshing ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+          )}
+        </Button>
       </CardHeader>
       <CardContent>
         <div className="space-y-2">
@@ -168,6 +202,15 @@ export default function NetProfitCard() {
               </Tooltip>
             </TooltipProvider>
           </div>
+          
+          {/* Display error but don't clear existing data */}
+          {error && (
+            <Alert variant="destructive" className="mt-2 py-2">
+              <AlertDescription className="text-xs text-red-600">
+                {error} - Using previously loaded data.
+              </AlertDescription>
+            </Alert>
+          )}
 
           <div className="pt-2 border-t">
             <div className="flex justify-between items-center">

@@ -5,48 +5,64 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatRupiah } from "@/lib/formatters";
 import { ArrowUpIcon, ArrowDownIcon, Loader2, TrendingUp, RefreshCw } from "lucide-react";
-import { fetchComprehensiveFinancialData } from "@/lib/apiController";
+import { fetchComprehensiveFinancialData, TimeRange, formatTimePeriodLabel } from "@/lib/apiController";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-export default function TotalRevenueCard() {
+interface TotalRevenueCardProps {
+  timeRange?: TimeRange;
+}
+
+export default function TotalRevenueCard({ timeRange = { type: 'all_time' } }: TotalRevenueCardProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   const loadFinancialData = async () => {
     try {
-      setLoading(true);
-      const financialData = await fetchComprehensiveFinancialData();
+      setIsRefreshing(true);
+      const financialData = await fetchComprehensiveFinancialData(timeRange);
       
       if (financialData && financialData.revenue) {
         setData(financialData);
       } else {
         throw new Error("Invalid revenue data");
       }
+      setError(null);
     } catch (err) {
       console.error("Error fetching revenue data:", err);
       setError(err instanceof Error ? err.message : "Unknown error occurred");
       
-      // Set default data
-      setData({
-        revenue: {
-          currentAmount: 0,
-          previousAmount: 0,
-          percentageChange: 0,
-          month: new Date().toLocaleString('default', { month: 'long' }),
-          year: new Date().getFullYear()
-        }
-      });
+      // Only set default data if we don't already have data
+      if (!data) {
+        setData({
+          revenue: {
+            currentAmount: 0,
+            previousAmount: 0,
+            percentageChange: 0,
+            month: timeRange.type === 'all_time' ? 'All Time' : 
+                   new Date().toLocaleString('default', { month: 'long' }),
+            year: new Date().getFullYear()
+          },
+          funds: {
+            pettyCash: 0,
+            profitBank: 0,
+            total: 0
+          }
+        });
+      }
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     loadFinancialData();
-  }, []);
+  }, [timeRange]);
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <Card>
         <CardHeader className="pb-2">
@@ -67,6 +83,9 @@ export default function TotalRevenueCard() {
         </CardHeader>
         <CardContent>
           <div className="text-sm text-red-500">Failed to load revenue data</div>
+          <Button onClick={loadFinancialData} variant="outline" size="sm" className="mt-2">
+            Retry
+          </Button>
         </CardContent>
       </Card>
     );
@@ -100,7 +119,7 @@ export default function TotalRevenueCard() {
             Total Revenue
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            {revenue.month} {revenue.year}
+            {formatTimePeriodLabel(timeRange)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -109,9 +128,14 @@ export default function TotalRevenueCard() {
             size="sm" 
             className="h-6 w-6 p-0"
             onClick={loadFinancialData}
+            disabled={isRefreshing}
             title="Refresh data"
           >
-            <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+            {isRefreshing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
           </Button>
           <TrendingUp className="h-5 w-5 text-green-500" />
         </div>
@@ -136,6 +160,15 @@ export default function TotalRevenueCard() {
                 }`}
           </span>
         </div>
+        
+        {/* Display error but don't clear existing data */}
+        {error && (
+          <Alert variant="destructive" className="mt-2 py-2">
+            <AlertDescription className="text-xs text-red-600">
+              {error} - Using previously loaded data.
+            </AlertDescription>
+          </Alert>
+        )}
         
         {funds && (
           <div className="mt-4 grid grid-cols-2 gap-2 text-xs">

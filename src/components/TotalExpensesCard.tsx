@@ -4,57 +4,67 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatRupiah } from "@/lib/formatters";
-import { ArrowUpIcon, ArrowDownIcon, Loader2, TrendingDown, PieChart, RefreshCw } from "lucide-react";
-import { fetchComprehensiveFinancialData } from "@/lib/apiController";
+import { ArrowUpIcon, ArrowDownIcon, Loader2, TrendingDown, RefreshCw } from "lucide-react";
+import { fetchComprehensiveFinancialData, TimeRange, formatTimePeriodLabel } from "@/lib/apiController";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
-export default function TotalExpensesCard() {
+interface TotalExpensesCardProps {
+  timeRange?: TimeRange;
+}
+
+export default function TotalExpensesCard({ timeRange = { type: 'all_time' } }: TotalExpensesCardProps) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   
   const loadFinancialData = async () => {
     try {
-      setLoading(true);
-      const financialData = await fetchComprehensiveFinancialData();
+      setIsRefreshing(true);
+      const financialData = await fetchComprehensiveFinancialData(timeRange);
       
       if (financialData && financialData.expenses) {
         setData(financialData);
       } else {
         throw new Error("Invalid expense data");
       }
+      setError(null);
     } catch (err) {
       console.error("Error fetching expense data:", err);
       setError(err instanceof Error ? err.message : "Unknown error occurred");
       
-      // Set default data
-      setData({
-        expenses: {
-          currentAmount: 0,
-          previousAmount: 0,
-          percentageChange: 0,
-          operationalAmount: 0,
-          projectAmount: 0,
-          month: new Date().toLocaleString('default', { month: 'long' }),
-          year: new Date().getFullYear()
-        },
-        operationalVsProject: {
-          operational: 0,
-          project: 0,
-          total: 0
-        }
-      });
+      // Only set default data if we don't already have data
+      if (!data) {
+        setData({
+          expenses: {
+            currentAmount: 0,
+            previousAmount: 0,
+            percentageChange: 0,
+            operationalAmount: 0,
+            projectAmount: 0,
+            month: timeRange.type === 'all_time' ? 'All Time' : 
+                   new Date().toLocaleString('default', { month: 'long' }),
+            year: new Date().getFullYear()
+          },
+          operationalVsProject: {
+            operational: 0,
+            project: 0,
+            total: 0
+          }
+        });
+      }
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
   useEffect(() => {
     loadFinancialData();
-  }, []);
+  }, [timeRange]);
 
-  if (loading) {
+  if (loading && !data) {
     return (
       <Card>
         <CardHeader className="pb-2">
@@ -75,6 +85,9 @@ export default function TotalExpensesCard() {
         </CardHeader>
         <CardContent>
           <div className="text-sm text-red-500">Failed to load expense data</div>
+          <Button onClick={loadFinancialData} variant="outline" size="sm" className="mt-2">
+            Retry
+          </Button>
         </CardContent>
       </Card>
     );
@@ -117,7 +130,7 @@ export default function TotalExpensesCard() {
             Total Expenses
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            {expenses.month} {expenses.year}
+            {formatTimePeriodLabel(timeRange)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -126,9 +139,14 @@ export default function TotalExpensesCard() {
             size="sm" 
             className="h-6 w-6 p-0"
             onClick={loadFinancialData}
+            disabled={isRefreshing}
             title="Refresh data"
           >
-            <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+            {isRefreshing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
           </Button>
           <TrendingDown className="h-5 w-5 text-red-500" />
         </div>
@@ -153,6 +171,15 @@ export default function TotalExpensesCard() {
                 }`}
           </span>
         </div>
+        
+        {/* Display error but don't clear existing data */}
+        {error && (
+          <Alert variant="destructive" className="mt-2 py-2">
+            <AlertDescription className="text-xs text-red-600">
+              {error} - Using previously loaded data.
+            </AlertDescription>
+          </Alert>
+        )}
         
         {breakdown && breakdown.total > 0 && (
           <>

@@ -12,11 +12,8 @@ import { useRouter } from "next/navigation";
 import { 
   Activity, 
   Loader2, 
-  Eye, 
   Calendar,
-  Filter, 
   RefreshCw,
-  ExternalLink,
   CreditCard,
   Wallet,
   CreditCard as PaymentIcon,
@@ -29,45 +26,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { TimeRange, getDateRangeFromTimeRange, formatTimePeriodLabel } from "@/lib/apiController";
 
-interface Transaction {
-  isDeleted: any;
-  id: string;
-  name: string;
-  description?: string;
-  fundType: string;
-  amount: number;
-  projectValue: number;
-  capitalCost: number;
-  paymentStatus: string;
-  date: string;
-  startDate?: string;
-  endDate?: string;
-  createdBy?: {
-    id: string;
-    name: string;
-    email: string;
-  };
+interface RecentTransactionsCardProps {
+  timeRange?: TimeRange;
 }
 
-export default function RecentTransactionsCard() {
+export default function RecentTransactionsCard({ timeRange = { type: 'all_time' } }: RecentTransactionsCardProps) {
   const router = useRouter();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [projectFilter, setProjectFilter] = useState<string>("all");
 
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
-
   const fetchTransactions = async () => {
     try {
-      setLoading(true);
+      setIsRefreshing(true);
       // Use the same API endpoint as the transaction table
-      const response = await fetchWithAuth("/api/transactions?limit=10", {
+      const response = await fetchWithAuth("/api/transactions", {
         cache: "no-store",
       });
 
@@ -77,8 +56,11 @@ export default function RecentTransactionsCard() {
 
       const data = await response.json();
       
+      // Filter transactions based on timeRange
+      const { startDate, endDate } = getDateRangeFromTimeRange(timeRange);
+      
       // Ensure we have an array of transactions
-      let transactionsData: Transaction[] = [];
+      let transactionsData: any[] = [];
       if (Array.isArray(data)) {
         transactionsData = data;
       } else if (data && typeof data === 'object' && Array.isArray(data.data)) {
@@ -87,25 +69,36 @@ export default function RecentTransactionsCard() {
         console.warn('Unexpected API response format:', data);
       }
       
-      // Filter out deleted transactions
-      const activeTransactions = transactionsData.filter(tx => !tx.isDeleted);
+      // IMPORTANT: Filter out deleted transactions AND apply time range filter
+      const filteredTransactions = transactionsData.filter(tx => {
+        if (tx.isDeleted) return false;
+        
+        const txDate = new Date(tx.date);
+        return txDate >= startDate && txDate <= endDate;
+      });
       
       // Sort by date (newest first)
-      const sortedTransactions = activeTransactions.sort((a, b) => 
+      const sortedTransactions = filteredTransactions.sort((a, b) => 
         new Date(b.date).getTime() - new Date(a.date).getTime()
       );
 
       setTransactions(sortedTransactions);
+      setError(null);
     } catch (err) {
       console.error("Error fetching transactions:", err);
       setError(err instanceof Error ? err.message : "Failed to load transactions");
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
+  useEffect(() => {
+    fetchTransactions();
+  }, [timeRange]); // Add timeRange as a dependency
+
   // Get broadcast status
-  const getBroadcastStatus = (tx: Transaction): string => {
+  const getBroadcastStatus = (tx: any): string => {
     if (!tx.startDate && !tx.endDate) return "Tidak Ada";
     
     const now = new Date();
@@ -153,7 +146,7 @@ export default function RecentTransactionsCard() {
   };
 
   // Calculate net profit (projectValue - capitalCost)
-  const calculateNetProfit = (transaction: Transaction) => {
+  const calculateNetProfit = (transaction: any) => {
     const totalProfit = transaction.projectValue || 0;
     const capitalCost = transaction.capitalCost || 0;
     return totalProfit - capitalCost;
@@ -194,7 +187,7 @@ export default function RecentTransactionsCard() {
     }
   };
 
-  const handleViewTransaction = (id: string) => {
+  const handleTransactionClick = (id: string) => {
     // Navigate to transaction details
     router.push(`/transactions/${id}`);
   };
@@ -203,7 +196,7 @@ export default function RecentTransactionsCard() {
     router.push('/transactions');
   };
 
-  if (loading) {
+  if (loading && transactions.length === 0) {
     return (
       <Card className="bg-gradient-to-br border-indigo-200">
         <CardHeader className="pb-2">
@@ -219,51 +212,44 @@ export default function RecentTransactionsCard() {
     );
   }
 
-  if (error) {
-    return (
-      <Card className="bg-gradient-to-br border-indigo-200">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center">
-            <Activity className="mr-2 h-5 w-5 text-indigo-600" />
-            Recent Transactions
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-sm text-red-500 py-4 text-center">
-            {error}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  const filteredTransactions = getFilteredTransactions();
 
   return (
     <Card className="bg-gradient-to-br border-indigo-200">
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
-        <CardTitle className="text-sm font-medium flex items-center">
-          <Activity className="mr-2 h-5 w-5 text-indigo-600" />
-          Recent Transactions
-        </CardTitle>
+        <div>
+          <CardTitle className="text-sm font-medium flex items-center">
+            <Activity className="mr-2 h-5 w-5 text-indigo-600" />
+            Recent Transactions
+          </CardTitle>
+          {timeRange.type !== 'all_time' && (
+            <p className="text-xs text-muted-foreground">
+              {formatTimePeriodLabel(timeRange)}
+            </p>
+          )}
+        </div>
         <div className="flex items-center gap-2">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  onClick={fetchTransactions}
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Refresh transactions</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="h-8 w-8 p-0"
+            onClick={fetchTransactions}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+          </Button>
         </div>
       </CardHeader>
+      
+      {error && (
+        <Alert variant="destructive" className="mx-4 my-2">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       
       <div className="px-4 py-2 flex space-x-2">
         <div className="flex items-center space-x-2 flex-1">
@@ -305,18 +291,18 @@ export default function RecentTransactionsCard() {
       </div>
       
       <CardContent className="p-0">
-        {getFilteredTransactions().length === 0 ? (
+        {filteredTransactions.length === 0 ? (
           <div className="text-sm text-gray-500 py-4 text-center">
-            No transactions match the selected filters
+            {loading ? "Loading transactions..." : "No transactions match the selected filters"}
           </div>
         ) : (
           <ScrollArea className="h-[240px]">
             <div className="space-y-3 py-3 px-4">
-              {getFilteredTransactions().map((transaction) => (
+              {filteredTransactions.map((transaction) => (
                 <div 
                   key={transaction.id} 
                   className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 cursor-pointer hover:bg-gray-50"
-                  onClick={() => handleViewTransaction(transaction.id)}
+                  onClick={() => handleTransactionClick(transaction.id)}
                 >
                   <div className="flex justify-between items-start">
                     <div className="flex-1 min-w-0">

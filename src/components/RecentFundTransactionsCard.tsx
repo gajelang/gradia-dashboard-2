@@ -1,4 +1,4 @@
-// src/components/RecentFundTransactionsCard.tsx
+// src/components/RecentFundTransactionsCard.tsx - Fixed version
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { fetchWithAuth } from "@/lib/api";
 import { formatRupiah } from "@/lib/formatters";
-import { Loader2, ExternalLink, ArrowUpDown } from "lucide-react";
+import { Loader2, ExternalLink, ArrowUpDown, RefreshCw, AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { AlertDescription } from "@/components/ui/alert";
 
 interface FundTransaction {
   id: string;
@@ -25,131 +26,84 @@ interface FundTransaction {
   };
 }
 
-// Default transactions to use if API fails
-const defaultTransactions: FundTransaction[] = [
-  {
-    id: "default-1",
-    fundType: "petty_cash",
-    transactionType: "income",
-    amount: 1500000,
-    balanceAfter: 1500000,
-    description: "Default transaction data",
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: "default-2",
-    fundType: "profit_bank",
-    transactionType: "expense",
-    amount: -500000,
-    balanceAfter: 2000000,
-    description: "Default transaction data",
-    createdAt: new Date(Date.now() - 86400000).toISOString(), // Yesterday
-  },
-  {
-    id: "default-3",
-    fundType: "petty_cash",
-    transactionType: "transfer_out",
-    amount: -300000,
-    balanceAfter: 1200000,
-    description: "Default transfer to profit bank",
-    createdAt: new Date(Date.now() - 172800000).toISOString(), // Two days ago
-  },
-  {
-    id: "default-4",
-    fundType: "profit_bank",
-    transactionType: "transfer_in",
-    amount: 300000,
-    balanceAfter: 2300000,
-    description: "Default transfer from petty cash",
-    createdAt: new Date(Date.now() - 172800000).toISOString(), // Two days ago
-  },
-];
-
 export default function RecentFundTransactionsCard() {
   const router = useRouter();
   const [transactions, setTransactions] = useState<FundTransaction[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [useFallbackData, setUseFallbackData] = useState<boolean>(false);
 
   useEffect(() => {
-    const fetchTransactions = async () => {
-      try {
-        setLoading(true);
-        const response = await fetchWithAuth("/api/fund-transaction?limit=10", {
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to fetch fund transactions");
-        }
-
-        const responseText = await response.text();
-        
-        // Check if response is empty
-        if (!responseText || responseText.trim() === '') {
-          console.warn("Empty response from fund transactions API");
-          throw new Error("Empty response from server");
-        }
-        
-        try {
-          // Try to parse JSON
-          const parsedData = JSON.parse(responseText);
-          
-          // Handle various response formats
-          let transactionsData: FundTransaction[] = [];
-          
-          if (Array.isArray(parsedData)) {
-            transactionsData = parsedData;
-          } else if (parsedData && typeof parsedData === 'object') {
-            // Check for common API response patterns
-            if (Array.isArray(parsedData.data)) {
-              transactionsData = parsedData.data;
-            } else if (Array.isArray(parsedData.transactions)) {
-              transactionsData = parsedData.transactions;
-            } else {
-              console.warn('Unexpected transactions API response format:', parsedData);
-              throw new Error("Unexpected response format");
-            }
-          } else {
-            console.warn('Invalid transactions API response:', parsedData);
-            throw new Error("Invalid response format");
-          }
-          
-          // Validate and clean each transaction
-          const sanitizedTransactions = transactionsData.map((tx: any) => ({
-            id: tx.id || `tx-${Math.random().toString(36).substring(2, 9)}`,
-            fundType: typeof tx.fundType === 'string' ? tx.fundType : 'unknown',
-            transactionType: typeof tx.transactionType === 'string' ? tx.transactionType : 'unknown',
-            amount: typeof tx.amount === 'number' ? tx.amount : 0,
-            balanceAfter: typeof tx.balanceAfter === 'number' ? tx.balanceAfter : 0,
-            description: tx.description || '',
-            createdAt: typeof tx.createdAt === 'string' ? tx.createdAt : new Date().toISOString(),
-            createdBy: tx.createdBy || null
-          }));
-          
-          setTransactions(sanitizedTransactions);
-          setUseFallbackData(false);
-        } catch (parseError) {
-          console.error("JSON parse error:", parseError);
-          console.error("Raw response:", responseText);
-          throw new Error("Invalid JSON response");
-        }
-      } catch (err) {
-        console.error("Error fetching fund transactions:", err);
-        setError(err instanceof Error ? err.message : "Unknown error occurred");
-        
-        // Use fallback data
-        setTransactions(defaultTransactions);
-        setUseFallbackData(true);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchTransactions();
   }, []);
 
+  const fetchTransactions = async () => {
+    try {
+      setIsRefreshing(true);
+      const response = await fetchWithAuth("/api/fund-transaction?limit=10", {
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch fund transactions");
+      }
+
+      const responseData = await response.json();
+      
+      // Ensure transactions is always an array before setting the state
+      let transactionsData: FundTransaction[] = [];
+      if (Array.isArray(responseData)) {
+        transactionsData = responseData;
+      } else if (responseData && typeof responseData === 'object') {
+        // Check for common API response patterns
+        if (Array.isArray(responseData.transactions)) {
+          transactionsData = responseData.transactions;
+        } else if (Array.isArray(responseData.data)) {
+          transactionsData = responseData.data;
+        } else {
+          console.error('Unexpected transactions API response format:', responseData);
+          throw new Error("Unexpected response format");
+        }
+      }
+
+      setTransactions(transactionsData);
+      setUseFallbackData(false);
+      setError(null);
+    } catch (err) {
+      console.error("Error fetching fund transactions:", err);
+      setError(err instanceof Error ? err.message : "Unknown error occurred");
+      
+      // Don't use fallback data if we already have data
+      if (transactions.length === 0) {
+        setUseFallbackData(true);
+        setTransactions([
+          {
+            id: "default-1",
+            fundType: "petty_cash",
+            transactionType: "income",
+            amount: 1500000,
+            balanceAfter: 1500000,
+            description: "Default transaction data",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "default-2",
+            fundType: "profit_bank",
+            transactionType: "expense",
+            amount: -500000,
+            balanceAfter: 2000000,
+            description: "Default transaction data",
+            createdAt: new Date(Date.now() - 86400000).toISOString(), // Yesterday
+          }
+        ]);
+      }
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+  
   // Format date
   const formatDate = (dateString: string) => {
     try {
@@ -204,7 +158,7 @@ export default function RecentFundTransactionsCard() {
     router.push('/fund-management');
   };
 
-  if (loading) {
+  if (loading && transactions.length === 0) {
     return (
       <Card>
         <CardHeader className="pb-2">
@@ -217,31 +171,41 @@ export default function RecentFundTransactionsCard() {
     );
   }
 
-  if (error && transactions.length === 0) {
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Recent Transactions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-sm text-red-500">Failed to load transaction data</div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // Calculate height for 2 cards (each card is about 112px with padding and margin)
-  const cardHeight = "240px";
-
   return (
     <Card className="border-purple-200">
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium flex items-center">
-          <ArrowUpDown className="mr-2 h-5 w-5 text-purple-600" />
-          Recent Fund Transactions
-          {useFallbackData && <span className="text-xs text-amber-500 ml-2">(Default Data)</span>}
+        <CardTitle className="text-sm font-medium flex items-center justify-between">
+          <div className="flex items-center">
+            <ArrowUpDown className="mr-2 h-5 w-5 text-purple-600" />
+            Recent Fund Transactions
+            {useFallbackData && <span className="text-xs text-amber-500 ml-2">(Default Data)</span>}
+          </div>
+          
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="h-6 w-6 p-0"
+            onClick={fetchTransactions}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3.5 w-3.5" />
+            )}
+          </Button>
         </CardTitle>
       </CardHeader>
+      
+      {error && !useFallbackData && (
+        <div className="px-4 py-2">
+          <div className="bg-amber-50 text-amber-800 p-2 rounded text-xs flex items-center">
+            <AlertTriangle className="h-4 w-4 mr-2" />
+            {error}
+          </div>
+        </div>
+      )}
+      
       <CardContent className="p-0">
         {transactions.length === 0 ? (
           <div className="text-center py-6 text-sm text-muted-foreground">

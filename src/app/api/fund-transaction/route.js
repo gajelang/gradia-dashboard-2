@@ -1,4 +1,4 @@
-// src/app/api/fund-transactions/route.js
+// Fixed src/app/api/fund-transaction/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuthToken } from '@/lib/auth';
@@ -14,7 +14,7 @@ export async function OPTIONS(request) {
   });
 }
 
-// Get fund transactions with optional filtering
+// Get fund transactions with improved pagination and filtering
 export async function GET(request) {
   try {
     // Verify authentication
@@ -26,17 +26,29 @@ export async function GET(request) {
     // Parse URL to get query parameters
     const { searchParams } = new URL(request.url);
     const fundType = searchParams.get('fundType');
-    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')) : 100;
-    const page = searchParams.get('page') ? parseInt(searchParams.get('page')) : 1;
+    const limit = Math.min(parseInt(searchParams.get('limit') || '100'), 100); // Cap max results at 100 for performance
+    const page = parseInt(searchParams.get('page') || '1');
     const skip = (page - 1) * limit;
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const transactionType = searchParams.get('transactionType');
+    const sourceType = searchParams.get('sourceType');
     
     // Build where clause for filtering
     const whereClause = {};
     
     if (fundType) {
       whereClause.fundType = fundType;
+    }
+    
+    // Add transaction type filter if provided
+    if (transactionType) {
+      whereClause.transactionType = transactionType;
+    }
+    
+    // Add source type filter if provided
+    if (sourceType) {
+      whereClause.sourceType = sourceType;
     }
     
     // Add date range filter if provided
@@ -48,7 +60,10 @@ export async function GET(request) {
       }
       
       if (endDate) {
-        whereClause.createdAt.lte = new Date(endDate);
+        // End date should include the entire day, so set to end of day
+        const endDateTime = new Date(endDate);
+        endDateTime.setHours(23, 59, 59, 999);
+        whereClause.createdAt.lte = endDateTime;
       }
     }
     
@@ -82,16 +97,18 @@ export async function GET(request) {
         total: totalCount,
         page,
         limit,
-        totalPages: Math.ceil(totalCount / limit)
+        totalPages: Math.ceil(totalCount / limit),
+        hasNextPage: skip + transactions.length < totalCount,
+        hasPrevPage: page > 1
       }
     });
   } catch (error) {
     console.error('Error fetching fund transactions:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 });
   }
 }
 
-// Create a manual fund transaction
+// Create a manual fund transaction (rest of the code is unchanged)
 export async function POST(request) {
   try {
     // Verify authentication

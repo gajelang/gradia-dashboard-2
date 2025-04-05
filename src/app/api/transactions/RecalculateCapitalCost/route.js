@@ -1,4 +1,4 @@
-// file: app/api/transactions/recalculateCapitalCost/route.js
+// Fixed src/app/api/transactions/recalculateCapitalCost/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuthToken } from '@/lib/auth';
@@ -41,8 +41,14 @@ export async function POST(request) {
     console.log(`Found ${activeExpenses.length} active expenses for transaction ${transactionId}`);
 
     // Calculate new capital cost based only on active expenses
+    // Type-safe summation that handles different types of amount values
     const newCapitalCost = activeExpenses.reduce(
-      (sum, exp) => sum + (exp.amount || 0), 
+      (sum, exp) => {
+        const expAmount = typeof exp.amount === 'number' 
+          ? exp.amount 
+          : parseFloat(exp.amount || '0');
+        return sum + (isNaN(expAmount) ? 0 : expAmount);
+      }, 
       0
     );
 
