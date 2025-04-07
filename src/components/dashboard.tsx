@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import AddTransactionModal from "@/components/AddTransactionModal"
 import TransactionTable from "@/components/transactions/TransactionTable"
 import ExpensesTable from "@/components/ExpensesTable"
-import ResourcesTab from "@/components/ResourceTab"
+import ImprovedResourceTab from "@/components/resources/ImprovedResourceTab"
 import InvoiceCreator from "@/components/InvoiceCreator"
 import InvoiceList from "@/components/InvoiceList"
 import DashboardHeader from "@/components/dashboard-header"
@@ -48,10 +48,10 @@ export default function Dashboard() {
 
       // Type the response as an array of TransactionData
       const data: TransactionData[] = await res.json();
-      
+
       // Map raw data to the Transaction format using the helper function
       const mappedData = data.map((tx: TransactionData) => convertToTransaction(tx));
-      
+
       setTransactions(mappedData);
     } catch (error) {
       console.error("Error fetching transactions:", error);
@@ -92,7 +92,7 @@ export default function Dashboard() {
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="projects">Projects</TabsTrigger>
             <TabsTrigger value="expenses">Expenses</TabsTrigger>
-            <TabsTrigger value="invoices">Invoices</TabsTrigger> 
+            <TabsTrigger value="invoices">Invoices</TabsTrigger>
             <TabsTrigger value="analysis">Project Financial</TabsTrigger>
             <TabsTrigger value="company-finance">Company Finance</TabsTrigger>
             <TabsTrigger value="resources">Resources</TabsTrigger>
@@ -100,32 +100,32 @@ export default function Dashboard() {
           <TabsContent value="overview" className="space-y-4">
             <Overview />
           </TabsContent>
-          
+
           <TabsContent value="projects" className="space-y-4">
             <TransactionTable />
           </TabsContent>
-          
+
           <TabsContent value="expenses" className="space-y-4">
             <ExpensesTable />
           </TabsContent>
-          
+
           <TabsContent value="invoices" className="space-y-4">
             <InvoiceList />
           </TabsContent>
-          
+
           <TabsContent value="analysis" className="space-y-4">
             <FinancialAnalysis />
             <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-1">
               <TransactionProfitabilityCard />
             </div>
           </TabsContent>
-          
+
           <TabsContent value="company-finance" className="space-y-4">
             <CompanyFinance />
           </TabsContent>
-          
+
           <TabsContent value="resources" className="space-y-4">
-            <ResourcesTab />
+            <ImprovedResourceTab />
           </TabsContent>
         </Tabs>
       </div>

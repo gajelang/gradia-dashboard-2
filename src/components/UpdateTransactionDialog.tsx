@@ -17,13 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { 
-  Loader2, 
-  Save, 
-  Plus, 
-  X, 
-  Link as LinkIcon, 
-  Calendar, 
+import {
+  Loader2,
+  Save,
+  Plus,
+  X,
+  Link as LinkIcon,
+  Calendar,
   ExternalLink,
   Wallet,
   CreditCard,
@@ -107,7 +107,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     endDate: transaction.endDate ? new Date(transaction.endDate).toISOString().split('T')[0] : "",
     fundType: transaction.fundType || "petty_cash", // Use existing fund type or default to petty cash
   });
-  
+
   // Fund balances state
   const [fundBalances, setFundBalances] = useState<{
     petty_cash: number;
@@ -117,10 +117,10 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     profit_bank: 0
   });
   const [loadingFundBalances, setLoadingFundBalances] = useState(false);
-  
+
   // Existing expenses
   const [existingExpenses, setExistingExpenses] = useState<Expense[]>([]);
-  
+
   // New expenses to be added
   const [newExpenses, setNewExpenses] = useState<Array<{
     category: string;
@@ -131,14 +131,14 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
     vendorId: string;
     fundType: string;
   }>>([]);
-  
+
   // Add expense sheet state
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
-  
+
   // Vendors state
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loadingVendors, setLoadingVendors] = useState(false);
-  
+
   const [activeTab, setActiveTab] = useState("details");
   const [confirmText, setConfirmText] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
@@ -171,18 +171,18 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
   const loadTransactionExpenses = useCallback(async () => {
     try {
       setIsLoadingExpenses(true);
-      
+
       console.log(`Fetching expenses for transaction: ${transaction.id}`);
-      
+
       const res = await fetchWithAuth(`/api/transactions/expenses?transactionId=${transaction.id}&includeArchived=false`, {
         cache: "no-store"
       });
-      
+
       if (!res.ok) {
         console.error(`Error response from /api/transactions/expenses: ${res.status}`);
         throw new Error("Failed to fetch transaction expenses");
       }
-      
+
       let data;
       try {
         data = await res.json();
@@ -190,10 +190,10 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
         console.error("Error parsing response:", e);
         throw new Error("Failed to parse expense data");
       }
-      
+
       // Set only active expenses
       setExistingExpenses(data.activeExpenses || []);
-      
+
     } catch (error) {
       console.error("Error loading transaction expenses:", error);
     } finally {
@@ -212,7 +212,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
           petty_cash: 0,
           profit_bank: 0
         };
-        
+
         data.forEach((fund: any) => {
           if (fund.fundType === "petty_cash") {
             balances.petty_cash = fund.currentBalance;
@@ -220,7 +220,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
             balances.profit_bank = fund.currentBalance;
           }
         });
-        
+
         setFundBalances(balances);
       }
     } catch (error) {
@@ -298,42 +298,42 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
   const handleVendorChange = (value: string) => {
     setNewExpense(prev => ({ ...prev, vendorId: value === "none" ? "" : value }));
   };
-  
+
   // Handle fund type change for transaction
   const handleFundTypeChange = (value: string) => {
     setFormData(prev => ({ ...prev, fundType: value }));
   };
-  
+
   // Handle fund type change for expense
   const handleExpenseFundTypeChange = (value: string) => {
     setNewExpense(prev => ({ ...prev, fundType: value }));
   };
-  
+
   // Handle adding a new expense
   const handleAddExpense = () => {
     // Validate new expense form
     const errors: Record<string, string> = {};
     if (!newExpense.category) errors.category = "Category is required";
-    if (!newExpense.amount || parseFloat(newExpense.amount) <= 0) 
+    if (!newExpense.amount || parseFloat(newExpense.amount) <= 0)
       errors.amount = "Valid expense amount is required";
     if (!newExpense.date) errors.date = "Date is required";
     if (!newExpense.fundType) errors.fundType = "Fund source is required";
-    if (newExpense.paymentProofLink && !isValidURL(newExpense.paymentProofLink)) 
+    if (newExpense.paymentProofLink && !isValidURL(newExpense.paymentProofLink))
       errors.paymentProofLink = "Please enter a valid URL";
-    
+
     setExpenseErrors(errors);
-    
+
     if (Object.keys(errors).length > 0) {
       return;
     }
-    
+
     // Add the new expense to the list
     setNewExpenses([...newExpenses, { ...newExpense }]);
-    
+
     // Close the add expense panel and reset form
     setIsAddExpenseOpen(false);
     resetNewExpenseForm();
-    
+
     // Make sure we're on the expenses tab
     setActiveTab("expenses");
   };
@@ -341,7 +341,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
   // Handle new expense form field changes
   const handleNewExpenseChange = (field: string, value: string) => {
     setNewExpense(prev => ({ ...prev, [field]: value }));
-    
+
     // Clear any error for this field
     if (expenseErrors[field]) {
       setExpenseErrors(prev => {
@@ -367,10 +367,10 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
   const formatDate = (dateString: string | undefined | null) => {
     if (!dateString) return "-";
     const date = new Date(dateString);
-    return date.toLocaleDateString(undefined, { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     });
   };
 
@@ -378,10 +378,10 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
   const validateTransactionForm = (): boolean => {
     const errors: Record<string, string> = {};
     if (!formData.name.trim()) errors.name = "Transaction name is required";
-    if (!formData.projectValue || parseFloat(formData.projectValue) <= 0) 
+    if (!formData.projectValue || parseFloat(formData.projectValue) <= 0)
       errors.projectValue = "Valid project value is required";
     if (!formData.fundType) errors.fundType = "Fund type is required";
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -389,7 +389,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    
+
     // Clear any error for this field
     if (formErrors[name]) {
       setFormErrors(prev => {
@@ -405,17 +405,17 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
       toast.error("Please type UPDATE to confirm");
       return;
     }
-    
+
     if (!validateTransactionForm()) {
       toast.error("Please correct the errors in the form");
       setActiveTab("details");
       return;
     }
-    
+
     setIsUpdating(true);
     try {
       const projectValue = parseFloat(formData.projectValue) || 0;
-      
+
       // Process new expenses data
       const processedExpenses = newExpenses.map(exp => ({
         category: exp.category,
@@ -430,9 +430,9 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
         // Include fund type
         fundType: exp.fundType || "petty_cash",
         // Add user tracking information
-        createdById: user?.userId // Include the current user ID for tracking
+        createdById: user?.id // Include the current user ID for tracking
       }));
-      
+
       const payload = {
         id: transaction.id,
         name: formData.name,
@@ -444,7 +444,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
         startDate: formData.startDate || null,
         endDate: formData.endDate || null,
         expenses: processedExpenses, // Add expenses to the payload
-        updatedById: user?.userId, // Add who updated the transaction
+        updatedById: user?.id, // Add who updated the transaction
         fundType: formData.fundType, // Include the fund type
       };
 
@@ -455,7 +455,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      
+
       if (!res.ok) {
         // If transactions/update endpoint fails, try the transactions endpoint
         console.log("Failed to use /api/transactions/update, trying fallback to /api/transactions");
@@ -464,24 +464,24 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        
+
         if (!fallbackRes.ok) {
           const errorData = await fallbackRes.json();
           throw new Error(errorData.message || "Failed to update transaction");
         }
-        
+
         const updated = await fallbackRes.json();
         toast.success("Transaction updated successfully (fallback)");
         onTransactionUpdated(updated.transaction);
         setOpen(false);
         return;
       }
-      
+
       const updated = await res.json();
       toast.success("Transaction updated successfully");
       onTransactionUpdated(updated.transaction);
       setOpen(false);
-      
+
       // Refresh fund balances after update
       fetchFundBalances();
     } catch (error) {
@@ -509,14 +509,14 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
   };
 
   // Calculate total expenses
-  const totalExistingExpenses = existingExpenses.reduce((sum, exp) => 
+  const totalExistingExpenses = existingExpenses.reduce((sum, exp) =>
     sum + (typeof exp.amount === 'number' ? exp.amount : parseFloat(String(exp.amount)) || 0), 0
   );
-  
-  const totalNewExpenses = newExpenses.reduce((sum, exp) => 
+
+  const totalNewExpenses = newExpenses.reduce((sum, exp) =>
     sum + (parseFloat(exp.amount) || 0), 0
   );
-  
+
   const totalExpenses = totalExistingExpenses + totalNewExpenses;
 
   // Helper to get fund balance display with formatting
@@ -548,18 +548,18 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
   const calculateFundChangeImpact = () => {
     const originalFundType = transaction.fundType || "petty_cash";
     const newFundType = formData.fundType;
-    
+
     if (originalFundType === newFundType) return null;
-    
+
     // Get amount that will be moved between funds
-    const amount = transaction.paymentStatus === "Lunas" 
+    const amount = transaction.paymentStatus === "Lunas"
       ? transaction.projectValue || 0
-      : transaction.paymentStatus === "DP" 
+      : transaction.paymentStatus === "DP"
         ? transaction.downPaymentAmount || 0
         : 0;
-    
+
     if (amount <= 0) return null;
-    
+
     return {
       amount,
       from: originalFundType,
@@ -582,7 +582,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
           <DialogHeader>
             <DialogTitle>Update Transaction</DialogTitle>
           </DialogHeader>
-          
+
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-2">
             <TabsList className="grid grid-cols-2">
               <TabsTrigger value="details">Transaction Details</TabsTrigger>
@@ -595,7 +595,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                 )}
               </TabsTrigger>
             </TabsList>
-            
+
             <div className="overflow-y-auto" style={{maxHeight: "calc(90vh - 200px)"}}>
               <TabsContent value="details" className="mt-4">
                 <div className="space-y-4">
@@ -634,14 +634,14 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                     />
                     {formErrors.projectValue && <p className="text-red-500 text-xs mt-1">{formErrors.projectValue}</p>}
                   </div>
-                  
+
                   {/* Fund Type Selection */}
                   <div className="mt-4 p-4 border rounded-md bg-slate-50">
                     <h3 className="text-sm font-semibold mb-3 flex items-center">
                       <DollarSign className="h-4 w-4 mr-1 text-blue-600" />
                       Fund Destination
                     </h3>
-                    
+
                     <div className="space-y-4">
                       <div>
                         <label className="text-sm font-medium mb-1 flex items-center gap-1">
@@ -683,12 +683,12 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                           Select which fund this income is associated with
                         </p>
                       </div>
-                      
+
                       {/* Current Fund and Impact of Changes */}
                       <div>
                         <div className="text-sm mb-2">Current Fund:</div>
                         <FundTypeIndicator fundType={transaction.fundType || "petty_cash"} />
-                        
+
                         {fundChangeImpact && (
                           <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
                             <div className="text-sm font-medium text-amber-800 mb-1">Fund Change Impact:</div>
@@ -707,7 +707,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                       </div>
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="text-sm font-medium">Email</label>
                     <Input
@@ -753,7 +753,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                   </div>
                 </div>
               </TabsContent>
-              
+
               <TabsContent value="expenses" className="mt-4">
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
@@ -769,7 +769,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                       <Plus className="h-4 w-4" /> Add Expense
                     </Button>
                   </div>
-                  
+
                   {isLoadingExpenses ? (
                     <div className="flex justify-center py-8">
                       <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -808,9 +808,9 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                                   </div>
                                 </div>
                                 {expense.paymentProofLink && (
-                                  <a 
-                                    href={expense.paymentProofLink} 
-                                    target="_blank" 
+                                  <a
+                                    href={expense.paymentProofLink}
+                                    target="_blank"
                                     rel="noopener noreferrer"
                                     className="text-blue-600 hover:underline flex items-center text-xs"
                                   >
@@ -823,7 +823,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                           </div>
                         </div>
                       )}
-                      
+
                       {/* New Expenses (Can be removed) */}
                       {newExpenses.length > 0 && (
                         <div>
@@ -856,9 +856,9 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                                 </div>
                                 <div className="flex items-center gap-2">
                                   {expense.paymentProofLink && (
-                                    <a 
-                                      href={expense.paymentProofLink} 
-                                      target="_blank" 
+                                    <a
+                                      href={expense.paymentProofLink}
+                                      target="_blank"
                                       rel="noopener noreferrer"
                                       className="text-blue-600 hover:underline flex items-center text-xs"
                                     >
@@ -866,8 +866,8 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                                       Proof
                                     </a>
                                   )}
-                                  <Button 
-                                    variant="ghost" 
+                                  <Button
+                                    variant="ghost"
                                     size="icon"
                                     className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700"
                                     onClick={() => {
@@ -890,9 +890,9 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
               </TabsContent>
             </div>
           </Tabs>
-          
+
           <Separator className="my-4" />
-          
+
           <div className="mt-4">
             <p className="mb-2">Type &quot;UPDATE&quot; to confirm changes.</p>
             <Input
@@ -901,7 +901,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
               placeholder="Type UPDATE to confirm"
             />
           </div>
-          
+
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" onClick={() => setOpen(false)} disabled={isUpdating}>Cancel</Button>
             <Button onClick={confirmUpdateTransaction} disabled={confirmText !== "UPDATE" || isUpdating}>
@@ -920,7 +920,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
           </div>
         </DialogContent>
       </Dialog>
-      
+
       {/* Add Expense Side Panel */}
       <Sheet open={isAddExpenseOpen} onOpenChange={setIsAddExpenseOpen}>
         <SheetContent side="right" className="sm:max-w-md w-full">
@@ -930,12 +930,12 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
               Add a new expense for this transaction.
             </SheetDescription>
           </SheetHeader>
-          
+
           <div className="space-y-4 py-4">
             <div>
               <label className="text-sm font-medium">Category</label>
-              <Select 
-                value={newExpense.category} 
+              <Select
+                value={newExpense.category}
                 onValueChange={(value) => handleNewExpenseChange('category', value)}
               >
                 <SelectTrigger className={expenseErrors.category ? "border-red-500" : ""}>
@@ -951,7 +951,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
               </Select>
               {expenseErrors.category && <p className="text-red-500 text-xs mt-1">{expenseErrors.category}</p>}
             </div>
-            
+
             <div>
               <label className="text-sm font-medium">Amount</label>
               <Input
@@ -964,7 +964,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
               />
               {expenseErrors.amount && <p className="text-red-500 text-xs mt-1">{expenseErrors.amount}</p>}
             </div>
-            
+
             {/* Fund Source Selection for Expense */}
             <div className="space-y-2">
               <label className="text-sm font-medium mb-1 flex items-center gap-1">
@@ -1004,12 +1004,12 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                 Select which fund this expense will be deducted from
               </p>
             </div>
-            
+
             {/* Vendor Selection - For expenses */}
             <div className="space-y-2">
               <label className="text-sm font-medium mb-1 block">Vendor/Subcontractor</label>
               <Select
-                value={newExpense.vendorId} 
+                value={newExpense.vendorId}
                 onValueChange={handleVendorChange}
                 disabled={loadingVendors}
               >
@@ -1036,7 +1036,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                 Select a vendor that this expense is associated with
               </p>
             </div>
-            
+
             <div>
               <label className="text-sm font-medium">Description</label>
               <Textarea
@@ -1046,7 +1046,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
                 rows={3}
               />
             </div>
-            
+
             <div>
               <label className="text-sm font-medium">Date</label>
               <Input
@@ -1057,7 +1057,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
               />
               {expenseErrors.date && <p className="text-red-500 text-xs mt-1">{expenseErrors.date}</p>}
             </div>
-            
+
             <div>
               <div className="flex items-center">
                 <LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -1078,7 +1078,7 @@ export default function UpdateTransactionDialog({ transaction, onTransactionUpda
               </p>
             </div>
           </div>
-          
+
           <SheetFooter className="sm:justify-end">
             <Button
               variant="outline"

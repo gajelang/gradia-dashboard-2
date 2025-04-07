@@ -3,17 +3,17 @@
 
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  Tabs, 
-  TabsContent, 
-  TabsList, 
-  TabsTrigger 
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
 } from "@/components/ui/tabs";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
   DialogTrigger,
   DialogFooter,
   DialogDescription
@@ -37,12 +37,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { 
-  DollarSign, 
-  Wallet, 
-  ArrowUpDown, 
+import {
+  DollarSign,
+  Wallet,
+  ArrowUpDown,
   RefreshCw,
-  PlusCircle, 
+  PlusCircle,
   CreditCard,
   AlertTriangle,
   InfoIcon
@@ -89,32 +89,32 @@ export default function FundManagement() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedFund, setSelectedFund] = useState<string | null>(null);
-  
+
   // Dialog states
   const [addFundsOpen, setAddFundsOpen] = useState(false);
   const [transferFundsOpen, setTransferFundsOpen] = useState(false);
   const [reconcileOpen, setReconcileOpen] = useState(false);
-  
+
   // Form states
   const [addFundsForm, setAddFundsForm] = useState({
     fundType: "petty_cash",
     amount: "",
     description: ""
   });
-  
+
   const [transferForm, setTransferForm] = useState({
     fromFundType: "petty_cash",
     toFundType: "profit_bank",
     amount: "",
     description: ""
   });
-  
+
   const [reconcileForm, setReconcileForm] = useState({
     fundType: "petty_cash",
     actualBalance: "",
     description: ""
   });
-  
+
   const formatDate = (dateString: string | undefined | null) => {
     if (!dateString) return "—";
     const date = new Date(dateString);
@@ -126,7 +126,7 @@ export default function FundManagement() {
       minute: "2-digit"
     });
   };
-  
+
   // Get transaction type color
   const getTransactionTypeColor = (type: string) => {
     switch (type) {
@@ -138,7 +138,7 @@ export default function FundManagement() {
       default: return "";
     }
   };
-  
+
   // Get transaction type display
   const getTransactionTypeDisplay = (type: string) => {
     switch (type) {
@@ -155,42 +155,42 @@ export default function FundManagement() {
   const fetchFundData = async () => {
     try {
       setLoading(true);
-      
+
       // Fetch fund balances
       const balancesRes = await fetchWithAuth("/api/fund-balance", {
         cache: "no-store"
       });
-      
+
       if (!balancesRes.ok) {
         throw new Error("Failed to fetch fund balances");
       }
-      
+
       const balancesData = await balancesRes.json();
       setFundBalances(balancesData);
-      
+
       // Check for any discrepancies between current and calculated balances
       balancesData.forEach((fund: FundBalance) => {
         const currentBalance = fund.currentBalance;
         const calculatedBalance = fund.calculatedBalance;
-        
+
         // If calculated balance exists and differs from current balance
         if (calculatedBalance !== undefined && Math.abs(calculatedBalance - currentBalance) > 0.01) {
           console.warn(`Balance discrepancy detected for ${fund.fundType}: System shows ${currentBalance}, calculated is ${calculatedBalance}`);
         }
       });
-      
+
       // Fetch transactions for the selected fund or all funds
       const transactionsRes = await fetchWithAuth(
         `/api/fund-transaction${selectedFund ? `?fundType=${selectedFund}` : ""}`,
         { cache: "no-store" }
       );
-      
+
       if (!transactionsRes.ok) {
         throw new Error("Failed to fetch fund transactions");
       }
-      
+
       const transactionsData = await transactionsRes.json();
-      
+
       // Ensure transactions is always an array before setting the state
       if (Array.isArray(transactionsData)) {
         setTransactions(transactionsData);
@@ -208,7 +208,7 @@ export default function FundManagement() {
         console.error('Invalid transactions API response:', transactionsData);
         setTransactions([]);
       }
-      
+
     } catch (error) {
       console.error("Error fetching fund data:", error);
       toast.error("Failed to load fund data");
@@ -216,11 +216,11 @@ export default function FundManagement() {
       setLoading(false);
     }
   };
-  
+
   useEffect(() => {
     fetchFundData();
   }, [selectedFund]);
-  
+
   // Reset form handlers
   const resetAddFundsForm = () => {
     setAddFundsForm({
@@ -229,7 +229,7 @@ export default function FundManagement() {
       description: ""
     });
   };
-  
+
   const resetTransferForm = () => {
     setTransferForm({
       fromFundType: "petty_cash",
@@ -238,7 +238,7 @@ export default function FundManagement() {
       description: ""
     });
   };
-  
+
   const resetReconcileForm = () => {
     setReconcileForm({
       fundType: "petty_cash",
@@ -246,7 +246,7 @@ export default function FundManagement() {
       description: ""
     });
   };
-  
+
   // Handle form submissions
   const handleAddFunds = async () => {
     try {
@@ -254,7 +254,7 @@ export default function FundManagement() {
         toast.error("Please enter a valid amount");
         return;
       }
-      
+
       const res = await fetchWithAuth("/api/fund-transaction", {
         method: "POST",
         body: JSON.stringify({
@@ -264,12 +264,12 @@ export default function FundManagement() {
           transactionType: "income" // Add this missing required field
         })
       });
-      
+
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.error || "Failed to add funds");
       }
-      
+
       toast.success("Funds added successfully");
       setAddFundsOpen(false);
       resetAddFundsForm();
@@ -279,19 +279,19 @@ export default function FundManagement() {
       toast.error(error instanceof Error ? error.message : "Failed to add funds");
     }
   };
-  
+
   const handleTransferFunds = async () => {
     try {
       if (!transferForm.amount || parseFloat(transferForm.amount) <= 0) {
         toast.error("Please enter a valid amount");
         return;
       }
-      
+
       if (transferForm.fromFundType === transferForm.toFundType) {
         toast.error("Source and destination funds cannot be the same");
         return;
       }
-      
+
       const res = await fetchWithAuth("/api/fund-transfer", {
         method: "POST",
         body: JSON.stringify({
@@ -301,12 +301,12 @@ export default function FundManagement() {
           description: transferForm.description
         })
       });
-      
+
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.error || "Failed to transfer funds");
       }
-      
+
       toast.success("Funds transferred successfully");
       setTransferFundsOpen(false);
       resetTransferForm();
@@ -316,14 +316,14 @@ export default function FundManagement() {
       toast.error(error instanceof Error ? error.message : "Failed to transfer funds");
     }
   };
-  
+
   const handleReconcile = async () => {
     try {
       if (!reconcileForm.actualBalance || isNaN(parseFloat(reconcileForm.actualBalance))) {
         toast.error("Please enter a valid balance");
         return;
       }
-      
+
       const res = await fetchWithAuth("/api/fund-balance", {
         method: "POST",
         body: JSON.stringify({
@@ -332,12 +332,12 @@ export default function FundManagement() {
           description: reconcileForm.description || "Manual reconciliation"
         })
       });
-      
+
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.error || "Failed to reconcile fund");
       }
-      
+
       toast.success("Fund reconciled successfully");
       setReconcileOpen(false);
       resetReconcileForm();
@@ -347,66 +347,66 @@ export default function FundManagement() {
       toast.error(error instanceof Error ? error.message : "Failed to reconcile fund");
     }
   };
-  
+
   // Get fund balance by type - UPDATED to use calculatedBalance if available
   const getFundBalance = (type: string) => {
     const fund = fundBalances.find(f => f.fundType === type);
     if (!fund) return 0;
-    
+
     // Use calculatedBalance if available, otherwise fall back to currentBalance
     return typeof fund.calculatedBalance !== 'undefined' ? fund.calculatedBalance : fund.currentBalance;
   };
-  
+
   // Check if there's a discrepancy between current and calculated balance
   const hasBalanceDiscrepancy = (type: string) => {
     const fund = fundBalances.find(f => f.fundType === type);
     if (!fund || typeof fund.calculatedBalance === 'undefined') return false;
-    
+
     // Return true if there's a significant difference (more than 1 unit of currency)
     return Math.abs(fund.currentBalance - fund.calculatedBalance) > 1;
   };
-  
+
   // Get the current database balance (not the calculated one)
   const getDatabaseBalance = (type: string) => {
     const fund = fundBalances.find(f => f.fundType === type);
     return fund ? fund.currentBalance : 0;
   };
-  
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
         <h2 className="text-2xl font-bold">Fund Management</h2>
-        
+
         <div className="flex items-center gap-2">
           <Button onClick={() => setAddFundsOpen(true)}>
             <PlusCircle className="mr-2 h-4 w-4" />
             Add Funds
           </Button>
-          
+
           <Button onClick={() => setTransferFundsOpen(true)} variant="outline">
             <ArrowUpDown className="mr-2 h-4 w-4" />
             Transfer
           </Button>
-          
+
           <Button onClick={() => setReconcileOpen(true)} variant="secondary">
             <RefreshCw className="mr-2 h-4 w-4" />
             Reconcile
           </Button>
         </div>
       </div>
-      
+
       {/* Warning Alert for Balance Discrepancies */}
       {(hasBalanceDiscrepancy("petty_cash") || hasBalanceDiscrepancy("profit_bank")) && (
         <Alert className="bg-amber-50 border-amber-200">
           <AlertTriangle className="h-4 w-4 text-amber-600" />
           <AlertTitle className="text-amber-800">Balance Discrepancy Detected</AlertTitle>
           <AlertDescription className="text-amber-700">
-            The calculated fund balances differ from the system balances. This could be due to archived 
+            The calculated fund balances differ from the system balances. This could be due to archived
             transactions or expenses. Consider using the Reconcile function to adjust the balances.
           </AlertDescription>
         </Alert>
       )}
-      
+
       {/* Fund Balances */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Petty Cash */}
@@ -427,33 +427,33 @@ export default function FundManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-blue-800">
-              Rp{formatRupiah(getFundBalance("petty_cash"))}
+              {formatRupiah(getFundBalance("petty_cash"))}
             </div>
-            
+
             {hasBalanceDiscrepancy("petty_cash") && (
               <div className="mt-2 text-sm text-amber-700 bg-amber-50 rounded-md px-2 py-1">
                 <div className="flex justify-between">
                   <span>System Balance:</span>
-                  <span>Rp{formatRupiah(getDatabaseBalance("petty_cash"))}</span>
+                  <span>{formatRupiah(getDatabaseBalance("petty_cash"))}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Calculated Balance:</span>
-                  <span>Rp{formatRupiah(getFundBalance("petty_cash"))}</span>
+                  <span>{formatRupiah(getFundBalance("petty_cash"))}</span>
                 </div>
               </div>
             )}
-            
+
             <div className="flex justify-between mt-2 text-sm">
               <span className="text-muted-foreground">
                 Last reconciled: {
-                  fundBalances.find(f => f.fundType === "petty_cash")?.lastReconciledAt 
+                  fundBalances.find(f => f.fundType === "petty_cash")?.lastReconciledAt
                     ? formatDate(fundBalances.find(f => f.fundType === "petty_cash")?.lastReconciledAt)
                     : "Never"
                 }
               </span>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 className="text-blue-600 hover:text-blue-800"
                 onClick={() => {
                   setSelectedFund("petty_cash");
@@ -465,7 +465,7 @@ export default function FundManagement() {
             </div>
           </CardContent>
         </Card>
-        
+
         {/* Profit Bank */}
         <Card className={`bg-gradient-to-br from-green-50 to-green-100 border-green-200 ${
           hasBalanceDiscrepancy("profit_bank") ? "border-amber-300" : ""
@@ -484,33 +484,33 @@ export default function FundManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-green-800">
-              Rp{formatRupiah(getFundBalance("profit_bank"))}
+              {formatRupiah(getFundBalance("profit_bank"))}
             </div>
-            
+
             {hasBalanceDiscrepancy("profit_bank") && (
               <div className="mt-2 text-sm text-amber-700 bg-amber-50 rounded-md px-2 py-1">
                 <div className="flex justify-between">
                   <span>System Balance:</span>
-                  <span>Rp{formatRupiah(getDatabaseBalance("profit_bank"))}</span>
+                  <span>{formatRupiah(getDatabaseBalance("profit_bank"))}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Calculated Balance:</span>
-                  <span>Rp{formatRupiah(getFundBalance("profit_bank"))}</span>
+                  <span>{formatRupiah(getFundBalance("profit_bank"))}</span>
                 </div>
               </div>
             )}
-            
+
             <div className="flex justify-between mt-2 text-sm">
               <span className="text-muted-foreground">
                 Last reconciled: {
-                  fundBalances.find(f => f.fundType === "profit_bank")?.lastReconciledAt 
+                  fundBalances.find(f => f.fundType === "profit_bank")?.lastReconciledAt
                     ? formatDate(fundBalances.find(f => f.fundType === "profit_bank")?.lastReconciledAt)
                     : "Never"
                 }
               </span>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 className="text-green-600 hover:text-green-800"
                 onClick={() => {
                   setSelectedFund("profit_bank");
@@ -523,7 +523,7 @@ export default function FundManagement() {
           </CardContent>
         </Card>
       </div>
-      
+
       {/* Tabs for Overview and Transactions */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid grid-cols-2 w-[400px]">
@@ -537,7 +537,7 @@ export default function FundManagement() {
             )}
           </TabsTrigger>
         </TabsList>
-        
+
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-4">
           <Card>
@@ -560,7 +560,7 @@ export default function FundManagement() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <div className="text-sm text-muted-foreground">Total Available Funds</div>
                   <div className="text-2xl font-bold">
@@ -569,7 +569,7 @@ export default function FundManagement() {
                     )}
                   </div>
                 </div>
-                
+
                 <div className="flex justify-between">
                   <div className="text-sm text-muted-foreground">
                     Last updated: {formatDate(new Date().toISOString())}
@@ -586,7 +586,7 @@ export default function FundManagement() {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader>
               <CardTitle>Recent Transactions</CardTitle>
@@ -628,7 +628,7 @@ export default function FundManagement() {
                             transaction.amount >= 0 ? "text-green-600" : "text-red-600"
                           }`}>
                             {transaction.amount >= 0 ? "+" : ""}
-                            Rp{formatRupiah(Math.abs(transaction.amount))}
+                            {formatRupiah(Math.abs(transaction.amount))}
                           </TableCell>
                           <TableCell className="max-w-xs truncate">
                             {transaction.description}
@@ -645,7 +645,7 @@ export default function FundManagement() {
                   </TableBody>
                 </Table>
               )}
-              
+
               <div className="flex justify-end mt-4">
                 <Button
                   variant="outline"
@@ -658,7 +658,7 @@ export default function FundManagement() {
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         {/* Transactions Tab */}
         <TabsContent value="transactions">
           <Card>
@@ -752,7 +752,7 @@ export default function FundManagement() {
           </Card>
         </TabsContent>
       </Tabs>
-      
+
       {/* Add Funds Dialog */}
       <Dialog open={addFundsOpen} onOpenChange={setAddFundsOpen}>
         <DialogContent>
@@ -762,7 +762,7 @@ export default function FundManagement() {
               Add funds to your petty cash or profit bank account.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Fund Type</label>
@@ -779,7 +779,7 @@ export default function FundManagement() {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Amount (Rp)</label>
               <Input
@@ -790,7 +790,7 @@ export default function FundManagement() {
                 placeholder="Enter amount"
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Description (Optional)</label>
               <Textarea
@@ -800,7 +800,7 @@ export default function FundManagement() {
               />
             </div>
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddFundsOpen(false)}>Cancel</Button>
             <Button onClick={handleAddFunds}>
@@ -810,7 +810,7 @@ export default function FundManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       {/* Transfer Funds Dialog */}
       <Dialog open={transferFundsOpen} onOpenChange={setTransferFundsOpen}>
         <DialogContent>
@@ -820,7 +820,7 @@ export default function FundManagement() {
               Transfer funds between petty cash and profit bank.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">From</label>
@@ -837,7 +837,7 @@ export default function FundManagement() {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">To</label>
               <Select
@@ -858,7 +858,7 @@ export default function FundManagement() {
                 </p>
               )}
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Amount (Rp)</label>
               <Input
@@ -872,7 +872,7 @@ export default function FundManagement() {
                 Available: Rp{formatRupiah(getFundBalance(transferForm.fromFundType))}
               </p>
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Description (Optional)</label>
               <Textarea
@@ -882,10 +882,10 @@ export default function FundManagement() {
               />
             </div>
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setTransferFundsOpen(false)}>Cancel</Button>
-            <Button 
+            <Button
               onClick={handleTransferFunds}
               disabled={
                 transferForm.fromFundType === transferForm.toFundType ||
@@ -900,7 +900,7 @@ export default function FundManagement() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       {/* Reconcile Funds Dialog */}
       <Dialog open={reconcileOpen} onOpenChange={setReconcileOpen}>
         <DialogContent>
@@ -910,7 +910,7 @@ export default function FundManagement() {
               Adjust the system balance to match the actual balance in your account.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Fund Type</label>
@@ -927,14 +927,14 @@ export default function FundManagement() {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">System Balance</label>
               <div className="p-2 bg-gray-50 rounded-md border">
                 Rp{formatRupiah(getDatabaseBalance(reconcileForm.fundType))}
               </div>
             </div>
-            
+
             {hasBalanceDiscrepancy(reconcileForm.fundType) && (
               <div className="space-y-2">
                 <div className="flex items-center">
@@ -948,8 +948,8 @@ export default function FundManagement() {
                   This is the calculated balance based on active transactions and expenses.
                   You may want to use this as your actual balance.
                 </p>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="sm"
                   onClick={() => setReconcileForm(prev => ({
                     ...prev,
@@ -961,7 +961,7 @@ export default function FundManagement() {
                 </Button>
               </div>
             )}
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Actual Balance (Rp)</label>
               <Input
@@ -975,7 +975,7 @@ export default function FundManagement() {
                 Enter the actual balance from your physical cash or bank account
               </p>
             </div>
-            
+
             {reconcileForm.actualBalance && !isNaN(parseFloat(reconcileForm.actualBalance)) && (
               <div className="p-2 rounded-md border bg-blue-50">
                 <div className="font-medium text-sm">Adjustment Summary</div>
@@ -996,7 +996,7 @@ export default function FundManagement() {
                 </div>
               </div>
             )}
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Reconciliation Note</label>
               <Textarea
@@ -1006,13 +1006,13 @@ export default function FundManagement() {
               />
             </div>
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setReconcileOpen(false)}>Cancel</Button>
-            <Button 
+            <Button
               onClick={handleReconcile}
               disabled={
-                !reconcileForm.actualBalance || 
+                !reconcileForm.actualBalance ||
                 isNaN(parseFloat(reconcileForm.actualBalance)) ||
                 !reconcileForm.description
               }

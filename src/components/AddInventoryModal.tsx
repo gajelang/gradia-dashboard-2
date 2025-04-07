@@ -43,12 +43,12 @@ import {
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
-import { 
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { 
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -82,14 +82,14 @@ export interface InventoryFormData {
   remainingAmount: string;
   vendorId: string;
   fundType: string; // Added fund type for payments
-  
+
   // Subscription fields
   isRecurring: boolean;
   recurringType: RecurringType;
   nextBillingDate: string;
   reminderDays: string;
   autoRenew: boolean;
-  
+
   // Inventory stock fields
   category: string;
   quantity: string;
@@ -133,7 +133,7 @@ interface AddInventoryModalProps {
 /**
  * Calculate the next billing date based on the purchase date and recurring frequency
  * This ensures the next billing date is on the same day of the month as the purchase date
- * 
+ *
  * @param {Date} purchaseDate - The initial purchase/start date
  * @param {String} frequency - MONTHLY, QUARTERLY, or ANNUALLY
  * @returns {Date} The next billing date
@@ -142,38 +142,38 @@ function calculateNextBillingDate(purchaseDate: string | number | Date, frequenc
   // Create a new date object from the purchase date to avoid modifying the original
   const startDate = new Date(purchaseDate);
   const nextDate = new Date(startDate);
-  
+
   // Get the day of the month from the purchase date
   const dayOfMonth = startDate.getDate();
-  
+
   switch (frequency) {
     case 'MONTHLY':
       // Move to next month, same day
       nextDate.setMonth(nextDate.getMonth() + 1);
       break;
-      
+
     case 'QUARTERLY':
       // Move 3 months ahead, same day
       nextDate.setMonth(nextDate.getMonth() + 3);
       break;
-      
+
     case 'ANNUALLY':
       // Move 1 year ahead, same day
       nextDate.setFullYear(nextDate.getFullYear() + 1);
       break;
-      
+
     default:
       // Default to monthly if frequency not recognized
       nextDate.setMonth(nextDate.getMonth() + 1);
   }
-  
+
   // Handle month length differences (e.g., Jan 31 -> Feb 28)
   // Check if the day has changed due to month length differences
   if (nextDate.getDate() !== dayOfMonth) {
     // Set to last day of previous month
     nextDate.setDate(0);
   }
-  
+
   return nextDate;
 }
 
@@ -182,7 +182,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("details");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Form data with enhanced defaults
   const [formData, setFormData] = useState<InventoryFormData>({
     name: "",
@@ -199,14 +199,14 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
     remainingAmount: "",
     vendorId: "none",
     fundType: "petty_cash", // Default fund type
-    
+
     // Subscription fields
     isRecurring: false,
     recurringType: null,
     nextBillingDate: "",
     reminderDays: "7",
     autoRenew: true,
-    
+
     // Inventory stock fields
     category: "",
     quantity: "1",
@@ -215,14 +215,14 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
     minimumStock: "0",
     supplier: "",
   });
-  
+
   // Form validation errors
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  
+
   // Vendors for dropdown
   const [vendors, setVendors] = useState<any[]>([]);
   const [isLoadingVendors, setIsLoadingVendors] = useState(false);
-  
+
   // Categories for dropdown
   const [categories, setCategories] = useState<string[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
@@ -233,7 +233,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
   const [purchaseDateOpen, setPurchaseDateOpen] = useState(false);
   const [expiryDateOpen, setExpiryDateOpen] = useState(false);
   const [nextBillingDateOpen, setNextBillingDateOpen] = useState(false);
-  
+
   // Fetch vendors and categories when modal opens
   useEffect(() => {
     if (isOpen) {
@@ -241,7 +241,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
       fetchCategories();
     }
   }, [isOpen]);
-  
+
   // Update next billing date when purchase date or recurring type changes
   useEffect(() => {
     if (formData.type === 'SUBSCRIPTION' && formData.purchaseDate && formData.isRecurring && formData.recurringType) {
@@ -250,19 +250,19 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
         new Date(formData.purchaseDate),
         formData.recurringType
       );
-      
+
       setFormData(prev => ({
         ...prev,
         nextBillingDate: nextDate.toISOString().split('T')[0]
       }));
     }
   }, [formData.type, formData.purchaseDate, formData.isRecurring, formData.recurringType]);
-  
+
   const fetchVendors = async () => {
     try {
       setIsLoadingVendors(true);
       const res = await fetchWithAuth("/api/vendors", { cache: "no-store" });
-      
+
       if (res.ok) {
         const data = await res.json();
         // Filter out deleted vendors
@@ -277,12 +277,12 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
       setIsLoadingVendors(false);
     }
   };
-  
+
   const fetchCategories = async () => {
     try {
       setIsLoadingCategories(true);
       const res = await fetchWithAuth("/api/inventory/categories", { cache: "no-store" });
-      
+
       if (res.ok) {
         const data = await res.json();
         setCategories(data);
@@ -295,7 +295,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
       setIsLoadingCategories(false);
     }
   };
-  
+
   const resetForm = () => {
     setFormData({
       name: "",
@@ -312,13 +312,13 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
       remainingAmount: "",
       vendorId: "none",
       fundType: "petty_cash", // Reset fund type to default
-      
+
       isRecurring: false,
       recurringType: null,
       nextBillingDate: "",
       reminderDays: "7",
       autoRenew: true,
-      
+
       category: "",
       quantity: "1",
       unitPrice: "0",
@@ -331,11 +331,11 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
     setNewCategory("");
     setShowNewCategoryInput(false);
   };
-  
+
   const handleTextChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-    
+
     // Clear any error for this field
     if (formErrors[name]) {
       setFormErrors(prev => {
@@ -345,20 +345,20 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
       });
     }
   };
-  
+
   const handleSelectChange = (name: string, value: string) => {
     if (name === 'category' && value === 'new') {
       setShowNewCategoryInput(true);
       return;
     }
-    
+
     // Special handling for vendorId
     if (name === 'vendorId') {
       setFormData(prev => ({ ...prev, [name]: value === "none" ? "" : value }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
-    
+
     // Clear any error for this field
     if (formErrors[name]) {
       setFormErrors(prev => {
@@ -367,7 +367,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
         return newErrors;
       });
     }
-    
+
     // Handle special cases
     if (name === 'type') {
       if (value === 'SUBSCRIPTION') {
@@ -393,14 +393,14 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
         }));
       }
     }
-    
+
     if (name === 'expiryType') {
       // If continuous, clear expiry date as it's not needed
       if (value === 'continuous') {
         setFormData(prev => ({ ...prev, expiryDate: "" }));
       }
     }
-    
+
     if (name === 'paymentStatus' && value !== 'DP') {
       // Reset DP fields if payment status is not DP
       setFormData(prev => ({
@@ -411,10 +411,10 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
       }));
     }
   };
-  
+
   const handleCheckboxChange = (name: string, checked: boolean) => {
     setFormData(prev => ({ ...prev, [name]: checked }));
-    
+
     if (name === 'isRecurring' && !checked) {
       // Reset subscription fields if not recurring
       setFormData(prev => ({
@@ -426,20 +426,20 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
       }));
     }
   };
-  
+
   const handleDateChange = (field: string, date: Date | undefined) => {
     if (!date) return;
-    
+
     setFormData(prev => ({
       ...prev,
       [field]: date.toISOString().split('T')[0]
     }));
-    
+
     // Close the date picker
     if (field === 'purchaseDate') setPurchaseDateOpen(false);
     if (field === 'expiryDate') setExpiryDateOpen(false);
     if (field === 'nextBillingDate') setNextBillingDateOpen(false);
-    
+
     // Clear any error for this field
     if (formErrors[field]) {
       setFormErrors(prev => {
@@ -449,57 +449,57 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
       });
     }
   };
-  
+
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
-    
+
     // Required fields validation
     if (!formData.name.trim()) {
       errors.name = "Name is required";
     }
-    
+
     if (!formData.purchaseDate) {
       errors.purchaseDate = "Purchase date is required";
     }
-    
+
     if (!formData.cost || isNaN(parseFloat(formData.cost)) || parseFloat(formData.cost) <= 0) {
       errors.cost = "Valid cost is required";
     }
-    
+
     // Validate current value if provided
     if (formData.currentValue && (isNaN(parseFloat(formData.currentValue)) || parseFloat(formData.currentValue) < 0)) {
       errors.currentValue = "Current value must be a positive number";
     }
-    
+
     // Validate payment fields
     if (formData.paymentStatus === "LUNAS" && !formData.fundType) {
       errors.fundType = "Fund source is required for paid items";
     }
-    
+
     if (formData.paymentStatus === "DP") {
       if (!formData.fundType) {
         errors.fundType = "Fund source is required for down payments";
       }
-      if (!formData.downPaymentAmount || 
-          isNaN(parseFloat(formData.downPaymentAmount)) || 
+      if (!formData.downPaymentAmount ||
+          isNaN(parseFloat(formData.downPaymentAmount)) ||
           parseFloat(formData.downPaymentAmount) <= 0) {
         errors.downPaymentAmount = "Down payment amount is required";
       } else if (parseFloat(formData.downPaymentAmount) >= parseFloat(formData.cost)) {
         errors.downPaymentAmount = "Down payment cannot exceed total cost";
       }
     }
-    
+
     // Validate subscription fields
     if (formData.type === "SUBSCRIPTION") {
       if (formData.expiryType === "fixed" && !formData.expiryDate) {
         errors.expiryDate = "End date is required for fixed-term subscriptions";
       }
-      
+
       if (formData.isRecurring) {
         if (!formData.recurringType) {
           errors.recurringType = "Recurring type is required";
         }
-        
+
         if (!formData.nextBillingDate) {
           errors.nextBillingDate = "Next billing date is required";
         } else {
@@ -509,62 +509,62 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
             errors.nextBillingDate = "Next billing date must be in the future";
           }
         }
-        
-        if (!formData.reminderDays || 
-            isNaN(parseInt(formData.reminderDays)) || 
+
+        if (!formData.reminderDays ||
+            isNaN(parseInt(formData.reminderDays)) ||
             parseInt(formData.reminderDays) < 0) {
           errors.reminderDays = "Valid reminder days is required";
         }
       }
     }
-    
+
     // Validate inventory stock fields
     if (formData.type !== "SUBSCRIPTION") {
       if (isNaN(parseInt(formData.quantity)) || parseInt(formData.quantity) < 0) {
         errors.quantity = "Quantity must be a valid number";
       }
-      
+
       if (formData.unitPrice && (isNaN(parseFloat(formData.unitPrice)) || parseFloat(formData.unitPrice) < 0)) {
         errors.unitPrice = "Unit price must be a valid number";
       }
-      
+
       if (formData.minimumStock && (isNaN(parseInt(formData.minimumStock)) || parseInt(formData.minimumStock) < 0)) {
         errors.minimumStock = "Minimum stock must be a valid number";
       }
     }
-    
+
     // Validate new category if input is shown
     if (showNewCategoryInput && !newCategory.trim()) {
       errors.newCategory = "Category name cannot be empty";
     }
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
-  
+
   const handleSubmit = async () => {
     if (!validateForm()) {
       toast.error("Please correct the errors in the form");
       return;
     }
-    
+
     setIsSubmitting(true);
-    
+
     try {
       // Calculate remaining amount for DP
       let remainingAmount: number | undefined;
       if (formData.paymentStatus === "DP" && formData.downPaymentAmount && formData.cost) {
         remainingAmount = parseFloat(formData.cost) - parseFloat(formData.downPaymentAmount);
       }
-      
+
       // If creating new category, use that instead
       const effectiveCategory = showNewCategoryInput ? newCategory : formData.category;
-      
+
       // Calculate total value for inventory items
       const quantity = parseInt(formData.quantity) || 1;
       const unitPrice = parseFloat(formData.unitPrice) || parseFloat(formData.cost) || 0;
       const totalValue = quantity * unitPrice;
-      
+
       // Prepare payload
       const payload = {
         name: formData.name,
@@ -572,8 +572,8 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
         description: formData.description || null,
         status: formData.status,
         purchaseDate: formData.purchaseDate,
-        expiryDate: formData.type === "SUBSCRIPTION" && formData.expiryType === "fixed" 
-          ? formData.expiryDate 
+        expiryDate: formData.type === "SUBSCRIPTION" && formData.expiryType === "fixed"
+          ? formData.expiryDate
           : null,
         expiryType: formData.type === "SUBSCRIPTION" ? formData.expiryType : null,
         cost: parseFloat(formData.cost),
@@ -581,14 +581,14 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
         paymentStatus: formData.paymentStatus,
         downPaymentAmount: formData.downPaymentAmount ? parseFloat(formData.downPaymentAmount) : null,
         remainingAmount: remainingAmount,
-        
+
         // Subscription fields
         isRecurring: formData.type === "SUBSCRIPTION" ? formData.isRecurring : false,
         recurringType: formData.type === "SUBSCRIPTION" && formData.isRecurring ? formData.recurringType : null,
         nextBillingDate: formData.type === "SUBSCRIPTION" && formData.isRecurring ? formData.nextBillingDate : null,
         reminderDays: formData.type === "SUBSCRIPTION" ? parseInt(formData.reminderDays) : null,
         autoRenew: formData.type === "SUBSCRIPTION" ? formData.autoRenew : false,
-        
+
         // Inventory stock fields
         category: effectiveCategory || null,
         quantity: quantity,
@@ -597,43 +597,43 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
         location: formData.location || null,
         minimumStock: formData.minimumStock ? parseInt(formData.minimumStock) : null,
         supplier: formData.supplier || null,
-        
+
         // Relations
         vendorId: formData.vendorId === "none" ? null : formData.vendorId,
-        createdById: user?.userId,
+        createdById: user?.id,
       };
-      
+
       console.log("Submitting inventory:", payload);
-      
+
       // Use the appropriate endpoint based on item type
-      const endpoint = formData.type === "SUBSCRIPTION" 
-        ? "/api/subscriptions" 
+      const endpoint = formData.type === "SUBSCRIPTION"
+        ? "/api/subscriptions"
         : "/api/inventory";
-      
+
       const response = await fetchWithAuth(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || errorData.message || "Failed to create inventory item");
       }
-      
+
       const data = await response.json();
       const newItem = formData.type === "SUBSCRIPTION" ? data.subscription : data.item;
-      
+
       // Process payment if payment status is LUNAS or DP
       if (formData.paymentStatus === "LUNAS" || formData.paymentStatus === "DP") {
         try {
           // Create an expense record for this payment
-          const paymentAmount = formData.paymentStatus === "LUNAS" 
-            ? parseFloat(formData.cost) 
+          const paymentAmount = formData.paymentStatus === "LUNAS"
+            ? parseFloat(formData.cost)
             : parseFloat(formData.downPaymentAmount);
-          
+
           const paymentType = formData.paymentStatus === "LUNAS" ? "full payment" : "down payment";
-          
+
           const expensePayload = {
             category: formData.type === "SUBSCRIPTION" ? "Subscription" : "Inventory",
             amount: paymentAmount,
@@ -642,18 +642,18 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
             inventoryId: newItem.id,
             fundType: formData.fundType,
           };
-          
+
           const expenseResponse = await fetchWithAuth("/api/expenses", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(expensePayload),
           });
-          
+
           if (!expenseResponse.ok) {
             const errorData = await expenseResponse.json();
             throw new Error(errorData.error || "Failed to process payment");
           }
-          
+
           toast.success(`${paymentType} processed and funds deducted from ${formData.fundType === "petty_cash" ? "Petty Cash" : "Profit Bank"}`);
         } catch (error) {
           console.error("Error processing payment:", error);
@@ -661,7 +661,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
           // We don't return here, as the inventory item was created successfully
         }
       }
-      
+
       onInventoryAdded(newItem);
       toast.success(`${formData.type.toLowerCase()} created successfully`);
       setIsOpen(false);
@@ -677,8 +677,8 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button 
-          className="flex items-center gap-2" 
+        <Button
+          className="flex items-center gap-2"
           onClick={() => {
             resetForm();
             setIsOpen(true);
@@ -688,7 +688,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
           Add Inventory Item
         </Button>
       </DialogTrigger>
-      
+
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle>Add New Inventory Item</DialogTitle>
@@ -696,13 +696,13 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
             Add details for a new equipment, subscription, or other inventory item
           </DialogDescription>
         </DialogHeader>
-        
+
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid grid-cols-2 mb-4">
             <TabsTrigger value="details">Basic Details</TabsTrigger>
             <TabsTrigger value="payment">Payment & Subscription</TabsTrigger>
           </TabsList>
-          
+
           <div className="overflow-y-auto pr-1" style={{ maxHeight: "calc(90vh - 230px)" }}>
             <TabsContent value="details" className="space-y-4 py-2">
               <div className="grid grid-cols-2 gap-4">
@@ -720,7 +720,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                     <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>
                   )}
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="type">Item Type *</Label>
                   <Select
@@ -753,7 +753,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                   </Select>
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <Label htmlFor="description">Description</Label>
                 <Textarea
@@ -765,7 +765,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                   rows={3}
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="category">Category</Label>
@@ -819,7 +819,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                     <p className="text-red-500 text-xs mt-1">{formErrors.newCategory}</p>
                   )}
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="status">Status *</Label>
                   <Select
@@ -837,7 +837,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                   </Select>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="purchaseDate">Purchase Date *</Label>
@@ -866,7 +866,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                     <p className="text-red-500 text-xs mt-1">{formErrors.purchaseDate}</p>
                   )}
                 </div>
-                
+
                 {formData.type === "SUBSCRIPTION" && (
                   <div className="space-y-2">
                     <Label htmlFor="expiryType">Duration Type</Label>
@@ -882,7 +882,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                         <SelectItem value="continuous">Continuous/Auto-renew</SelectItem>
                       </SelectContent>
                     </Select>
-                    
+
                     {formData.expiryType === "fixed" && (
                       <div className="mt-2">
                         <Label htmlFor="expiryDate">End Date *</Label>
@@ -916,7 +916,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                   </div>
                 )}
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="cost">Cost (Rp) *</Label>
@@ -934,7 +934,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                     <p className="text-red-500 text-xs mt-1">{formErrors.cost}</p>
                   )}
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="currentValue">Current Value (Rp)</Label>
                   <Input
@@ -955,12 +955,12 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                   )}
                 </div>
               </div>
-              
+
               {/* Only show quantity fields for equipment and other types */}
               {formData.type !== "SUBSCRIPTION" && (
                 <div className="space-y-4 pt-2 border-t">
                   <h3 className="text-sm font-medium">Inventory Details</h3>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="quantity">Quantity</Label>
@@ -978,7 +978,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                         <p className="text-red-500 text-xs mt-1">{formErrors.quantity}</p>
                       )}
                     </div>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="unitPrice">Unit Price (Rp)</Label>
                       <Input
@@ -999,7 +999,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="location">Storage Location</Label>
@@ -1011,7 +1011,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                         placeholder="Enter storage location"
                       />
                     </div>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="minimumStock">Minimum Stock</Label>
                       <Input
@@ -1029,7 +1029,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="supplier">Supplier</Label>
                     <Input
@@ -1042,21 +1042,21 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                   </div>
                 </div>
               )}
-              
+
               <div className="pt-4 flex justify-end">
                 <Button onClick={() => setActiveTab("payment")}>
                   Next: Payment & Subscription
                 </Button>
               </div>
             </TabsContent>
-            
+
             <TabsContent value="payment" className="space-y-4 py-2">
               <div className="space-y-4 border-b pb-4">
                 <h3 className="text-lg font-medium flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-gray-500" />
                   Payment Information
                 </h3>
-                
+
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="paymentStatus">Payment Status *</Label>
@@ -1074,7 +1074,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                       </SelectContent>
                     </Select>
                   </div>
-                  
+
                   {/* Fund selection for LUNAS or DP payment types */}
                   {(formData.paymentStatus === "LUNAS" || formData.paymentStatus === "DP") && (
                     <div className="space-y-2">
@@ -1098,14 +1098,14 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                         <p className="text-red-500 text-xs mt-1">{formErrors.fundType}</p>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        {formData.paymentStatus === "LUNAS" ? 
-                          "The full amount will be deducted from the selected fund" : 
+                        {formData.paymentStatus === "LUNAS" ?
+                          "The full amount will be deducted from the selected fund" :
                           "The down payment amount will be deducted from the selected fund"}
                       </p>
                     </div>
                   )}
                 </div>
-                
+
                 {/* Down Payment Amount - only show for DP payment status */}
                 {formData.paymentStatus === "DP" && (
                   <div className="space-y-2">
@@ -1133,7 +1133,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                     )}
                   </div>
                 )}
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="vendor">Vendor (Optional)</Label>
                   <Select
@@ -1165,7 +1165,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                   </Select>
                 </div>
               </div>
-              
+
               {/* Subscription section (show only for SUBSCRIPTION type) */}
               {formData.type === "SUBSCRIPTION" && (
                 <div className="space-y-4 pt-2">
@@ -1173,7 +1173,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                     <Calendar className="h-5 w-5 text-purple-500" />
                     Subscription Details
                   </h3>
-                  
+
                   <Alert className="bg-purple-50 border-purple-200">
                     <RefreshCw className="h-4 w-4 text-purple-500" />
                     <AlertTitle>Subscription Management</AlertTitle>
@@ -1182,7 +1182,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                       You'll receive reminders before payment due dates.
                     </AlertDescription>
                   </Alert>
-                  
+
                   <div className="flex items-start space-x-2">
                     <Checkbox
                       id="isRecurring"
@@ -1201,7 +1201,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                       </p>
                     </div>
                   </div>
-                  
+
                   {formData.isRecurring && (
                     <div className="space-y-4 pl-6 border-l-2 border-purple-100">
                       <div className="grid grid-cols-2 gap-4">
@@ -1224,7 +1224,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                             <p className="text-red-500 text-xs mt-1">{formErrors.recurringType}</p>
                           )}
                         </div>
-                        
+
                         <div className="space-y-2">
                           <Label htmlFor="nextBillingDate">Next Billing Date *</Label>
                           <Popover open={nextBillingDateOpen} onOpenChange={setNextBillingDateOpen}>
@@ -1257,7 +1257,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                           </p>
                         </div>
                       </div>
-                      
+
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <Label htmlFor="reminderDays">Reminder Days Before Due *</Label>
@@ -1288,7 +1288,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                           <p className="text-red-500 text-xs mt-1">{formErrors.reminderDays}</p>
                         )}
                       </div>
-                      
+
                       <div className="flex items-start space-x-2">
                         <Checkbox
                           id="autoRenew"
@@ -1307,7 +1307,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                           </p>
                         </div>
                       </div>
-                      
+
                       <Alert className="bg-blue-50 p-3 rounded-md flex items-start gap-2">
                         <Bell className="h-5 w-5 text-blue-500 mt-0.5" />
                         <div className="text-sm text-blue-800">
@@ -1322,7 +1322,7 @@ export default function AddInventoryModal({ onInventoryAdded }: AddInventoryModa
                   )}
                 </div>
               )}
-              
+
               <div className="pt-4 flex justify-between">
                 <Button variant="outline" onClick={() => setActiveTab("details")}>
                   Back to Details

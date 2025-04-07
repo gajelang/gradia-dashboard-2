@@ -8,11 +8,11 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { fetchWithAuth } from "@/lib/api";
 import { formatRupiah } from "@/lib/formatters";
-import { 
-  Wallet, 
-  Loader2, 
-  ArrowUpIcon, 
-  ArrowDownIcon, 
+import {
+  Wallet,
+  Loader2,
+  ArrowUpIcon,
+  ArrowDownIcon,
   CreditCard,
   CalendarRange,
   ChevronRight
@@ -35,34 +35,34 @@ export default function AccountBalanceComparisonCard() {
   const [error, setError] = useState<string | null>(null);
   const [showHistorical, setShowHistorical] = useState<boolean>(false);
   const [timeframe, setTimeframe] = useState<string>("week");
-  
+
   useEffect(() => {
     fetchAccountData();
   }, []);
-  
+
   const fetchAccountData = async () => {
     try {
       setLoading(true);
-      
+
       // In a real app, this would be a call to your API
       // Here we're simulating the data structure
       const response = await fetchWithAuth("/api/fund-balance", {
         cache: "no-store",
       });
-      
+
       if (!response.ok) {
         throw new Error("Failed to fetch account data");
       }
-      
+
       const fundData = await response.json();
-      
+
       // Transform data into the format we need for this component
       const accountsData: AccountData[] = [];
-      
+
       // Find petty cash and profit bank accounts
       const pettyCash = fundData.find((fund: any) => fund.fundType === "petty_cash");
       const profitBank = fundData.find((fund: any) => fund.fundType === "profit_bank");
-      
+
       if (pettyCash) {
         accountsData.push({
           id: pettyCash.id || "petty-cash",
@@ -74,7 +74,7 @@ export default function AccountBalanceComparisonCard() {
           balanceTrend: Array.isArray(pettyCash.balanceTrend) ? pettyCash.balanceTrend : [0, 0, 0, 0, 0, 0]
         });
       }
-      
+
       if (profitBank) {
         accountsData.push({
           id: profitBank.id || "profit-bank",
@@ -86,12 +86,12 @@ export default function AccountBalanceComparisonCard() {
           balanceTrend: Array.isArray(profitBank.balanceTrend) ? profitBank.balanceTrend : [0, 0, 0, 0, 0, 0]
         });
       }
-      
+
       setAccounts(accountsData);
     } catch (err) {
       console.error("Error fetching account data:", err);
       setError(err instanceof Error ? err.message : "Failed to load account data");
-      
+
       // Use fallback data for demonstration
       setAccounts([
         {
@@ -117,19 +117,19 @@ export default function AccountBalanceComparisonCard() {
       setLoading(false);
     }
   };
-  
+
   const getTotalBalance = () => {
     return accounts.reduce((total, account) => total + account.currentBalance, 0);
   };
-  
+
   const getTotalChange = () => {
     const previousTotal = accounts.reduce((total, account) => total + account.previousBalance, 0);
     const currentTotal = getTotalBalance();
-    
+
     if (previousTotal === 0) return 0;
     return ((currentTotal - previousTotal) / previousTotal) * 100;
   };
-  
+
   const toggleTimeframe = () => {
     if (timeframe === "week") {
       setTimeframe("month");
@@ -139,7 +139,7 @@ export default function AccountBalanceComparisonCard() {
       setTimeframe("week");
     }
   };
-  
+
   if (loading) {
     return (
       <Card>
@@ -152,7 +152,7 @@ export default function AccountBalanceComparisonCard() {
       </Card>
     );
   }
-  
+
   if (error && accounts.length === 0) {
     return (
       <Card>
@@ -165,7 +165,7 @@ export default function AccountBalanceComparisonCard() {
       </Card>
     );
   }
-  
+
   return (
     <Card className="bg-gradient-to-br border-blue-200">
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
@@ -190,7 +190,7 @@ export default function AccountBalanceComparisonCard() {
           <div className="text-sm text-gray-500 mb-1">Total Available Funds</div>
           <div className="flex items-center justify-between">
             <div className="text-2xl font-bold text-blue-800">
-              Rp{formatRupiah(getTotalBalance())}
+              {formatRupiah(getTotalBalance())}
             </div>
             <div className="flex items-center">
               {getTotalChange() > 0 ? (
@@ -200,10 +200,10 @@ export default function AccountBalanceComparisonCard() {
               ) : null}
               <span
                 className={`text-xs font-medium ${
-                  getTotalChange() > 0 
-                    ? "text-green-600" 
-                    : getTotalChange() < 0 
-                    ? "text-red-600" 
+                  getTotalChange() > 0
+                    ? "text-green-600"
+                    : getTotalChange() < 0
+                    ? "text-red-600"
                     : "text-gray-600"
                 }`}
               >
@@ -216,11 +216,11 @@ export default function AccountBalanceComparisonCard() {
             </div>
           </div>
         </div>
-        
+
         {/* Account Comparison */}
         <div className="grid grid-cols-2 gap-3">
           {accounts.map((account) => (
-            <div 
+            <div
               key={account.id}
               className={`bg-white bg-opacity-60 rounded-lg p-3 border ${
                 account.type === "cash" ? "border-amber-200" : "border-green-200"
@@ -251,11 +251,11 @@ export default function AccountBalanceComparisonCard() {
                   </div>
                 )}
               </div>
-              
+
               <div className="text-xl font-bold">
-                Rp{formatRupiah(account.currentBalance)}
+                {formatRupiah(account.currentBalance)}
               </div>
-              
+
               {showHistorical && (
                 <div className="mt-2">
                   <div className="flex justify-between items-center text-xs text-gray-500 mb-1">
@@ -263,9 +263,9 @@ export default function AccountBalanceComparisonCard() {
                       <CalendarRange className="h-3 w-3 mr-1" />
                       {timeframe === "week" ? "Last 7 days" : timeframe === "month" ? "Last 30 days" : "Last 90 days"}
                     </span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="h-6 p-0 text-blue-600"
                       onClick={toggleTimeframe}
                     >

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import ClientTransactionsDialog from "./ClientTransactionsDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -81,7 +82,7 @@ export default function ClientTable() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"active" | "deleted">("active");
-  
+
   // State for add/edit client dialog
   const [isClientDialogOpen, setIsClientDialogOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -94,11 +95,15 @@ export default function ClientTable() {
     description: "",
   });
   const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
-  
+
   // State for delete dialog
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
   const [confirmDeleteText, setConfirmDeleteText] = useState("");
+
+  // State for transactions dialog
+  const [isTransactionsDialogOpen, setIsTransactionsDialogOpen] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
 
   // Define fetchClients with useCallback to avoid dependency issues
   const fetchClients = useCallback(async () => {
@@ -106,11 +111,11 @@ export default function ClientTable() {
       setLoading(true);
       const queryParam = viewMode === "deleted" ? "?deleted=true" : "";
       const res = await fetchWithAuth(`/api/clients${queryParam}`, { cache: "no-store" });
-      
+
       if (!res.ok) {
         throw new Error("Failed to fetch clients");
       }
-      
+
       const data = await res.json();
       setClients(data);
       setFilteredClients(data);
@@ -135,16 +140,16 @@ export default function ClientTable() {
       setFilteredClients(clients);
       return;
     }
-    
+
     const lowerCaseSearch = searchTerm.toLowerCase();
-    const results = clients.filter(client => 
+    const results = clients.filter(client =>
       client.code.toLowerCase().includes(lowerCaseSearch) ||
       client.name.toLowerCase().includes(lowerCaseSearch) ||
       (client.email && client.email.toLowerCase().includes(lowerCaseSearch)) ||
       (client.phone && client.phone.toLowerCase().includes(lowerCaseSearch)) ||
       (client.description && client.description.toLowerCase().includes(lowerCaseSearch))
     );
-    
+
     setFilteredClients(results);
   };
 
@@ -197,7 +202,7 @@ export default function ClientTable() {
       toast.error("Client code and name are required");
       return;
     }
-    
+
     try {
       if (isEditMode && clientToEdit) {
         // Update existing client
@@ -205,24 +210,24 @@ export default function ClientTable() {
           method: "PATCH",
           body: JSON.stringify({
             ...clientFormData,
-            updatedById: user?.userId
+            updatedById: user?.id
           }),
         });
-        
+
         if (!res.ok) {
           throw new Error("Failed to update client");
         }
-        
+
         const updatedClient = await res.json();
-        
+
         // Update state
-        setClients(prev => prev.map(c => 
+        setClients(prev => prev.map(c =>
           c.id === updatedClient.id ? updatedClient : c
         ));
-        setFilteredClients(prev => prev.map(c => 
+        setFilteredClients(prev => prev.map(c =>
           c.id === updatedClient.id ? updatedClient : c
         ));
-        
+
         toast.success("Client updated successfully");
       } else {
         // Add new client
@@ -230,23 +235,23 @@ export default function ClientTable() {
           method: "POST",
           body: JSON.stringify({
             ...clientFormData,
-            createdById: user?.userId
+            createdById: user?.id
           }),
         });
-        
+
         if (!res.ok) {
           throw new Error("Failed to create client");
         }
-        
+
         const newClient = await res.json();
-        
+
         // Update state
         setClients(prev => [...prev, newClient]);
         setFilteredClients(prev => [...prev, newClient]);
-        
+
         toast.success("Client created successfully");
       }
-      
+
       // Close dialog and reset form
       setIsClientDialogOpen(false);
       resetClientForm();
@@ -268,28 +273,28 @@ export default function ClientTable() {
       toast.error("Please type DELETE to confirm");
       return;
     }
-    
+
     try {
       const res = await fetchWithAuth("/api/clients/softDelete", {
         method: "POST",
         body: JSON.stringify({
           id: clientToDelete.id,
-          deletedById: user?.userId
+          deletedById: user?.id
         }),
       });
-      
+
       if (!res.ok) {
         throw new Error("Failed to archive client");
       }
-      
+
       // Update state
       setClients(prev => prev.filter(c => c.id !== clientToDelete.id));
       setFilteredClients(prev => prev.filter(c => c.id !== clientToDelete.id));
-      
+
       setIsDeleteDialogOpen(false);
       setClientToDelete(null);
       setConfirmDeleteText("");
-      
+
       toast.success("Client archived successfully");
     } catch (error) {
       console.error("Error archiving client:", error);
@@ -313,9 +318,9 @@ export default function ClientTable() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Clients</h2>
-        
+
         <div className="flex items-center gap-2">
-          <Button 
+          <Button
             variant={viewMode === "active" ? "default" : "outline"}
             onClick={() => setViewMode("active")}
             className="flex items-center gap-1"
@@ -323,7 +328,7 @@ export default function ClientTable() {
             <Eye className="h-4 w-4" />
             Active
           </Button>
-          <Button 
+          <Button
             variant={viewMode === "deleted" ? "default" : "outline"}
             onClick={() => setViewMode("deleted")}
             className="flex items-center gap-1"
@@ -333,7 +338,7 @@ export default function ClientTable() {
           </Button>
         </div>
       </div>
-      
+
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
         <div className="flex-1 flex items-center gap-2">
           <div className="relative flex-1">
@@ -348,7 +353,7 @@ export default function ClientTable() {
           </div>
           <Button onClick={handleSearch}>Search</Button>
         </div>
-        
+
         {viewMode === "active" && (
           <Button onClick={handleAddClient} className="flex items-center gap-1">
             <Plus className="h-4 w-4" />
@@ -356,7 +361,7 @@ export default function ClientTable() {
           </Button>
         )}
       </div>
-      
+
       {/* Loading indicator */}
       {loading && (
         <div className="flex items-center justify-center py-8">
@@ -364,7 +369,7 @@ export default function ClientTable() {
           <span className="ml-2">Loading clients...</span>
         </div>
       )}
-      
+
       {/* Clients table */}
       {!loading && (
         <div className="border rounded-md">
@@ -387,7 +392,17 @@ export default function ClientTable() {
                 filteredClients.map((client) => (
                   <TableRow key={client.id} className={client.isDeleted ? "bg-gray-50" : ""}>
                     <TableCell className="font-medium">{client.code}</TableCell>
-                    <TableCell>{client.name}</TableCell>
+                    <TableCell>
+                      <button
+                        onClick={() => {
+                          setSelectedClient(client);
+                          setIsTransactionsDialogOpen(true);
+                        }}
+                        className="text-left hover:text-blue-600 hover:underline focus:outline-none"
+                      >
+                        {client.name}
+                      </button>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">
                         {client.email && (
@@ -448,17 +463,17 @@ export default function ClientTable() {
                     <TableCell className="text-right">
                       {viewMode === "active" ? (
                         <div className="flex justify-end gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => handleEditClient(client)}
                             className="h-8 px-2"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="destructive" 
-                            size="sm" 
+                          <Button
+                            variant="destructive"
+                            size="sm"
                             onClick={() => handleDeleteClick(client)}
                             className="h-8 px-2"
                           >
@@ -476,8 +491,8 @@ export default function ClientTable() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
-                    {viewMode === "active" 
-                      ? "No active clients found" 
+                    {viewMode === "active"
+                      ? "No active clients found"
                       : "No archived clients found"}
                   </TableCell>
                 </TableRow>
@@ -486,19 +501,19 @@ export default function ClientTable() {
           </Table>
         </div>
       )}
-      
+
       {/* Add/Edit Client Dialog */}
       <Dialog open={isClientDialogOpen} onOpenChange={setIsClientDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{isEditMode ? "Edit Client" : "Add New Client"}</DialogTitle>
             <DialogDescription>
-              {isEditMode 
-                ? "Update client information" 
+              {isEditMode
+                ? "Update client information"
                 : "Fill in the details to create a new client"}
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
@@ -512,7 +527,7 @@ export default function ClientTable() {
                   disabled={isEditMode} // Don't allow changing code in edit mode
                 />
               </div>
-              
+
               <div className="space-y-2">
                 <label className="text-sm font-medium">Client Name</label>
                 <Input
@@ -524,7 +539,7 @@ export default function ClientTable() {
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Email</label>
               <Input
@@ -535,7 +550,7 @@ export default function ClientTable() {
                 placeholder="Email address"
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Phone</label>
               <Input
@@ -545,7 +560,7 @@ export default function ClientTable() {
                 placeholder="Phone number"
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Address</label>
               <Input
@@ -555,7 +570,7 @@ export default function ClientTable() {
                 placeholder="Address"
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Description</label>
               <Input
@@ -566,7 +581,7 @@ export default function ClientTable() {
               />
             </div>
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsClientDialogOpen(false)}>
               Cancel
@@ -577,7 +592,7 @@ export default function ClientTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -587,7 +602,7 @@ export default function ClientTable() {
               This client will be archived.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4">
             <p className="mb-2 font-medium">Client: {clientToDelete?.name} ({clientToDelete?.code})</p>
             <p className="mb-4 text-sm text-muted-foreground">Type &quot;DELETE&quot; to confirm.</p>
@@ -597,13 +612,13 @@ export default function ClientTable() {
               placeholder="Type DELETE to confirm"
             />
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={handleSoftDelete}
               disabled={confirmDeleteText !== "DELETE"}
             >
@@ -612,6 +627,13 @@ export default function ClientTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Client Transactions Dialog */}
+      <ClientTransactionsDialog
+        client={selectedClient}
+        open={isTransactionsDialogOpen}
+        onOpenChange={setIsTransactionsDialogOpen}
+      />
     </div>
   );
 }

@@ -82,7 +82,7 @@ export default function VendorTable() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [viewMode, setViewMode] = useState<"active" | "deleted">("active");
-  
+
   // State for add/edit vendor dialog
   const [isVendorDialogOpen, setIsVendorDialogOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -94,7 +94,7 @@ export default function VendorTable() {
     address: "",
   });
   const [vendorToEdit, setVendorToEdit] = useState<Vendor | null>(null);
-  
+
   // State for delete dialog
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [vendorToDelete, setVendorToDelete] = useState<Vendor | null>(null);
@@ -106,11 +106,11 @@ export default function VendorTable() {
       setLoading(true);
       const queryParam = viewMode === "deleted" ? "?deleted=true" : "";
       const res = await fetchWithAuth(`/api/vendors${queryParam}`, { cache: "no-store" });
-      
+
       if (!res.ok) {
         throw new Error("Failed to fetch vendors");
       }
-      
+
       const data = await res.json();
       setVendors(data);
       setFilteredVendors(data);
@@ -134,15 +134,15 @@ export default function VendorTable() {
       setFilteredVendors(vendors);
       return;
     }
-    
+
     const lowerCaseSearch = searchTerm.toLowerCase();
-    const results = vendors.filter(vendor => 
+    const results = vendors.filter(vendor =>
       vendor.name.toLowerCase().includes(lowerCaseSearch) ||
       vendor.serviceDesc.toLowerCase().includes(lowerCaseSearch) ||
       (vendor.email && vendor.email.toLowerCase().includes(lowerCaseSearch)) ||
       (vendor.phone && vendor.phone.toLowerCase().includes(lowerCaseSearch))
     );
-    
+
     setFilteredVendors(results);
   };
 
@@ -193,7 +193,7 @@ export default function VendorTable() {
       toast.error("Vendor name and service description are required");
       return;
     }
-    
+
     try {
       if (isEditMode && vendorToEdit) {
         // Update existing vendor
@@ -201,24 +201,24 @@ export default function VendorTable() {
           method: "PATCH",
           body: JSON.stringify({
             ...vendorFormData,
-            updatedById: user?.userId
+            updatedById: user?.id
           }),
         });
-        
+
         if (!res.ok) {
           throw new Error("Failed to update vendor");
         }
-        
+
         const updatedVendor = await res.json();
-        
+
         // Update state
-        setVendors(prev => prev.map(v => 
+        setVendors(prev => prev.map(v =>
           v.id === updatedVendor.id ? updatedVendor : v
         ));
-        setFilteredVendors(prev => prev.map(v => 
+        setFilteredVendors(prev => prev.map(v =>
           v.id === updatedVendor.id ? updatedVendor : v
         ));
-        
+
         toast.success("Vendor updated successfully");
       } else {
         // Add new vendor
@@ -226,23 +226,23 @@ export default function VendorTable() {
           method: "POST",
           body: JSON.stringify({
             ...vendorFormData,
-            createdById: user?.userId
+            createdById: user?.id
           }),
         });
-        
+
         if (!res.ok) {
           throw new Error("Failed to create vendor");
         }
-        
+
         const newVendor = await res.json();
-        
+
         // Update state
         setVendors(prev => [...prev, newVendor]);
         setFilteredVendors(prev => [...prev, newVendor]);
-        
+
         toast.success("Vendor created successfully");
       }
-      
+
       // Close dialog and reset form
       setIsVendorDialogOpen(false);
       resetVendorForm();
@@ -264,28 +264,28 @@ export default function VendorTable() {
       toast.error("Please type DELETE to confirm");
       return;
     }
-    
+
     try {
       const res = await fetchWithAuth("/api/vendors/softDelete", {
         method: "POST",
         body: JSON.stringify({
           id: vendorToDelete.id,
-          deletedById: user?.userId
+          deletedById: user?.id
         }),
       });
-      
+
       if (!res.ok) {
         throw new Error("Failed to archive vendor");
       }
-      
+
       // Update state
       setVendors(prev => prev.filter(v => v.id !== vendorToDelete.id));
       setFilteredVendors(prev => prev.filter(v => v.id !== vendorToDelete.id));
-      
+
       setIsDeleteDialogOpen(false);
       setVendorToDelete(null);
       setConfirmDeleteText("");
-      
+
       toast.success("Vendor archived successfully");
     } catch (error) {
       console.error("Error archiving vendor:", error);
@@ -309,9 +309,9 @@ export default function VendorTable() {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-semibold">Vendors / Subcontractors</h2>
-        
+
         <div className="flex items-center gap-2">
-          <Button 
+          <Button
             variant={viewMode === "active" ? "default" : "outline"}
             onClick={() => setViewMode("active")}
             className="flex items-center gap-1"
@@ -319,7 +319,7 @@ export default function VendorTable() {
             <Eye className="h-4 w-4" />
             Active
           </Button>
-          <Button 
+          <Button
             variant={viewMode === "deleted" ? "default" : "outline"}
             onClick={() => setViewMode("deleted")}
             className="flex items-center gap-1"
@@ -329,7 +329,7 @@ export default function VendorTable() {
           </Button>
         </div>
       </div>
-      
+
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
         <div className="flex-1 flex items-center gap-2">
           <div className="relative flex-1">
@@ -344,7 +344,7 @@ export default function VendorTable() {
           </div>
           <Button onClick={handleSearch}>Search</Button>
         </div>
-        
+
         {viewMode === "active" && (
           <Button onClick={handleAddVendor} className="flex items-center gap-1">
             <Plus className="h-4 w-4" />
@@ -352,7 +352,7 @@ export default function VendorTable() {
           </Button>
         )}
       </div>
-      
+
       {/* Loading indicator */}
       {loading && (
         <div className="flex items-center justify-center py-8">
@@ -360,7 +360,7 @@ export default function VendorTable() {
           <span className="ml-2">Loading vendors...</span>
         </div>
       )}
-      
+
       {/* Vendors table */}
       {!loading && (
         <div className="border rounded-md">
@@ -443,17 +443,17 @@ export default function VendorTable() {
                     <TableCell className="text-right">
                       {viewMode === "active" ? (
                         <div className="flex justify-end gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => handleEditVendor(vendor)}
                             className="h-8 px-2"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="destructive" 
-                            size="sm" 
+                          <Button
+                            variant="destructive"
+                            size="sm"
                             onClick={() => handleDeleteClick(vendor)}
                             className="h-8 px-2"
                           >
@@ -471,8 +471,8 @@ export default function VendorTable() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-10 text-muted-foreground">
-                    {viewMode === "active" 
-                      ? "No active vendors found" 
+                    {viewMode === "active"
+                      ? "No active vendors found"
                       : "No archived vendors found"}
                   </TableCell>
                 </TableRow>
@@ -481,19 +481,19 @@ export default function VendorTable() {
           </Table>
         </div>
       )}
-      
+
       {/* Add/Edit Vendor Dialog */}
       <Dialog open={isVendorDialogOpen} onOpenChange={setIsVendorDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{isEditMode ? "Edit Vendor" : "Add New Vendor"}</DialogTitle>
             <DialogDescription>
-              {isEditMode 
-                ? "Update vendor information" 
+              {isEditMode
+                ? "Update vendor information"
                 : "Fill in the details to create a new vendor/subcontractor"}
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Vendor Name</label>
@@ -505,7 +505,7 @@ export default function VendorTable() {
                 required
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Service Description</label>
               <Textarea
@@ -517,7 +517,7 @@ export default function VendorTable() {
                 rows={3}
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Email</label>
               <Input
@@ -528,7 +528,7 @@ export default function VendorTable() {
                 placeholder="Email address"
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Phone</label>
               <Input
@@ -538,7 +538,7 @@ export default function VendorTable() {
                 placeholder="Phone number"
               />
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">Address</label>
               <Input
@@ -549,7 +549,7 @@ export default function VendorTable() {
               />
             </div>
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsVendorDialogOpen(false)}>
               Cancel
@@ -560,7 +560,7 @@ export default function VendorTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       {/* Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -570,7 +570,7 @@ export default function VendorTable() {
               This vendor will be archived.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4">
             <p className="mb-2 font-medium">Vendor: {vendorToDelete?.name}</p>
             <p className="mb-4 text-sm text-muted-foreground">Type &quot;DELETE&quot; to confirm.</p>
@@ -580,13 +580,13 @@ export default function VendorTable() {
               placeholder="Type DELETE to confirm"
             />
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={handleSoftDelete}
               disabled={confirmDeleteText !== "DELETE"}
             >

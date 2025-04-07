@@ -26,13 +26,11 @@ export interface TransactionData {
 // definitely strings in this final shape.
 export interface Transaction {
   fundType(fundType: any): import("react").ReactNode;
-  endDate: string | number | Date;
-  endDate: any;
-  startDate: any;
-  startDate: string | number | Date;
+  endDate: string | number | Date | null;
+  startDate: string | number | Date | null;
   client: any;
   remainingAmount: number;
-  isDeleted: any;
+  isDeleted: boolean;
   projectValue: number;
   downPaymentAmount: number;
   id: string;
@@ -61,5 +59,14 @@ export function convertToTransaction(data: TransactionData): Transaction {
     status: data.status ?? "Pending",
     // Fallback paymentStatus is either paymentStatus, or status, or "Belum Bayar"
     paymentStatus: data.paymentStatus ?? data.status ?? "Belum Bayar",
+    // Add missing properties required by Transaction interface
+    fundType: () => null,
+    endDate: null,
+    startDate: null,
+    client: null,
+    remainingAmount: 0,
+    isDeleted: false,
+    projectValue: 0,
+    downPaymentAmount: 0
   };
 }

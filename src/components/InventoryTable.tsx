@@ -77,17 +77,17 @@ export default function InventoryTable({
 }: InventoryTableProps) {
   const { user } = useAuth();
   const [filteredInventory, setFilteredInventory] = useState<Inventory[]>(inventory);
-  
+
   // State for edit inventory dialog
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<Inventory | null>(null);
   const [itemFormData, setItemFormData] = useState<Partial<Inventory>>({});
-  
+
   // State for archive dialog
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
   const [itemToArchive, setItemToArchive] = useState<Inventory | null>(null);
   const [confirmArchiveText, setConfirmArchiveText] = useState("");
-  
+
   // State for restore dialog
   const [isRestoreDialogOpen, setIsRestoreDialogOpen] = useState(false);
   const [itemToRestore, setItemToRestore] = useState<Inventory | null>(null);
@@ -95,16 +95,16 @@ export default function InventoryTable({
   // Apply filters when inventory, categoryFilter, or searchTerm changes
   useEffect(() => {
     let filtered = [...inventory];
-    
+
     // Apply category filter
     if (categoryFilter) {
       filtered = filtered.filter(item => item.category === categoryFilter);
     }
-    
+
     // Apply search filter
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase();
-      filtered = filtered.filter(item => 
+      filtered = filtered.filter(item =>
         item.name.toLowerCase().includes(searchLower) ||
         (item.description?.toLowerCase().includes(searchLower)) ||
         (item.category?.toLowerCase().includes(searchLower)) ||
@@ -112,7 +112,7 @@ export default function InventoryTable({
         (item.location?.toLowerCase().includes(searchLower))
       );
     }
-    
+
     setFilteredInventory(filtered);
   }, [inventory, categoryFilter, searchTerm]);
 
@@ -137,7 +137,7 @@ export default function InventoryTable({
   // Handle form change
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
-    
+
     // Convert numeric values
     if (type === "number") {
       setItemFormData(prev => ({ ...prev, [name]: Number(value) }));
@@ -169,28 +169,28 @@ export default function InventoryTable({
       toast.error("Item name is required");
       return;
     }
-    
+
     try {
       const res = await fetchWithAuth(`/api/inventory`, {
         method: "PATCH",
         body: JSON.stringify({
           id: itemToEdit.id,
           ...itemFormData,
-          updatedById: user?.userId
+          updatedById: user?.id
         }),
       });
-      
+
       if (!res.ok) {
         throw new Error("Failed to update inventory item");
       }
-      
+
       const { item: updatedItem } = await res.json();
-      
+
       // Call the onUpdate callback
       if (onUpdate) {
         onUpdate(updatedItem);
       }
-      
+
       toast.success("Inventory item updated successfully");
       setIsEditDialogOpen(false);
       resetFormData();
@@ -213,27 +213,27 @@ export default function InventoryTable({
       toast.error("Please type ARCHIVE to confirm");
       return;
     }
-    
+
     try {
       const res = await fetchWithAuth("/api/inventory/softDelete", {
         method: "POST",
         body: JSON.stringify({
           id: itemToArchive.id,
-          deletedById: user?.userId
+          deletedById: user?.id
         }),
       });
-      
+
       if (!res.ok) {
         throw new Error("Failed to archive inventory item");
       }
-      
+
       const { item: archivedItem } = await res.json();
-      
+
       // Call the onArchive callback
       if (onArchive) {
         onArchive(archivedItem);
       }
-      
+
       toast.success("Inventory item archived successfully");
       setIsArchiveDialogOpen(false);
       setItemToArchive(null);
@@ -253,27 +253,27 @@ export default function InventoryTable({
   // Handle restore item
   const handleRestoreItem = async () => {
     if (!itemToRestore) return;
-    
+
     try {
       const res = await fetchWithAuth("/api/inventory/restore", {
         method: "POST",
         body: JSON.stringify({
           id: itemToRestore.id,
-          restoredById: user?.userId
+          restoredById: user?.id
         }),
       });
-      
+
       if (!res.ok) {
         throw new Error("Failed to restore inventory item");
       }
-      
+
       const { item: restoredItem } = await res.json();
-      
+
       // Call the onRestore callback
       if (onRestore) {
         onRestore(restoredItem);
       }
-      
+
       toast.success("Inventory item restored successfully");
       setIsRestoreDialogOpen(false);
       setItemToRestore(null);
@@ -296,26 +296,26 @@ export default function InventoryTable({
           <Package2 className="h-12 w-12 mx-auto text-muted-foreground mb-3" />
           <h3 className="text-lg font-medium">No inventory items found</h3>
           <p className="text-muted-foreground">
-            {isArchived 
-              ? "No archived items match your criteria." 
-              : "Try adjusting your filters or add new inventory items."}
+            {isArchived
+              ? "Tidak ada item diarsipkan yang cocok dengan kriteria Anda."
+              : "Coba sesuaikan filter Anda atau tambahkan item inventaris baru."}
           </p>
         </div>
       ) : (
         <div className="border rounded-md">
           <Table>
             <TableCaption>
-              {isArchived ? "List of archived inventory items" : "List of active inventory items"}
+              {isArchived ? "Daftar item inventaris yang diarsipkan" : "Daftar item inventaris aktif"}
             </TableCaption>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Quantity</TableHead>
-                <TableHead>Unit Price</TableHead>
-                <TableHead>Total Value</TableHead>
+                <TableHead>Nama</TableHead>
+                <TableHead>Kategori</TableHead>
+                <TableHead>Kuantitas</TableHead>
+                <TableHead>Harga Satuan</TableHead>
+                <TableHead>Total Nilai</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="text-right">Tindakan</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -341,9 +341,9 @@ export default function InventoryTable({
                   <TableCell>
                     <div className="flex items-center">
                       {item.quantity}
-                      {item.quantity !== undefined && 
-                       item.minimumStock !== undefined && 
-                       item.quantity <= item.minimumStock && 
+                      {item.quantity !== undefined &&
+                       item.minimumStock !== undefined &&
+                       item.quantity <= item.minimumStock &&
                        item.quantity > 0 && (
                         <TooltipProvider>
                           <Tooltip>
@@ -351,15 +351,15 @@ export default function InventoryTable({
                               <AlertCircle className="h-4 w-4 ml-1 text-red-500" />
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Low stock</p>
+                              <p>Stok rendah</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>Rp{formatRupiah(item.unitPrice || 0)}</TableCell>
-                  <TableCell>Rp{formatRupiah(item.totalValue || 0)}</TableCell>
+                  <TableCell>{formatRupiah(item.unitPrice || 0)}</TableCell>
+                  <TableCell>{formatRupiah(item.totalValue || 0)}</TableCell>
                   <TableCell>
                     <Badge
                       variant={item.status === "ACTIVE" ? "default" : "secondary"}
@@ -376,16 +376,16 @@ export default function InventoryTable({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuLabel>Tindakan</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        
+
                         {isArchived ? (
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             onClick={() => handleRestoreClick(item)}
                             className="text-green-600 focus:text-green-700"
                           >
                             <RefreshCw className="mr-2 h-4 w-4" />
-                            Restore
+                            Pulihkan
                           </DropdownMenuItem>
                         ) : (
                           <>
@@ -393,12 +393,12 @@ export default function InventoryTable({
                               <Edit className="mr-2 h-4 w-4" />
                               Edit
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               onClick={() => handleArchiveClick(item)}
                               className="text-red-600 focus:text-red-700"
                             >
                               <Archive className="mr-2 h-4 w-4" />
-                              Archive
+                              Arsipkan
                             </DropdownMenuItem>
                           </>
                         )}
@@ -416,32 +416,32 @@ export default function InventoryTable({
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Inventory Item</DialogTitle>
+            <DialogTitle>Edit Item Inventaris</DialogTitle>
             <DialogDescription>
-              Update the inventory item details
+              Perbarui detail item inventaris
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Name</label>
+              <label className="text-sm font-medium">Nama</label>
               <Input
                 name="name"
                 value={itemFormData.name || ""}
                 onChange={handleFormChange}
-                placeholder="Item name"
+                placeholder="Nama item"
                 required
               />
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Category</label>
+                <label className="text-sm font-medium">Kategori</label>
                 <Input
                   name="category"
                   value={itemFormData.category || ""}
                   onChange={handleFormChange}
-                  placeholder="Category"
+                  placeholder="Kategori"
                   list="categories"
                 />
                 <datalist id="categories">
@@ -450,7 +450,7 @@ export default function InventoryTable({
                   ))}
                 </datalist>
               </div>
-              
+
               <div className="space-y-2">
                 <label className="text-sm font-medium">Status</label>
                 <select
@@ -459,88 +459,88 @@ export default function InventoryTable({
                   onChange={handleFormChange}
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <option value="ACTIVE">Active</option>
-                  <option value="INACTIVE">Inactive</option>
-                  <option value="MAINTENANCE">Maintenance</option>
+                  <option value="ACTIVE">Aktif</option>
+                  <option value="INACTIVE">Tidak Aktif</option>
+                  <option value="MAINTENANCE">Pemeliharaan</option>
                 </select>
               </div>
             </div>
-            
+
             <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Quantity</label>
+                <label className="text-sm font-medium">Kuantitas</label>
                 <Input
                   name="quantity"
                   type="number"
                   min="0"
                   value={itemFormData.quantity?.toString() || "0"}
                   onChange={handleFormChange}
-                  placeholder="Quantity"
+                  placeholder="Kuantitas"
                 />
               </div>
-              
+
               <div className="space-y-2">
-                <label className="text-sm font-medium">Unit Price</label>
+                <label className="text-sm font-medium">Harga Satuan</label>
                 <Input
                   name="unitPrice"
                   type="number"
                   min="0"
                   value={itemFormData.unitPrice?.toString() || "0"}
                   onChange={handleFormChange}
-                  placeholder="Unit price"
+                  placeholder="Harga satuan"
                 />
               </div>
-              
+
               <div className="space-y-2">
-                <label className="text-sm font-medium">Min. Stock</label>
+                <label className="text-sm font-medium">Stok Min.</label>
                 <Input
                   name="minimumStock"
                   type="number"
                   min="0"
                   value={itemFormData.minimumStock?.toString() || "0"}
                   onChange={handleFormChange}
-                  placeholder="Minimum stock"
+                  placeholder="Stok minimum"
                 />
               </div>
             </div>
-            
+
             <div className="space-y-2">
-              <label className="text-sm font-medium">Location</label>
+              <label className="text-sm font-medium">Lokasi</label>
               <Input
                 name="location"
                 value={itemFormData.location || ""}
                 onChange={handleFormChange}
-                placeholder="Storage location"
+                placeholder="Lokasi penyimpanan"
               />
             </div>
-            
+
             <div className="space-y-2">
-              <label className="text-sm font-medium">Supplier</label>
+              <label className="text-sm font-medium">Pemasok</label>
               <Input
                 name="supplier"
                 value={itemFormData.supplier || ""}
                 onChange={handleFormChange}
-                placeholder="Supplier name"
+                placeholder="Nama pemasok"
               />
             </div>
-            
+
             <div className="space-y-2">
-              <label className="text-sm font-medium">Description</label>
+              <label className="text-sm font-medium">Deskripsi</label>
               <Input
                 name="description"
                 value={itemFormData.description || ""}
                 onChange={handleFormChange}
-                placeholder="Item description"
+                placeholder="Deskripsi item"
               />
             </div>
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-              Cancel
+              Batal
             </Button>
             <Button onClick={handleUpdateItem}>
-              Update Item
+              Perbarui Item
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -550,36 +550,36 @@ export default function InventoryTable({
       <Dialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Archive Inventory Item</DialogTitle>
+            <DialogTitle>Arsipkan Item Inventaris</DialogTitle>
             <DialogDescription>
-              This item will be archived and won't appear in the active inventory list.
+              Item ini akan diarsipkan dan tidak akan muncul dalam daftar inventaris aktif.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4">
             <p className="mb-2 font-medium">
               Item: {itemToArchive?.name}
             </p>
             <p className="mb-4 text-sm text-muted-foreground">
-              Type "ARCHIVE" to confirm.
+              Ketik "ARCHIVE" untuk konfirmasi.
             </p>
             <Input
               value={confirmArchiveText}
               onChange={(e) => setConfirmArchiveText(e.target.value)}
-              placeholder="Type ARCHIVE to confirm"
+              placeholder="Ketik ARCHIVE untuk konfirmasi"
             />
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsArchiveDialogOpen(false)}>
-              Cancel
+              Batal
             </Button>
             <Button
               variant="destructive"
               onClick={handleArchiveItem}
               disabled={confirmArchiveText !== "ARCHIVE"}
             >
-              Archive Item
+              Arsipkan Item
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -589,24 +589,24 @@ export default function InventoryTable({
       <Dialog open={isRestoreDialogOpen} onOpenChange={setIsRestoreDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Restore Inventory Item</DialogTitle>
+            <DialogTitle>Pulihkan Item Inventaris</DialogTitle>
             <DialogDescription>
-              This item will be restored and will appear in the active inventory list again.
+              Item ini akan dipulihkan dan akan muncul dalam daftar inventaris aktif lagi.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4">
             <p>
-              Are you sure you want to restore the item "{itemToRestore?.name}"?
+              Apakah Anda yakin ingin memulihkan item "{itemToRestore?.name}"?
             </p>
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRestoreDialogOpen(false)}>
-              Cancel
+              Batal
             </Button>
             <Button onClick={handleRestoreItem}>
-              Restore Item
+              Pulihkan Item
             </Button>
           </DialogFooter>
         </DialogContent>

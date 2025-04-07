@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   Legend,
   ResponsiveContainer,
   ComposedChart,
@@ -104,17 +104,18 @@ export default function FinancialAnalysis() {
   const [monthFilter, setMonthFilter] = useState<number | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState<boolean>(false);
-  
+
   // Data state
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [selectedMonth, setSelectedMonth] = useState<MonthlyData | null>(null);
-  
+
   // UI state
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<string>("overview");
-  
+  const [analysisTab, setAnalysisTab] = useState<string>("monthly");
+
   // Fungsi untuk memformat range tanggal
   const formatDateRange = (range: DateRange | undefined): string => {
     if (range?.from && range?.to) {
@@ -142,16 +143,16 @@ export default function FinancialAnalysis() {
   const fetchFinancialData = useCallback(async () => {
     try {
       setIsLoading(true);
-      
+
       // Fetch transactions dari API
       const resTransactions = await fetchWithAuth("/api/transactions", { cache: "no-store" });
       if (!resTransactions.ok) throw new Error("Failed to fetch transactions");
       const transactionsData: Transaction[] = await resTransactions.json();
-      
+
       // Filter transaksi yang tidak dihapus
       const activeTransactions = transactionsData.filter(tx => tx.isDeleted !== true);
       setTransactions(activeTransactions);
-      
+
       // Ekstrak tahun unik dari tanggal transaksi
       const years = [
         ...new Set(activeTransactions.map(t => new Date(t.date).getFullYear()))
@@ -164,14 +165,14 @@ export default function FinancialAnalysis() {
       setIsLoading(false);
     }
   }, []);
-  
+
   // Memproses transaksi menjadi data bulanan (project)
   const processDataByMonths = useCallback(() => {
     if (!transactions.length) return;
-    
+
     // Map untuk menyimpan data per bulan
     const dataByMonth: Map<string, MonthlyData> = new Map();
-    
+
     // Filter transaksi berdasarkan range tanggal atau filter tahun/bulan
     let processedTransactions = [...transactions];
     if (dateRange?.from && dateRange?.to) {
@@ -187,14 +188,14 @@ export default function FinancialAnalysis() {
         processedTransactions = processedTransactions.filter(tx => new Date(tx.date).getMonth() + 1 === monthFilter);
       }
     }
-    
+
     // Proses tiap transaksi ke dalam data bulanan
     processedTransactions.forEach(tx => {
       const date = new Date(tx.date);
       const year = date.getFullYear();
       const monthNum = date.getMonth() + 1;
       const key = `${year}-${monthNum.toString().padStart(2, "0")}`;
-      
+
       if (!dataByMonth.has(key)) {
         dataByMonth.set(key, {
           month: getMonthName(monthNum),
@@ -207,13 +208,13 @@ export default function FinancialAnalysis() {
           collectionRate: 0
         });
       }
-      
+
       const monthData = dataByMonth.get(key)!;
       monthData.transactions.push(tx);
-      
+
       const projectValue = tx.projectValue || 0;
       monthData.totalExpectedValue += projectValue;
-      
+
       if (tx.paymentStatus === "Lunas") {
         monthData.totalPaid += projectValue;
       } else if (tx.paymentStatus === "DP") {
@@ -223,33 +224,33 @@ export default function FinancialAnalysis() {
         monthData.remainingPayments += projectValue;
       }
     });
-    
+
     // Hitung collection rate tiap bulan
     dataByMonth.forEach(data => {
       data.collectionRate = data.totalExpectedValue > 0 ? (data.totalPaid / data.totalExpectedValue) * 100 : 0;
     });
-    
+
     const dataArray = Array.from(dataByMonth.values()).sort((a, b) => {
       if (a.year !== b.year) return a.year - b.year;
       return a.monthNum - b.monthNum;
     });
-    
+
     setMonthlyData(dataArray);
-    
+
     if (selectedMonth) {
       const stillExists = dataArray.some(d => d.year === selectedMonth.year && d.monthNum === selectedMonth.monthNum);
       if (!stillExists) setSelectedMonth(null);
     }
   }, [transactions, yearFilter, monthFilter, dateRange, selectedMonth]);
-  
+
   useEffect(() => {
     fetchFinancialData();
   }, [fetchFinancialData]);
-  
+
   useEffect(() => {
     processDataByMonths();
   }, [processDataByMonths]);
-  
+
   // Data chart bulanan
   const getMonthlyChartData = () => {
     return monthlyData.map(data => ({
@@ -259,18 +260,18 @@ export default function FinancialAnalysis() {
       remaining: data.remainingPayments
     }));
   };
-  
+
   // Handler filter
   const handleMonthChange = (value: string) => {
     setDateRange(undefined);
     setMonthFilter(value === "all" ? null : parseInt(value));
   };
-  
+
   const handleYearChange = (value: string) => {
     setDateRange(undefined);
     setYearFilter(value === "all" ? new Date().getFullYear() : parseInt(value));
   };
-  
+
   const handleDateRangeChange = (range: DateRange | undefined) => {
     if (range?.from && range?.to) {
       setMonthFilter(null);
@@ -278,13 +279,13 @@ export default function FinancialAnalysis() {
     }
     setDateRange(range);
   };
-  
+
   const clearFilters = () => {
     setDateRange(undefined);
     setYearFilter(new Date().getFullYear());
     setMonthFilter(null);
   };
-  
+
   // Custom tooltip untuk chart
   const CustomBarTooltip = ({ active, payload, label }: CustomBarTooltipProps) => {
     if (active && payload && payload.length) {
@@ -295,7 +296,7 @@ export default function FinancialAnalysis() {
             {payload.map((entry, index) => (
               <div key={index} className="flex items-center justify-between">
                 <div className="flex items-center">
-                  <div 
+                  <div
                     className="w-3 h-3 rounded-full mr-2"
                     style={{ backgroundColor: entry.color }}
                   ></div>
@@ -318,12 +319,12 @@ export default function FinancialAnalysis() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold">Project Analysis</h2>
       </div>
-      
+
       <div className="flex flex-col sm:flex-row gap-4 mb-4">
         <div className="flex-1 space-y-2">
           <div className="flex items-center gap-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="flex items-center gap-2"
               onClick={() => setIsDatePickerOpen(true)}
             >
@@ -341,7 +342,7 @@ export default function FinancialAnalysis() {
             />
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <Select onValueChange={handleMonthChange} value={monthFilter?.toString() || "all"}>
             <SelectTrigger className="w-[160px]">
@@ -356,7 +357,7 @@ export default function FinancialAnalysis() {
               ))}
             </SelectContent>
           </Select>
-  
+
           <Select onValueChange={handleYearChange} value={yearFilter.toString()}>
             <SelectTrigger className="w-[120px]">
               <SelectValue placeholder="Year" />
@@ -369,14 +370,14 @@ export default function FinancialAnalysis() {
               ))}
             </SelectContent>
           </Select>
-  
+
           <Button variant="outline" size="icon" onClick={clearFilters} title="Clear filters">
             <span className="sr-only">Clear filters</span>
             ×
           </Button>
         </div>
       </div>
-  
+
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -407,7 +408,7 @@ export default function FinancialAnalysis() {
                 </p>
               </CardContent>
             </Card>
-  
+
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Total Paid</CardTitle>
@@ -422,7 +423,7 @@ export default function FinancialAnalysis() {
                 </p>
               </CardContent>
             </Card>
-  
+
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Remaining Payments</CardTitle>
@@ -437,7 +438,7 @@ export default function FinancialAnalysis() {
                 </p>
               </CardContent>
             </Card>
-  
+
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Collection Rate</CardTitle>
@@ -445,7 +446,7 @@ export default function FinancialAnalysis() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-blue-600">
-                  {monthlyData.reduce((sum, data) => sum + data.totalExpectedValue, 0) > 0 
+                  {monthlyData.reduce((sum, data) => sum + data.totalExpectedValue, 0) > 0
                     ? ((monthlyData.reduce((sum, data) => sum + data.totalPaid, 0) / monthlyData.reduce((sum, data) => sum + data.totalExpectedValue, 0)) * 100).toFixed(1)
                     : "0"}%
                 </div>
@@ -455,7 +456,7 @@ export default function FinancialAnalysis() {
               </CardContent>
             </Card>
           </div>
-  
+
           {/* Monthly Chart */}
           <Card className="mt-4">
             <CardHeader>
@@ -478,13 +479,13 @@ export default function FinancialAnalysis() {
               </div>
             </CardContent>
           </Card>
-  
+
           {/* Data per Bulan */}
           <div className="mt-6">
             <h3 className="text-lg font-semibold mb-3">Project Data by Month</h3>
             <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
               {monthlyData.map((data) => (
-                <Card 
+                <Card
                   key={`${data.year}-${data.monthNum}`}
                   className={`cursor-pointer transition-all hover:border-primary ${
                     selectedMonth?.monthNum === data.monthNum && selectedMonth?.year === data.year
@@ -524,7 +525,7 @@ export default function FinancialAnalysis() {
               ))}
             </div>
           </div>
-  
+
           {/* Detail Bulan Terpilih */}
           {selectedMonth && (
             <Card className="mt-6">
@@ -540,7 +541,7 @@ export default function FinancialAnalysis() {
                     <TabsTrigger value="transactions">Transactions</TabsTrigger>
                     <TabsTrigger value="profitAnalysis">Profit Analysis</TabsTrigger>
                   </TabsList>
-                  
+
                   {/* Overview Tab */}
                   <TabsContent value="overview" className="pt-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -569,7 +570,7 @@ export default function FinancialAnalysis() {
                           </div>
                         </div>
                       </div>
-  
+
                       {/* Payment Status Placeholder */}
                       <div>
                         <h3 className="font-bold text-gray-800 mb-4">Payment Status</h3>
@@ -577,7 +578,7 @@ export default function FinancialAnalysis() {
                           Payment status chart can be added here.
                         </div>
                       </div>
-  
+
                       {/* Profit Analysis Tab */}
                       <div>
                         <h3 className="font-bold text-gray-800 mb-4">Profit Analysis</h3>
@@ -598,16 +599,16 @@ export default function FinancialAnalysis() {
                               <YAxis tickFormatter={(value) => `Rp${formatRupiah(value)}`} />
                               <Tooltip formatter={(value) => `Rp${formatRupiah(value as number)}`} />
                               <Legend />
-                              <Bar 
-                                dataKey="expected" 
-                                name="Expected Value" 
+                              <Bar
+                                dataKey="expected"
+                                name="Expected Value"
                                 fill="#6366f1"
                                 radius={[4, 4, 0, 0]}
                               />
-                              <Bar 
-                                dataKey="paid" 
-                                name="Collected" 
-                                fill="#10b981" 
+                              <Bar
+                                dataKey="paid"
+                                name="Collected"
+                                fill="#10b981"
                                 radius={[4, 4, 0, 0]}
                               />
                             </BarChart>
@@ -621,7 +622,7 @@ export default function FinancialAnalysis() {
                       </div>
                     </div>
                   </TabsContent>
-                  
+
                   {/* Transactions Tab */}
                   <TabsContent value="transactions" className="pt-4">
                     <div className="border rounded-md overflow-hidden">
@@ -641,12 +642,12 @@ export default function FinancialAnalysis() {
                             selectedMonth.transactions
                               .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
                               .map((tx) => {
-                                const remaining = tx.paymentStatus === "Lunas" 
-                                  ? 0 
-                                  : tx.paymentStatus === "DP" 
-                                    ? (tx.remainingAmount || 0) 
+                                const remaining = tx.paymentStatus === "Lunas"
+                                  ? 0
+                                  : tx.paymentStatus === "DP"
+                                    ? (tx.remainingAmount || 0)
                                     : tx.projectValue || 0;
-                                
+
                                 return (
                                   <tr key={tx.id}>
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">{formatDate(tx.date)}</td>
@@ -654,10 +655,10 @@ export default function FinancialAnalysis() {
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">Rp{formatRupiah(tx.projectValue || 0)}</td>
                                     <td className="px-4 py-2 whitespace-nowrap text-sm text-green-600 font-medium">
                                       Rp{formatRupiah(
-                                        tx.paymentStatus === "Lunas" 
-                                          ? (tx.projectValue || 0) 
-                                          : tx.paymentStatus === "DP" 
-                                            ? (tx.downPaymentAmount || 0) 
+                                        tx.paymentStatus === "Lunas"
+                                          ? (tx.projectValue || 0)
+                                          : tx.paymentStatus === "DP"
+                                            ? (tx.downPaymentAmount || 0)
                                             : 0
                                       )}
                                     </td>
@@ -689,7 +690,7 @@ export default function FinancialAnalysis() {
                       </table>
                     </div>
                   </TabsContent>
-                  
+
                   {/* Profit Analysis Tab */}
                   <TabsContent value="profitAnalysis" className="pt-4">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -715,16 +716,16 @@ export default function FinancialAnalysis() {
                                 <YAxis tickFormatter={(value) => `Rp${formatRupiah(value)}`} />
                                 <Tooltip formatter={(value) => `Rp${formatRupiah(value as number)}`} />
                                 <Legend />
-                                <Bar 
-                                  dataKey="expected" 
-                                  name="Expected Value" 
+                                <Bar
+                                  dataKey="expected"
+                                  name="Expected Value"
                                   fill="#6366f1"
                                   radius={[4, 4, 0, 0]}
                                 />
-                                <Bar 
-                                  dataKey="paid" 
-                                  name="Collected" 
-                                  fill="#10b981" 
+                                <Bar
+                                  dataKey="paid"
+                                  name="Collected"
+                                  fill="#10b981"
                                   radius={[4, 4, 0, 0]}
                                 />
                               </BarChart>
@@ -737,7 +738,7 @@ export default function FinancialAnalysis() {
                           </div>
                         </CardContent>
                       </Card>
-  
+
                       <Card>
                         <CardHeader>
                           <CardTitle className="text-base">Collection Breakdown</CardTitle>
@@ -763,8 +764,8 @@ export default function FinancialAnalysis() {
                             <h4 className="text-sm font-medium mb-2">Payment Completion</h4>
                             <div className="flex items-center">
                               <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                <div 
-                                  className="bg-blue-600 h-2.5 rounded-full" 
+                                <div
+                                  className="bg-blue-600 h-2.5 rounded-full"
                                   style={{ width: `${(selectedMonth.totalPaid / selectedMonth.totalExpectedValue) * 100}%` }}
                                 ></div>
                               </div>

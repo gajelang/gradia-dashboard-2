@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,7 +49,7 @@ export default function EnhancedRegisterPage() {
   const { register, isAuthenticated, isLoading, error } = useAuth();
   const [activeTab, setActiveTab] = useState("account");
   const [success, setSuccess] = useState<boolean>(false);
-  
+
   // Basic account information
   const [accountData, setAccountData] = useState({
     name: "",
@@ -57,7 +57,7 @@ export default function EnhancedRegisterPage() {
     password: "",
     confirmPassword: "",
   });
-  
+
   // Personal information
   const [personalData, setPersonalData] = useState({
     fullName: "",
@@ -66,7 +66,7 @@ export default function EnhancedRegisterPage() {
     department: "",
     address: "",
   });
-  
+
   // Professional information
   const [professionalData, setProfessionalData] = useState({
     bio: "",
@@ -74,10 +74,10 @@ export default function EnhancedRegisterPage() {
     experience: "",
     preferredRole: "guest", // Default role
   });
-  
+
   // Form validation errors
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  
+
   // Available roles - by default, this sets users as "guest"
   // Admin can later change this through the database
   const availableRoles = [
@@ -87,16 +87,17 @@ export default function EnhancedRegisterPage() {
   ];
 
   // Redirect if already logged in
-  if (isAuthenticated) {
-    router.push('/dashboard');
-    return null;
-  }
+  useEffect(() => {
+    if (isAuthenticated) {
+      router.push('/dashboard');
+    }
+  }, [isAuthenticated, router]);
 
   // Handle account data changes
   const handleAccountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setAccountData(prev => ({ ...prev, [name]: value }));
-    
+
     // Clear validation error when field is updated
     if (formErrors[name]) {
       setFormErrors(prev => {
@@ -129,31 +130,31 @@ export default function EnhancedRegisterPage() {
   // Validate form data
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
-    
+
     // Validate account information
     if (!accountData.name.trim()) {
       errors.name = "Username is required";
     }
-    
+
     if (!accountData.email.trim()) {
       errors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(accountData.email)) {
       errors.email = "Email address is invalid";
     }
-    
+
     if (!accountData.password) {
       errors.password = "Password is required";
     } else if (accountData.password.length < 6) {
       errors.password = "Password must be at least 6 characters";
     }
-    
+
     if (accountData.password !== accountData.confirmPassword) {
       errors.confirmPassword = "Passwords do not match";
     }
-    
+
     // Set validation errors
     setFormErrors(errors);
-    
+
     // Return true if no errors
     return Object.keys(errors).length === 0;
   };
@@ -161,13 +162,13 @@ export default function EnhancedRegisterPage() {
   // Handle form submission
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    
+
     // Validate form
     if (!validateForm()) {
       setActiveTab("account"); // Switch to account tab if there are errors
       return;
     }
-    
+
     try {
       // Register with basic credentials
       // We'll also send additional data that can be stored in a metadata field
@@ -199,10 +200,10 @@ export default function EnhancedRegisterPage() {
           })
         }
       );
-      
+
       if (registered) {
         setSuccess(true);
-        
+
         // Redirect to login after 2 seconds
         setTimeout(() => {
           router.push('/login');
@@ -270,7 +271,7 @@ export default function EnhancedRegisterPage() {
                 <TabsTrigger value="personal">Personal</TabsTrigger>
                 <TabsTrigger value="professional">Professional</TabsTrigger>
               </TabsList>
-              
+
               {/* Account Information Tab */}
               <TabsContent value="account" className="space-y-4 mt-4">
                 <div className="space-y-4">
@@ -290,7 +291,7 @@ export default function EnhancedRegisterPage() {
                       <p className="text-red-500 text-xs">{formErrors.name}</p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="email" className="flex items-center gap-2">
                       <Mail className="h-4 w-4" /> Email
@@ -308,7 +309,7 @@ export default function EnhancedRegisterPage() {
                       <p className="text-red-500 text-xs">{formErrors.email}</p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="password">Password</Label>
                     <Input
@@ -324,7 +325,7 @@ export default function EnhancedRegisterPage() {
                       <p className="text-red-500 text-xs">{formErrors.password}</p>
                     )}
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="confirmPassword">Confirm Password</Label>
                     <Input
@@ -341,17 +342,17 @@ export default function EnhancedRegisterPage() {
                     )}
                   </div>
                 </div>
-                
+
                 <div className="flex justify-end pt-4">
-                  <Button 
-                    type="button" 
+                  <Button
+                    type="button"
                     onClick={() => setActiveTab("personal")}
                   >
                     Next: Personal Info
                   </Button>
                 </div>
               </TabsContent>
-              
+
               {/* Personal Information Tab */}
               <TabsContent value="personal" className="space-y-4 mt-4">
                 <div className="space-y-4">
@@ -367,7 +368,7 @@ export default function EnhancedRegisterPage() {
                       placeholder="Enter your full name"
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="phoneNumber" className="flex items-center gap-2">
                       <Phone className="h-4 w-4" /> Phone Number
@@ -380,7 +381,7 @@ export default function EnhancedRegisterPage() {
                       placeholder="Enter your phone number"
                     />
                   </div>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="position" className="flex items-center gap-2">
@@ -394,7 +395,7 @@ export default function EnhancedRegisterPage() {
                         placeholder="Enter your job position"
                       />
                     </div>
-                    
+
                     <div className="space-y-2">
                       <Label htmlFor="department" className="flex items-center gap-2">
                         <Building className="h-4 w-4" /> Department
@@ -408,7 +409,7 @@ export default function EnhancedRegisterPage() {
                       />
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="address">Address</Label>
                     <Input
@@ -420,24 +421,24 @@ export default function EnhancedRegisterPage() {
                     />
                   </div>
                 </div>
-                
+
                 <div className="flex justify-between pt-4">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={() => setActiveTab("account")}
                   >
                     Back
                   </Button>
-                  <Button 
-                    type="button" 
+                  <Button
+                    type="button"
                     onClick={() => setActiveTab("professional")}
                   >
                     Next: Professional Info
                   </Button>
                 </div>
               </TabsContent>
-              
+
               {/* Professional Information Tab */}
               <TabsContent value="professional" className="space-y-4 mt-4">
                 <div className="space-y-4">
@@ -452,7 +453,7 @@ export default function EnhancedRegisterPage() {
                       rows={3}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="skills">Key Skills</Label>
                     <Input
@@ -463,7 +464,7 @@ export default function EnhancedRegisterPage() {
                       placeholder="Enter your key skills (e.g., Video Editing, Design, Project Management)"
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="experience">Relevant Experience</Label>
                     <Textarea
@@ -475,7 +476,7 @@ export default function EnhancedRegisterPage() {
                       rows={3}
                     />
                   </div>
-                  
+
                   <div className="space-y-2">
                     <Label htmlFor="preferredRole">Preferred Role</Label>
                     <Select
@@ -498,18 +499,18 @@ export default function EnhancedRegisterPage() {
                     </p>
                   </div>
                 </div>
-                
+
                 {error && (
                   <Alert variant="destructive" className="mt-4">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 )}
-                
+
                 <div className="flex justify-between pt-4">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
+                  <Button
+                    type="button"
+                    variant="outline"
                     onClick={() => setActiveTab("personal")}
                   >
                     Back

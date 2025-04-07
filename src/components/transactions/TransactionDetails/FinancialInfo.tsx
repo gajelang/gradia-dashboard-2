@@ -19,7 +19,7 @@ export default function FinancialInfo({ transaction }: FinancialInfoProps) {
     const capitalCost = transaction.capitalCost || 0;
     return totalProfit - capitalCost;
   };
-  
+
   return (
     <div className="space-y-2">
       <h3 className="text-lg font-bold flex items-center">
@@ -34,17 +34,17 @@ export default function FinancialInfo({ transaction }: FinancialInfoProps) {
 
         <div className="text-sm font-medium">Project Value:</div>
         <div className="text-sm col-span-2">
-          Rp{formatRupiah(transaction.projectValue || 0)}
+          {formatRupiah(transaction.projectValue || 0)}
         </div>
 
         <div className="text-sm font-medium">Capital Cost:</div>
         <div className="text-sm col-span-2">
-          Rp{formatRupiah(transaction.capitalCost || 0)}
+          {formatRupiah(transaction.capitalCost || 0)}
         </div>
 
         <div className="text-sm font-medium">Net Profit:</div>
         <div className="text-sm col-span-2">
-          Rp{formatRupiah(calculateNetProfit())}
+          {formatRupiah(calculateNetProfit())}
         </div>
 
         <div className="text-sm font-medium">Payment Status:</div>
@@ -56,19 +56,19 @@ export default function FinancialInfo({ transaction }: FinancialInfoProps) {
           <>
             <div className="text-sm font-medium">Down Payment:</div>
             <div className="text-sm col-span-2">
-              Rp{formatRupiah(transaction.downPaymentAmount || 0)}
+              {formatRupiah(transaction.downPaymentAmount || 0)}
             </div>
 
             <div className="text-sm font-medium">Remaining Amount:</div>
             <div className="text-sm col-span-2">
-              Rp{formatRupiah(transaction.remainingAmount || 0)}
+              {formatRupiah(transaction.remainingAmount || 0)}
             </div>
           </>
         )}
 
         <div className="text-sm font-medium">Amount Paid:</div>
         <div className="text-sm col-span-2 text-green-600 font-semibold">
-          Rp{formatRupiah(
+          {formatRupiah(
             transaction.paymentStatus === "Lunas"
               ? transaction.projectValue || 0
               : transaction.paymentStatus === "DP"
@@ -77,7 +77,7 @@ export default function FinancialInfo({ transaction }: FinancialInfoProps) {
           )}
         </div>
       </div>
-      
+
       {/* Payment Proof Link */}
       {transaction.paymentProofLink && (
         <div className="mt-3">

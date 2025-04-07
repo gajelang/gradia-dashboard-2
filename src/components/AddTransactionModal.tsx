@@ -43,11 +43,20 @@ import {
   ArrowUp,
   ArrowDown,
   CheckCircle,
+  Search,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { formatRupiah } from "@/lib/formatters";
 import { fetchWithAuth } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
+import {
+  Client,
+  ClientFormData,
+  validateClientData,
+  checkClientCodeExists,
+  searchClients,
+  createClient
+} from "@/lib/clientUtils";
 import { TransactionData } from "@/app/types/transaction";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -74,16 +83,7 @@ interface Subscription {
   paymentStatus: string;
 }
 
-// Client interface
-interface Client {
-  id: string;
-  code: string;
-  name: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  description?: string;
-}
+// Menggunakan interface Client dari clientUtils.ts
 
 // Form data interface
 interface FormData {
@@ -135,7 +135,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   const { user } = useAuth();
   const [transactionType, setTransactionType] = useState<TransactionType>("transaction");
   const [activeTab, setActiveTab] = useState("transaction"); // Added for tab activation
-  
+
   // Fund balances state
   const [fundBalances, setFundBalances] = useState<{
     petty_cash: number;
@@ -144,7 +144,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     petty_cash: 0,
     profit_bank: 0
   });
-  
+
   // Form data state
   const [formData, setFormData] = useState<FormData>({
     name: "",
@@ -171,23 +171,23 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     recurringFrequency: "MONTHLY",
     nextBillingDate: "",
   });
-  
+
   // Form validation
   const [formErrors, setFormErrors] = useState<FormErrors>({});
-  
+
   // Other state variables
   const [profit, setProfit] = useState(0);
   const [remainingAmount, setRemainingAmount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPaymentProofField, setShowPaymentProofField] = useState(true);
-  
+
   // Subscription state
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loadingSubscriptions, setLoadingSubscriptions] = useState(false);
   const [selectedSubscription, setSelectedSubscription] = useState<Subscription | null>(null);
   const [showSubscriptionDetails, setShowSubscriptionDetails] = useState(false);
-  
+
   // Client, vendor, PIC, and transactions state
   const [clients, setClients] = useState<Client[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
@@ -198,10 +198,10 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   const [loadingPics, setLoadingPics] = useState(false);
   const [loadingTransactions, setLoadingTransactions] = useState(false);
   const [loadingFundBalances, setLoadingFundBalances] = useState(false);
-  
+
   // New client state
   const [isNewClientSheetOpen, setIsNewClientSheetOpen] = useState(false);
-  const [newClientData, setNewClientData] = useState<NewClientData>({
+  const [newClientData, setNewClientData] = useState<ClientFormData>({
     code: "",
     name: "",
     email: "",
@@ -209,8 +209,12 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     address: "",
     description: "",
   });
-  const [newClientErrors, setNewClientErrors] = useState<FormErrors>({});
+  const [newClientErrors, setNewClientErrors] = useState<Record<string, string>>({});
   const [isCreatingClient, setIsCreatingClient] = useState(false);
+  const [isSearchingClients, setIsSearchingClients] = useState(false);
+  const [searchResults, setSearchResults] = useState<Client[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [useClientData, setUseClientData] = useState(false);
 
   // Category and payment options
   const expenseCategories: string[] = [
@@ -271,7 +275,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           petty_cash: 0,
           profit_bank: 0
         };
-        
+
         data.forEach((fund: any) => {
           if (fund.fundType === "petty_cash") {
             balances.petty_cash = fund.currentBalance;
@@ -279,7 +283,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
             balances.profit_bank = fund.currentBalance;
           }
         });
-        
+
         setFundBalances(balances);
       }
     } catch (error) {
@@ -296,9 +300,9 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       fetchVendors();
       fetchPics();
       fetchFundBalances();
-      
+
       // Initialize transaction type and expense data if needed
-      if (transactionType === "expense" || activeTab === "expense") { 
+      if (transactionType === "expense" || activeTab === "expense") {
         fetchTransactions();
         fetchSubscriptions();
       }
@@ -403,11 +407,11 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       if (res.ok) {
         const data = await res.json();
         // Filter for active subscriptions needing payment
-        const activeSubscriptions = data.filter((item: any) => 
-          !item.isDeleted && 
+        const activeSubscriptions = data.filter((item: any) =>
+          !item.isDeleted &&
           (item.paymentStatus === "BELUM_BAYAR" || item.paymentStatus === "DP")
         );
-        
+
         // Map to subscription interface
         const formattedSubscriptions = activeSubscriptions.map((item: any) => ({
           id: item.id,
@@ -419,7 +423,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           isRecurring: item.isRecurring || false,
           paymentStatus: item.paymentStatus
         }));
-        
+
         setSubscriptions(formattedSubscriptions);
       } else {
         console.error("Failed to fetch subscriptions:", await res.text());
@@ -510,20 +514,61 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       setIsNewClientSheetOpen(true);
       return;
     }
-    
+
     setFormData((prev) => ({ ...prev, clientId: value === "none" ? "" : value }));
-    
+
     if (value && value !== "none") {
       const selectedClient = clients.find((client) => client.id === value);
       if (selectedClient) {
+        // Set useClientData to true to indicate we're using client data
+        setUseClientData(true);
         setFormData((prev) => ({
           ...prev,
           clientId: selectedClient.id,
           email: selectedClient.email || prev.email,
           phone: selectedClient.phone || prev.phone,
+          // Auto-fill transaction name if it's empty
+          name: prev.name ? prev.name : `Transaksi ${selectedClient.name}`,
         }));
       }
+    } else {
+      // Set useClientData to false if no client is selected
+      setUseClientData(false);
     }
+  };
+
+  // Handle search clients
+  const handleSearchClients = async (query: string) => {
+    if (query.length < 2) return;
+
+    try {
+      setIsSearchingClients(true);
+      const results = await searchClients(query);
+      setSearchResults(results);
+    } catch (error) {
+      console.error("Error searching clients:", error);
+    } finally {
+      setIsSearchingClients(false);
+    }
+  };
+
+  // Handle client selection from search results
+  const handleClientSelect = (client: Client) => {
+    setFormData((prev) => ({
+      ...prev,
+      clientId: client.id,
+      email: client.email || prev.email,
+      phone: client.phone || prev.phone,
+      // Auto-fill transaction name if it's empty
+      name: prev.name ? prev.name : `Transaksi ${client.name}`,
+    }));
+
+    // Set useClientData to true to indicate we're using client data
+    setUseClientData(true);
+
+    // Clear search results
+    setSearchResults([]);
+    setSearchQuery("");
   };
 
   // Handle vendor change
@@ -544,7 +589,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   // Handle category change
   const handleCategoryChange = (value: string) => {
     setFormData((prev) => ({ ...prev, category: value }));
-    
+
     // Reset subscription fields if not subscription category
     if (value !== "Subscription") {
       setFormData(prev => ({
@@ -555,7 +600,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       setSelectedSubscription(null);
       setShowSubscriptionDetails(false);
     }
-    
+
     if (formErrors.category) {
       setFormErrors((prev) => {
         const newErrors = { ...prev };
@@ -573,12 +618,12 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       setShowSubscriptionDetails(false);
       return;
     }
-    
+
     const subscription = subscriptions.find(sub => sub.id === value);
     if (subscription) {
       setSelectedSubscription(subscription);
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData(prev => ({
+        ...prev,
         subscriptionId: value,
         amount: subscription.cost.toString(),
         description: `Payment for subscription: ${subscription.name}`,
@@ -592,13 +637,13 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   // Handle recurring expense checkbox
   const handleRecurringExpenseChange = (checked: boolean) => {
     setFormData(prev => ({ ...prev, isRecurringExpense: checked }));
-    
+
     // If enabling recurring expense and we have a subscription, set next billing date
     if (checked && selectedSubscription && !formData.nextBillingDate) {
       // Calculate next billing date based on frequency
       const currentDate = new Date();
       let nextDate = new Date(currentDate);
-      
+
       switch(formData.recurringFrequency) {
         case "MONTHLY":
           nextDate.setMonth(currentDate.getMonth() + 1);
@@ -610,7 +655,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           nextDate.setFullYear(currentDate.getFullYear() + 1);
           break;
       }
-      
+
       setFormData(prev => ({
         ...prev,
         nextBillingDate: nextDate.toISOString().split('T')[0]
@@ -621,12 +666,12 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   // Handle recurring frequency change
   const handleRecurringFrequencyChange = (value: string) => {
     setFormData(prev => ({ ...prev, recurringFrequency: value }));
-    
+
     // Update next billing date based on frequency
     if (formData.isRecurringExpense) {
       const currentDate = new Date();
       let nextDate = new Date(currentDate);
-      
+
       switch(value) {
         case "MONTHLY":
           nextDate.setMonth(currentDate.getMonth() + 1);
@@ -638,9 +683,9 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           nextDate.setFullYear(currentDate.getFullYear() + 1);
           break;
       }
-      
-      setFormData(prev => ({ 
-        ...prev, 
+
+      setFormData(prev => ({
+        ...prev,
         nextBillingDate: nextDate.toISOString().split("T")[0]
       }));
     }
@@ -655,7 +700,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   const handleNewClientChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setNewClientData((prev) => ({ ...prev, [name]: value }));
-    
+
     // Clear errors when field is edited
     if (newClientErrors[name]) {
       setNewClientErrors(prev => {
@@ -670,36 +715,33 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
   const handleTabChange = (value: string) => {
     setActiveTab(value);
     setTransactionType(value as TransactionType);
-    
+
     // Initialize data for the selected tab
     if (value === "expense" && transactions.length === 0) {
       fetchTransactions();
     }
     if (value === "expense" && subscriptions.length === 0) {
-      fetchSubscriptions(); 
+      fetchSubscriptions();
     }
   };
 
   // Validate new client form
-  const validateNewClientForm = (): boolean => {
-    const errors: FormErrors = {};
-    
-    if (!newClientData.code.trim()) {
-      errors.code = "Client code is required";
+  const validateNewClientForm = async (): Promise<boolean> => {
+    // Use the validateClientData utility function
+    const errors = validateClientData(newClientData);
+
+    // Check if code already exists
+    if (newClientData.code && !errors.code) {
+      const exists = await checkClientCodeExists(newClientData.code);
+      if (exists) {
+        errors.code = "Kode klien sudah digunakan";
+      }
     }
-    
-    if (!newClientData.name.trim()) {
-      errors.name = "Client name is required";
-    }
-    
-    if (newClientData.email && !isValidEmail(newClientData.email)) {
-      errors.email = "Please enter a valid email address";
-    }
-    
+
     setNewClientErrors(errors);
     return Object.keys(errors).length === 0;
   };
-  
+
   // Validate email format
   const isValidEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -708,47 +750,44 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
 
   // Handle client creation
   const handleCreateClient = async () => {
-    if (!validateNewClientForm()) {
+    if (!await validateNewClientForm()) {
       return;
     }
 
     try {
       setIsCreatingClient(true);
-      
-      const res = await fetchWithAuth("/api/clients", {
-        method: "POST",
-        body: JSON.stringify({
-          ...newClientData,
-          createdById: user?.userId,
-        }),
-      });
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || "Failed to create client");
+
+      // Use the createClient utility function
+      const newClient = await createClient(newClientData, user?.id);
+
+      if (!newClient) {
+        throw new Error("Gagal membuat klien");
       }
-      
-      const newClient = await res.json();
-      
+
       // Add the new client to the clients list
       setClients((prev) => [...prev, newClient]);
-      
+
       // Update the form data with the new client info
       setFormData((prev) => ({
         ...prev,
         clientId: newClient.id,
         email: newClientData.email || prev.email,
         phone: newClientData.phone || prev.phone,
+        // Auto-fill transaction name if it's empty
+        name: prev.name ? prev.name : `Transaksi ${newClientData.name}`,
       }));
-      
+
+      // Set useClientData to true to indicate we're using client data
+      setUseClientData(true);
+
       // Reset and close the new client form
       resetNewClientForm();
       setIsNewClientSheetOpen(false);
-      
-      toast.success("Client created successfully");
+
+      toast.success("Klien berhasil dibuat");
     } catch (error) {
       console.error("Error creating client:", error);
-      toast.error(error instanceof Error ? error.message : "Failed to create client");
+      toast.error(error instanceof Error ? error.message : "Gagal membuat klien");
     } finally {
       setIsCreatingClient(false);
     }
@@ -759,7 +798,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     const errors: FormErrors = {};
     if (transactionType === "transaction") {
       if (!formData.name.trim()) errors.name = "Transaction name is required";
-      if (!formData.projectValue || parseFloat(formData.projectValue) <= 0) 
+      if (!formData.projectValue || parseFloat(formData.projectValue) <= 0)
         errors.projectValue = "Valid project value is required";
       if (!formData.date) errors.date = "Date is required";
       if (!formData.fundType) errors.fundType = "Fund destination is required";
@@ -782,7 +821,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
         errors.amount = "Valid expense amount is required";
       if (!formData.date) errors.date = "Date is required";
       if (!formData.fundType) errors.fundType = "Fund source is required";
-      
+
       // Validate subscription-specific fields
       if (formData.category === "Subscription") {
         if (!formData.subscriptionId) {
@@ -793,11 +832,11 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
         }
       }
     }
-    
+
     if (showPaymentProofField && formData.paymentProofLink && !isValidURL(formData.paymentProofLink)) {
       errors.paymentProofLink = "Please enter a valid URL";
     }
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -824,7 +863,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
     try {
       let payload: any = {};
       let apiEndpoint;
-      
+
       if (transactionType === "transaction") {
         let revenueAmount = 0;
         if (formData.paymentStatus === "Lunas") {
@@ -864,44 +903,44 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           transactionId: formData.transactionId || null,
           fundType: formData.fundType,
         };
-        
+
         // Add subscription-specific fields
         if (formData.category === "Subscription" && formData.subscriptionId) {
           payload.inventoryId = formData.subscriptionId;
-          
+
           // Add recurring payment info
           if (formData.isRecurringExpense) {
             payload.isRecurringExpense = true;
             payload.recurringFrequency = formData.recurringFrequency;
-            payload.nextBillingDate = formData.nextBillingDate 
-              ? new Date(formData.nextBillingDate).toISOString() 
+            payload.nextBillingDate = formData.nextBillingDate
+              ? new Date(formData.nextBillingDate).toISOString()
               : null;
           }
         }
-        
+
         if (showPaymentProofField && formData.paymentProofLink) {
           payload.paymentProofLink = formData.paymentProofLink;
         }
         apiEndpoint = "/api/expenses";
       }
-      
+
       console.log("Sending payload:", payload);
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-      
+
       const res = await fetchWithAuth(apiEndpoint, {
         method: "POST",
         body: JSON.stringify(payload),
         signal: controller.signal,
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (!res.ok) {
         // Improved error handling with detailed logging
         const errorText = await res.text();
         console.error("Full server error response:", errorText);
-        
+
         try {
           const errorData = JSON.parse(errorText);
           throw new Error(errorData.message || errorData.error || `Server error: ${res.status}`);
@@ -909,7 +948,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           throw new Error(`Server error (${res.status}): ${errorText.slice(0, 100)}`);
         }
       }
-      
+
       let responseData: Record<string, unknown> = {};
       try {
         responseData = await res.json();
@@ -917,29 +956,29 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       } catch (jsonError) {
         console.error("Failed to parse server response:", jsonError);
       }
-      
+
       const transactionData =
         (responseData?.transaction as TransactionData) ||
         (responseData?.expense as TransactionData) ||
         (responseData as unknown as TransactionData) ||
         (payload as unknown as TransactionData);
-      
+
       if (user) {
         transactionData.createdBy = {
-          id: user.userId,
+          id: user.id,
           name: user.name,
           email: user.email,
         };
       }
-      
+
       onTransactionAdded(transactionData);
-      
+
       // Show success message
       toast.success(`${transactionType === "transaction" ? "Transaction" : "Expense"} added successfully!`);
-      
+
       // Refresh fund balances
       fetchFundBalances();
-      
+
       // If it was a subscription payment, refresh the subscriptions list
       if (transactionType === "expense" && formData.category === "Subscription" && formData.subscriptionId) {
         // Wait a moment for the database to update
@@ -947,7 +986,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
           fetchSubscriptions();
         }, 1000);
       }
-      
+
       resetForm();
       setIsOpen(false);
     } catch (error) {
@@ -970,14 +1009,14 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       return (
         <span className="inline-flex items-center bg-blue-50 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
           <Wallet className="h-3 w-3 mr-1" />
-          Petty Cash
+          Kas Kecil
         </span>
       );
     } else {
       return (
         <span className="inline-flex items-center bg-green-50 text-green-700 text-xs font-medium px-2 py-0.5 rounded-full">
           <CreditCard className="h-3 w-3 mr-1" />
-          Profit Bank
+          Bank Profit
         </span>
       );
     }
@@ -993,19 +1032,19 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
               setIsOpen(true);
             }}
           >
-            Add New Entry
+            Tambah Entri Baru
           </Button>
         </DialogTrigger>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden">
           <DialogHeader>
-            <DialogTitle>Add New Entry</DialogTitle>
-            <DialogDescription>Choose entry type and fill in details.</DialogDescription>
+            <DialogTitle>Tambah Entri Baru</DialogTitle>
+            <DialogDescription>Pilih jenis entri dan isi detailnya.</DialogDescription>
           </DialogHeader>
 
           <Tabs value={activeTab} onValueChange={handleTabChange}>
             <TabsList className="grid grid-cols-2 w-full mb-4">
-              <TabsTrigger value="transaction">Transaction</TabsTrigger>
-              <TabsTrigger value="expense">Expense</TabsTrigger>
+              <TabsTrigger value="transaction">Transaksi</TabsTrigger>
+              <TabsTrigger value="expense">Pengeluaran</TabsTrigger>
             </TabsList>
 
             <div className="h-[calc(90vh-180px)] overflow-y-auto pr-4">
@@ -1016,12 +1055,12 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* Transaction Name */}
                       <div>
-                        <label className="text-sm font-medium mb-1 block">Transaction Name*</label>
+                        <label className="text-sm font-medium mb-1 block">Nama Transaksi*</label>
                         <Input
                           name="name"
                           value={formData.name}
                           onChange={handleChange}
-                          placeholder="Enter transaction name"
+                          placeholder="Masukkan nama transaksi"
                           className={formErrors.name ? "border-red-500" : ""}
                         />
                         {formErrors.name && (
@@ -1031,14 +1070,14 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
 
                       {/* Project Value */}
                       <div>
-                        <label className="text-sm font-medium mb-1 block">Project Value*</label>
+                        <label className="text-sm font-medium mb-1 block">Nilai Proyek*</label>
                         <Input
                           name="projectValue"
                           type="number"
                           min="0"
                           value={formData.projectValue}
                           onChange={handleChange}
-                          placeholder="Enter project value"
+                          placeholder="Masukkan nilai proyek"
                           className={formErrors.projectValue ? "border-red-500" : ""}
                         />
                         {formErrors.projectValue && (
@@ -1051,38 +1090,38 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                     <div className="mt-4 p-4 border rounded-md bg-slate-50">
                       <h3 className="text-sm font-semibold mb-3 flex items-center">
                         <DollarSign className="h-4 w-4 mr-1 text-blue-600" />
-                        Fund Destination
+                        Tujuan Dana
                       </h3>
-                      
+
                       <div className="space-y-4">
                         <div>
                           <label className="text-sm font-medium mb-1 flex items-center gap-1">
                             <Wallet className="h-4 w-4" />
-                            Select Fund Destination*
+                            Pilih Tujuan Dana*
                           </label>
                           <Select
                             value={formData.fundType}
                             onValueChange={handleFundTypeChange}
                           >
                             <SelectTrigger className={formErrors.fundType ? "border-red-500" : ""}>
-                              <SelectValue placeholder="Select Fund Destination" />
+                              <SelectValue placeholder="Pilih Tujuan Dana" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="petty_cash" className="flex items-center">
                                 <div className="flex items-center">
                                   <Wallet className="h-4 w-4 mr-2 text-blue-600" />
-                                  <span>Petty Cash</span>
+                                  <span>Kas Kecil</span>
                                   <span className="ml-2 text-sm text-muted-foreground">
-                                    ({loadingFundBalances ? "Loading..." : getFundBalanceDisplay("petty_cash")})
+                                    ({loadingFundBalances ? "Memuat..." : getFundBalanceDisplay("petty_cash")})
                                   </span>
                                 </div>
                               </SelectItem>
                               <SelectItem value="profit_bank" className="flex items-center">
                                 <div className="flex items-center">
                                   <CreditCard className="h-4 w-4 mr-2 text-green-600" />
-                                  <span>Profit Bank</span>
+                                  <span>Bank Profit</span>
                                   <span className="ml-2 text-sm text-muted-foreground">
-                                    ({loadingFundBalances ? "Loading..." : getFundBalanceDisplay("profit_bank")})
+                                    ({loadingFundBalances ? "Memuat..." : getFundBalanceDisplay("profit_bank")})
                                   </span>
                                 </div>
                               </SelectItem>
@@ -1092,21 +1131,21 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                             <p className="text-red-500 text-xs mt-1">{formErrors.fundType}</p>
                           )}
                           <p className="text-xs text-muted-foreground mt-1">
-                            Select which fund this income will be added to
+                            Pilih dana mana pendapatan ini akan ditambahkan
                           </p>
                         </div>
-                        
+
                         {/* Fund Impact Preview */}
                         {formData.paymentStatus !== "Belum Bayar" && parseFloat(formData.projectValue) > 0 && (
                           <div className="bg-white p-3 rounded border">
-                            <h4 className="text-sm font-medium mb-2">Fund Impact Preview</h4>
+                            <h4 className="text-sm font-medium mb-2">Pratinjau Dampak Dana</h4>
                             <div className="flex items-center gap-2">
                               <FundTypeIndicator fundType={formData.fundType} />
                               <div className="flex items-center">
                                 <ArrowUp className="h-3 w-3 text-green-600 mr-1" />
                                 <span className="text-sm font-medium text-green-600">
                                   +Rp{formatRupiah(
-                                    formData.paymentStatus === "Lunas" 
+                                    formData.paymentStatus === "Lunas"
                                       ? parseFloat(formData.projectValue) || 0
                                       : parseFloat(formData.downPaymentAmount) || 0
                                   )}
@@ -1120,29 +1159,65 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
 
                     {/* Client Selection */}
                     <div>
-                      <label className="text-sm font-medium mb-1 block">Client</label>
+                      <label className="text-sm font-medium mb-1 block">Klien</label>
                       <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <div className="flex items-center">
+                            <Input
+                              placeholder="Cari klien..."
+                              value={searchQuery}
+                              onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                if (e.target.value.length >= 2) {
+                                  handleSearchClients(e.target.value);
+                                }
+                              }}
+                              className="pr-10"
+                            />
+                            {isSearchingClients ? (
+                              <Loader2 className="h-4 w-4 absolute right-3 animate-spin" />
+                            ) : (
+                              <Search className="h-4 w-4 absolute right-3 text-gray-400" />
+                            )}
+                          </div>
+
+                          {searchResults.length > 0 && (
+                            <div className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                              {searchResults.map((client) => (
+                                <div
+                                  key={client.id}
+                                  className="p-2 hover:bg-gray-100 cursor-pointer"
+                                  onClick={() => handleClientSelect(client)}
+                                >
+                                  <div className="font-medium">{client.name}</div>
+                                  <div className="text-xs text-gray-500">{client.code}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
                         <Select
                           value={formData.clientId || "none"}
                           onValueChange={handleClientChange}
                           disabled={loadingClients}
                         >
-                          <SelectTrigger className="flex-1">
+                          <SelectTrigger className="w-[180px]">
                             {loadingClients ? (
                               <div className="flex items-center">
                                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                <span>Loading clients...</span>
+                                <span>Memuat...</span>
                               </div>
                             ) : (
-                              <SelectValue placeholder="Select client (optional)" />
+                              <SelectValue placeholder="Pilih klien" />
                             )}
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="none">No client</SelectItem>
+                            <SelectItem value="none">Tanpa klien</SelectItem>
                             <SelectItem value="new" className="text-blue-600 font-medium">
                               <div className="flex items-center">
                                 <User className="h-4 w-4 mr-2" />
-                                Create new client
+                                Buat klien baru
                               </div>
                             </SelectItem>
                             {clients.map((client) => (
@@ -1158,46 +1233,74 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                           onClick={() => setIsNewClientSheetOpen(true)}
                         >
                           <User className="h-4 w-4 mr-2" />
-                          New
+                          Baru
                         </Button>
                       </div>
+
+                      {useClientData && (
+                        <div className="mt-2 p-2 bg-blue-50 rounded-md text-sm text-blue-700">
+                          <div className="flex items-center">
+                            <CheckCircle className="h-4 w-4 mr-1" />
+                            <span>Menggunakan data dari klien terpilih</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Client Contact Details */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-sm font-medium mb-1 block">Email</label>
+                        <div className="flex justify-between">
+                          <label className="text-sm font-medium mb-1 block">Email</label>
+                          {useClientData && formData.clientId && (
+                            <span className="text-xs text-blue-600">Dari data klien</span>
+                          )}
+                        </div>
                         <Input
                           name="email"
                           type="email"
                           value={formData.email}
-                          onChange={handleChange}
-                          placeholder="client@example.com"
-                          className={formErrors.email ? "border-red-500" : ""}
+                          onChange={(e) => {
+                            handleChange(e);
+                            // If email is changed manually, we're no longer using client data
+                            if (useClientData) setUseClientData(false);
+                          }}
+                          placeholder="klien@contoh.com"
+                          className={formErrors.email ? "border-red-500" : useClientData ? "border-blue-200 bg-blue-50" : ""}
                         />
                         {formErrors.email && (
                           <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>
                         )}
                       </div>
                       <div>
-                        <label className="text-sm font-medium mb-1 block">Phone</label>
+                        <div className="flex justify-between">
+                          <label className="text-sm font-medium mb-1 block">Telepon</label>
+                          {useClientData && formData.clientId && (
+                            <span className="text-xs text-blue-600">Dari data klien</span>
+                          )}
+                        </div>
                         <Input
                           name="phone"
                           value={formData.phone}
-                          onChange={handleChange}
+                          onChange={(e) => {
+                            handleChange(e);
+                            // If phone is changed manually, we're no longer using client data
+                            if (useClientData) setUseClientData(false);
+                          }}
                           placeholder="08123456789"
+                          className={useClientData ? "border-blue-200 bg-blue-50" : ""}
                         />
                       </div>
                     </div>
 
                     {/* Transaction Details */}
                     <div>
-                      <label className="text-sm font-medium mb-1 block">Description</label>
+                      <label className="text-sm font-medium mb-1 block">Deskripsi</label>
                       <Textarea
                         name="description"
                         value={formData.description}
                         onChange={handleChange}
-                        placeholder="Enter transaction description"
+                        placeholder="Masukkan deskripsi transaksi"
                         rows={3}
                       />
                     </div>
@@ -1205,7 +1308,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                     {/* Dates */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
-                        <label className="text-sm font-medium mb-1 block">Date*</label>
+                        <label className="text-sm font-medium mb-1 block">Tanggal*</label>
                         <Input
                           name="date"
                           type="date"
@@ -1218,7 +1321,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         )}
                       </div>
                       <div>
-                        <label className="text-sm font-medium mb-1 block">Start Date</label>
+                        <label className="text-sm font-medium mb-1 block">Tanggal Mulai</label>
                         <Input
                           name="startDate"
                           type="date"
@@ -1227,7 +1330,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         />
                       </div>
                       <div>
-                        <label className="text-sm font-medium mb-1 block">End Date</label>
+                        <label className="text-sm font-medium mb-1 block">Tanggal Selesai</label>
                         <Input
                           name="endDate"
                           type="date"
@@ -1239,7 +1342,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
 
                     {/* Project PIC */}
                     <div>
-                      <label className="text-sm font-medium mb-1 block">Project PIC</label>
+                      <label className="text-sm font-medium mb-1 block">PIC Proyek</label>
                       <Select
                         value={formData.picId || "none"}
                         onValueChange={handlePicChange}
@@ -1249,14 +1352,14 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                           {loadingPics ? (
                             <div className="flex items-center">
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              <span>Loading PICs...</span>
+                              <span>Memuat PIC...</span>
                             </div>
                           ) : (
-                            <SelectValue placeholder="Select PIC (optional)" />
+                            <SelectValue placeholder="Pilih PIC (opsional)" />
                           )}
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">No PIC</SelectItem>
+                          <SelectItem value="none">Tanpa PIC</SelectItem>
                           {pics.map((pic) => (
                             <SelectItem key={pic.id} value={pic.id}>
                               {pic.name}
@@ -1268,16 +1371,16 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
 
                     {/* Payment Details */}
                     <div className="mt-4 p-4 border rounded-md">
-                      <h3 className="font-medium mb-4">Payment Details</h3>
+                      <h3 className="font-medium mb-4">Detail Pembayaran</h3>
                       <div className="space-y-4">
                         <div>
-                          <label className="text-sm font-medium mb-1 block">Payment Status</label>
+                          <label className="text-sm font-medium mb-1 block">Status Pembayaran</label>
                           <Select
                             value={formData.paymentStatus}
                             onValueChange={handlePaymentStatusChange}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Select payment status" />
+                              <SelectValue placeholder="Pilih status pembayaran" />
                             </SelectTrigger>
                             <SelectContent>
                               {paymentStatusOptions.map((status) => (
@@ -1291,7 +1394,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
 
                         {formData.paymentStatus === "DP" && (
                           <div>
-                            <label className="text-sm font-medium mb-1 block">Down Payment Amount*</label>
+                            <label className="text-sm font-medium mb-1 block">Jumlah Uang Muka*</label>
                             <Input
                               name="downPaymentAmount"
                               type="number"
@@ -1299,14 +1402,14 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                               max={formData.projectValue}
                               value={formData.downPaymentAmount}
                               onChange={handleChange}
-                              placeholder="Enter down payment amount"
+                              placeholder="Masukkan jumlah uang muka"
                               className={formErrors.downPaymentAmount ? "border-red-500" : ""}
                             />
                             {formErrors.downPaymentAmount && (
                               <p className="text-red-500 text-xs mt-1">{formErrors.downPaymentAmount}</p>
                             )}
                             <p className="text-sm text-muted-foreground mt-1">
-                              Remaining: Rp{formatRupiah(remainingAmount)}
+                              Sisa: {formatRupiah(remainingAmount)}
                             </p>
                           </div>
                         )}
@@ -1317,7 +1420,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                             <div className="flex items-center">
                               <LinkIcon className="mr-2 h-4 w-4 text-muted-foreground" />
                               <label className="text-sm font-medium">
-                                Payment Proof Link (Optional)
+                                Link Bukti Pembayaran (Opsional)
                               </label>
                             </div>
                             <Input
@@ -1325,7 +1428,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                               type="url"
                               value={formData.paymentProofLink}
                               onChange={handleChange}
-                              placeholder="https://drive.google.com/file/your-receipt"
+                              placeholder="https://drive.google.com/file/bukti-pembayaran-anda"
                               className={formErrors.paymentProofLink ? "border-red-500" : ""}
                             />
                             {formErrors.paymentProofLink && (
@@ -1334,7 +1437,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                               </p>
                             )}
                             <p className="text-xs text-muted-foreground mt-1">
-                              Add link to receipt or payment confirmation (Google Drive, Dropbox, etc.)
+                              Tambahkan link ke bukti pembayaran atau konfirmasi pembayaran (Google Drive, Dropbox, dll.)
                             </p>
                           </div>
                         )}
@@ -1348,7 +1451,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                   <div className="space-y-4">
                     {/* Category */}
                     <div>
-                      <label className="text-sm font-medium mb-1 block">Category</label>
+                      <label className="text-sm font-medium mb-1 block">Kategori</label>
                       <Select
                         name="category"
                         value={formData.category}
@@ -1356,7 +1459,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         required
                       >
                         <SelectTrigger className={formErrors.category ? "border-red-500" : ""}>
-                          <SelectValue placeholder="Select Expense Category" />
+                          <SelectValue placeholder="Pilih Kategori Pengeluaran" />
                         </SelectTrigger>
                         <SelectContent>
                           {expenseCategories.map((category) => (
@@ -1375,38 +1478,38 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                     <div className="mt-4 p-4 border rounded-md bg-slate-50">
                       <h3 className="text-sm font-semibold mb-3 flex items-center">
                         <DollarSign className="h-4 w-4 mr-1 text-red-600" />
-                        Fund Source
+                        Sumber Dana
                       </h3>
-                      
+
                       <div className="space-y-4">
                         <div>
                           <label className="text-sm font-medium mb-1 flex items-center gap-1">
                             <Wallet className="h-4 w-4" />
-                            Select Fund Source*
+                            Pilih Sumber Dana*
                           </label>
                           <Select
                             value={formData.fundType}
                             onValueChange={handleFundTypeChange}
                           >
                             <SelectTrigger className={formErrors.fundType ? "border-red-500" : ""}>
-                              <SelectValue placeholder="Select Fund Source" />
+                              <SelectValue placeholder="Pilih Sumber Dana" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="petty_cash" className="flex items-center">
                                 <div className="flex items-center">
                                   <Wallet className="h-4 w-4 mr-2 text-blue-600" />
-                                  <span>Petty Cash</span>
+                                  <span>Kas Kecil</span>
                                   <span className="ml-2 text-sm text-muted-foreground">
-                                    ({loadingFundBalances ? "Loading..." : getFundBalanceDisplay("petty_cash")})
+                                    ({loadingFundBalances ? "Memuat..." : getFundBalanceDisplay("petty_cash")})
                                   </span>
                                 </div>
                               </SelectItem>
                               <SelectItem value="profit_bank" className="flex items-center">
                                 <div className="flex items-center">
                                   <CreditCard className="h-4 w-4 mr-2 text-green-600" />
-                                  <span>Profit Bank</span>
+                                  <span>Bank Profit</span>
                                   <span className="ml-2 text-sm text-muted-foreground">
-                                    ({loadingFundBalances ? "Loading..." : getFundBalanceDisplay("profit_bank")})
+                                    ({loadingFundBalances ? "Memuat..." : getFundBalanceDisplay("profit_bank")})
                                   </span>
                                 </div>
                               </SelectItem>
@@ -1416,20 +1519,20 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                             <p className="text-red-500 text-xs mt-1">{formErrors.fundType}</p>
                           )}
                           <p className="text-xs text-muted-foreground mt-1">
-                            Select which fund this expense will be deducted from
+                            Pilih dana mana pengeluaran ini akan dikurangkan
                           </p>
                         </div>
-                        
+
                         {/* Fund Impact Preview */}
                         {parseFloat(formData.amount) > 0 && (
                           <div className="bg-white p-3 rounded border">
-                            <h4 className="text-sm font-medium mb-2">Fund Impact Preview</h4>
+                            <h4 className="text-sm font-medium mb-2">Pratinjau Dampak Dana</h4>
                             <div className="flex items-center gap-2">
                               <FundTypeIndicator fundType={formData.fundType} />
                               <div className="flex items-center">
                                 <ArrowDown className="h-3 w-3 text-red-600 mr-1" />
                                 <span className="text-sm font-medium text-red-600">
-                                  -Rp{formatRupiah(parseFloat(formData.amount) || 0)}
+                                  -{formatRupiah(parseFloat(formData.amount) || 0)}
                                 </span>
                               </div>
                             </div>
@@ -1443,35 +1546,35 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                       <div className="space-y-4 p-4 border rounded-md bg-slate-50">
                         <h3 className="text-md font-medium flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-blue-500" />
-                          Subscription Details
+                          Detail Langganan
                         </h3>
-                        
+
                         <div className="space-y-2">
                           <label className="text-sm font-medium mb-1 block">
-                            Select Subscription
+                            Pilih Langganan
                           </label>
                           <Select
                             value={formData.subscriptionId}
                             onValueChange={handleSubscriptionChange}
                             disabled={loadingSubscriptions}
                           >
-                            <SelectTrigger 
+                            <SelectTrigger
                               className={formErrors.subscriptionId ? "border-red-500" : ""}
                             >
                               {loadingSubscriptions ? (
                                 <div className="flex items-center">
                                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  <span>Loading subscriptions...</span>
+                                  <span>Memuat langganan...</span>
                                 </div>
                               ) : (
-                                <SelectValue placeholder="Select subscription" />
+                                <SelectValue placeholder="Pilih langganan" />
                               )}
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="none">Select a subscription</SelectItem>
+                              <SelectItem value="none">Pilih langganan</SelectItem>
                               {subscriptions.map((subscription) => (
                                 <SelectItem key={subscription.id} value={subscription.id}>
-                                  {subscription.name} - Rp{formatRupiah(subscription.cost)}
+                                  {subscription.name} - {formatRupiah(subscription.cost)}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1480,38 +1583,38 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                             <p className="text-red-500 text-xs mt-1">{formErrors.subscriptionId}</p>
                           )}
                         </div>
-                        
+
                         {/* Show subscription details if selected */}
                         {showSubscriptionDetails && selectedSubscription && (
                           <>
                             <div className="pt-2">
                               <div className="bg-white p-3 rounded border">
-                                <h4 className="text-sm font-medium mb-2">Subscription Info</h4>
+                                <h4 className="text-sm font-medium mb-2">Informasi Langganan</h4>
                                 <dl className="grid grid-cols-1 gap-1 text-sm">
                                   <div className="flex justify-between py-1">
-                                    <dt className="text-muted-foreground">Name:</dt>
+                                    <dt className="text-muted-foreground">Nama:</dt>
                                     <dd className="font-medium">{selectedSubscription.name}</dd>
                                   </div>
                                   <div className="flex justify-between py-1">
-                                    <dt className="text-muted-foreground">Cost:</dt>
-                                    <dd className="font-medium">Rp{formatRupiah(selectedSubscription.cost)}</dd>
+                                    <dt className="text-muted-foreground">Biaya:</dt>
+                                    <dd className="font-medium">{formatRupiah(selectedSubscription.cost)}</dd>
                                   </div>
                                   {selectedSubscription.isRecurring && (
                                     <div className="flex justify-between py-1">
-                                      <dt className="text-muted-foreground">Billing Cycle:</dt>
+                                      <dt className="text-muted-foreground">Siklus Penagihan:</dt>
                                       <dd className="font-medium">{selectedSubscription.recurringType}</dd>
                                     </div>
                                   )}
                                   {selectedSubscription.description && (
                                     <div className="pt-2">
-                                      <dt className="text-muted-foreground mb-1">Description:</dt>
+                                      <dt className="text-muted-foreground mb-1">Deskripsi:</dt>
                                       <dd>{selectedSubscription.description}</dd>
                                     </div>
                                   )}
                                 </dl>
                               </div>
                             </div>
-                            
+
                             {/* Recurring payment options */}
                             <div className="pt-2">
                               <div className="flex items-start space-x-2">
@@ -1525,41 +1628,41 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                                     htmlFor="isRecurringExpense"
                                     className="text-sm font-medium leading-none"
                                   >
-                                    Set up recurring payments
+                                    Atur pembayaran berulang
                                   </Label>
                                   <p className="text-sm text-muted-foreground">
-                                    This will automatically schedule future payments
+                                    Ini akan otomatis menjadwalkan pembayaran di masa depan
                                   </p>
                                 </div>
                               </div>
                             </div>
-                            
+
                             {/* Recurring payment settings */}
                             {formData.isRecurringExpense && (
                               <div className="space-y-4 pl-6 border-l-2 border-blue-100">
                                 <div className="grid grid-cols-2 gap-4">
                                   <div className="space-y-2">
-                                    <Label htmlFor="recurringFrequency">Payment Frequency</Label>
+                                    <Label htmlFor="recurringFrequency">Frekuensi Pembayaran</Label>
                                     <Select
                                       value={formData.recurringFrequency}
                                       onValueChange={handleRecurringFrequencyChange}
                                     >
                                       <SelectTrigger id="recurringFrequency">
-                                        <SelectValue placeholder="Select frequency" />
+                                        <SelectValue placeholder="Pilih frekuensi" />
                                       </SelectTrigger>
                                       <SelectContent>
                                         {recurringFrequencyOptions.map((freq) => (
                                           <SelectItem key={freq} value={freq}>
-                                            {freq === "MONTHLY" ? "Monthly" : 
-                                             freq === "QUARTERLY" ? "Quarterly" : "Annually"}
+                                            {freq === "MONTHLY" ? "Bulanan" :
+                                             freq === "QUARTERLY" ? "Triwulanan" : "Tahunan"}
                                           </SelectItem>
                                         ))}
                                       </SelectContent>
                                     </Select>
                                   </div>
-                                  
+
                                   <div className="space-y-2">
-                                    <Label htmlFor="nextBillingDate">Next Billing Date</Label>
+                                    <Label htmlFor="nextBillingDate">Tanggal Penagihan Berikutnya</Label>
                                     <Input
                                       id="nextBillingDate"
                                       name="nextBillingDate"
@@ -1573,26 +1676,26 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                                     )}
                                   </div>
                                 </div>
-                                
+
                                 <Alert>
                                   <RepeatIcon className="h-4 w-4" />
-                                  <AlertTitle>Recurring Payment</AlertTitle>
+                                  <AlertTitle>Pembayaran Berulang</AlertTitle>
                                   <AlertDescription>
-                                    This expense will automatically repeat on the selected frequency until canceled.
-                                    You can manage recurring payments in the subscription management section.
+                                    Pengeluaran ini akan otomatis berulang pada frekuensi yang dipilih sampai dibatalkan.
+                                    Anda dapat mengelola pembayaran berulang di bagian manajemen langganan.
                                   </AlertDescription>
                                 </Alert>
                               </div>
                             )}
                           </>
                         )}
-                        
+
                         {subscriptions.length === 0 && !loadingSubscriptions && (
                           <Alert className="bg-amber-50 text-amber-800 border-amber-200">
                             <AlertCircle className="h-4 w-4" />
-                            <AlertTitle>No subscriptions found</AlertTitle>
+                            <AlertTitle>Tidak ada langganan ditemukan</AlertTitle>
                             <AlertDescription>
-                              You don't have any active subscriptions. Go to the Inventory section to add a subscription.
+                              Anda tidak memiliki langganan aktif. Pergi ke bagian Inventaris untuk menambahkan langganan.
                             </AlertDescription>
                           </Alert>
                         )}
@@ -1601,14 +1704,14 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
 
                     {/* Amount */}
                     <div>
-                      <label className="text-sm font-medium mb-1 block">Amount</label>
+                      <label className="text-sm font-medium mb-1 block">Jumlah</label>
                       <Input
                         name="amount"
                         type="number"
                         min="0"
                         value={formData.amount}
                         onChange={handleChange}
-                        placeholder="Expense Amount"
+                        placeholder="Jumlah Pengeluaran"
                         required
                         className={formErrors.amount ? "border-red-500" : ""}
                         disabled={formData.category === "Subscription" && !!selectedSubscription}
@@ -1622,7 +1725,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                     <div className="space-y-2">
                       <label className="text-sm font-medium mb-1 flex items-center gap-1">
                         <Tag className="h-4 w-4" />
-                        Link to Transaction/Project
+                        Hubungkan ke Transaksi/Proyek
                       </label>
                       <Select
                         value={formData.transactionId}
@@ -1633,24 +1736,24 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                           {loadingTransactions ? (
                             <div className="flex items-center">
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              <span>Loading transactions...</span>
+                              <span>Memuat transaksi...</span>
                             </div>
                           ) : (
-                            <SelectValue placeholder="Select transaction (optional)" />
+                            <SelectValue placeholder="Pilih transaksi (opsional)" />
                           )}
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">No transaction</SelectItem>
+                          <SelectItem value="none">Tanpa transaksi</SelectItem>
                           {transactions.map((transaction) => (
                             <SelectItem key={transaction.id} value={transaction.id}>
-                              {transaction.name} - Rp{formatRupiah(transaction.projectValue || 0)}
+                              {transaction.name} - {formatRupiah(transaction.projectValue || 0)}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        Link this expense to an existing transaction/project for proper
-                        project expense tracking
+                        Hubungkan pengeluaran ini ke transaksi/proyek yang ada untuk
+                        pelacakan pengeluaran proyek yang tepat
                       </p>
                     </div>
 
@@ -1658,7 +1761,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                     <div className="space-y-2">
                       <label className="text-sm font-medium mb-1 flex items-center gap-1">
                         <Package2 className="h-4 w-4" />
-                        Vendor/Subcontractor
+                        Vendor/Subkontraktor
                       </label>
                       <Select
                         value={formData.vendorId}
@@ -1669,14 +1772,14 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                           {loadingVendors ? (
                             <div className="flex items-center">
                               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              <span>Loading vendors...</span>
+                              <span>Memuat vendor...</span>
                             </div>
                           ) : (
-                            <SelectValue placeholder="Select vendor (optional)" />
+                            <SelectValue placeholder="Pilih vendor (opsional)" />
                           )}
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="none">No vendor</SelectItem>
+                          <SelectItem value="none">Tanpa vendor</SelectItem>
                           {vendors.map((vendor) => (
                             <SelectItem key={vendor.id} value={vendor.id}>
                               {vendor.name} - {vendor.serviceDesc}
@@ -1685,25 +1788,25 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        Select a vendor that this expense is associated with
+                        Pilih vendor yang terkait dengan pengeluaran ini
                       </p>
                     </div>
 
                     {/* Description */}
                     <div>
-                      <label className="text-sm font-medium mb-1 block">Description</label>
+                      <label className="text-sm font-medium mb-1 block">Deskripsi</label>
                       <Textarea
                         name="description"
                         value={formData.description}
                         onChange={handleChange}
-                        placeholder="Enter expense description"
+                        placeholder="Masukkan deskripsi pengeluaran"
                         rows={3}
                       />
                     </div>
 
                     {/* Date */}
                     <div>
-                      <label className="text-sm font-medium mb-1 block">Date</label>
+                      <label className="text-sm font-medium mb-1 block">Tanggal</label>
                       <Input
                         name="date"
                         type="date"
@@ -1723,7 +1826,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                         <div className="flex items-center">
                           <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
                           <label className="text-sm font-medium">
-                            Payment Proof Link (Optional)
+                            Link Bukti Pembayaran (Opsional)
                           </label>
                         </div>
                         <Input
@@ -1731,7 +1834,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                           type="url"
                           value={formData.paymentProofLink}
                           onChange={handleChange}
-                          placeholder="https://drive.google.com/file/your-receipt"
+                          placeholder="https://drive.google.com/file/bukti-pembayaran-anda"
                           className={formErrors.paymentProofLink ? "border-red-500" : ""}
                         />
                         {formErrors.paymentProofLink && (
@@ -1740,7 +1843,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                           </p>
                         )}
                         <p className="text-xs text-muted-foreground mt-1">
-                          Add link to receipt or payment confirmation (Google Drive, Dropbox, etc.)
+                          Tambahkan link ke bukti pembayaran atau konfirmasi pembayaran (Google Drive, Dropbox, dll.)
                         </p>
                       </div>
                     )}
@@ -1752,16 +1855,16 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
 
           <div className="flex justify-end gap-2 mt-4 pt-2 border-t">
             <Button type="button" variant="outline" onClick={() => setIsOpen(false)} disabled={isSubmitting}>
-              Cancel
+              Batal
             </Button>
             <Button onClick={handleSubmit} disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Submitting...
+                  Mengirim...
                 </>
               ) : (
-                "Submit"
+                "Kirim"
               )}
             </Button>
           </div>
@@ -1772,19 +1875,19 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
       <Sheet open={isNewClientSheetOpen} onOpenChange={setIsNewClientSheetOpen}>
         <SheetContent className="w-full sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>Add New Client</SheetTitle>
+            <SheetTitle>Tambah Klien Baru</SheetTitle>
             <SheetDescription>
-              Create a new client to associate with this transaction.
+              Buat klien baru untuk dikaitkan dengan transaksi ini.
             </SheetDescription>
           </SheetHeader>
           <div className="grid gap-4 py-4">
             <div>
-              <label className="text-sm font-medium mb-1 block">Client Code*</label>
+              <label className="text-sm font-medium mb-1 block">Kode Klien*</label>
               <Input
                 name="code"
                 value={newClientData.code}
                 onChange={handleNewClientChange}
-                placeholder="e.g., CLIENT001"
+                placeholder="Contoh: CLIENT001"
                 className={newClientErrors.code ? "border-red-500" : ""}
               />
               {newClientErrors.code && (
@@ -1792,12 +1895,12 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
               )}
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">Client Name*</label>
+              <label className="text-sm font-medium mb-1 block">Nama Klien*</label>
               <Input
                 name="name"
                 value={newClientData.name}
                 onChange={handleNewClientChange}
-                placeholder="Enter client name"
+                placeholder="Masukkan nama klien"
                 className={newClientErrors.name ? "border-red-500" : ""}
               />
               {newClientErrors.name && (
@@ -1811,7 +1914,7 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
                 type="email"
                 value={newClientData.email}
                 onChange={handleNewClientChange}
-                placeholder="client@example.com"
+                placeholder="klien@contoh.com"
                 className={newClientErrors.email ? "border-red-500" : ""}
               />
               {newClientErrors.email && (
@@ -1819,33 +1922,45 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
               )}
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">Phone</label>
+              <label className="text-sm font-medium mb-1 block">Telepon</label>
               <Input
                 name="phone"
                 value={newClientData.phone}
                 onChange={handleNewClientChange}
                 placeholder="08123456789"
+                className={newClientErrors.phone ? "border-red-500" : ""}
               />
+              {newClientErrors.phone && (
+                <p className="text-red-500 text-xs mt-1">{newClientErrors.phone}</p>
+              )}
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">Address</label>
+              <label className="text-sm font-medium mb-1 block">Alamat</label>
               <Textarea
                 name="address"
                 value={newClientData.address}
                 onChange={handleNewClientChange}
-                placeholder="Enter client address"
+                placeholder="Masukkan alamat klien"
                 rows={2}
+                className={newClientErrors.address ? "border-red-500" : ""}
               />
+              {newClientErrors.address && (
+                <p className="text-red-500 text-xs mt-1">{newClientErrors.address}</p>
+              )}
             </div>
             <div>
-              <label className="text-sm font-medium mb-1 block">Description</label>
+              <label className="text-sm font-medium mb-1 block">Deskripsi</label>
               <Textarea
                 name="description"
                 value={newClientData.description}
                 onChange={handleNewClientChange}
-                placeholder="Enter client description"
+                placeholder="Masukkan deskripsi klien"
                 rows={3}
+                className={newClientErrors.description ? "border-red-500" : ""}
               />
+              {newClientErrors.description && (
+                <p className="text-red-500 text-xs mt-1">{newClientErrors.description}</p>
+              )}
             </div>
           </div>
           <SheetFooter className="mt-4">
@@ -1854,21 +1969,21 @@ export default function AddTransactionModal({ onTransactionAdded }: AddTransacti
               onClick={() => setIsNewClientSheetOpen(false)}
               disabled={isCreatingClient}
             >
-              Cancel
+              Batal
             </Button>
-            <Button 
+            <Button
               onClick={handleCreateClient}
               disabled={isCreatingClient}
             >
               {isCreatingClient ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
+                  Membuat...
                 </>
               ) : (
                 <>
                   <CheckCircle className="mr-2 h-4 w-4" />
-                  Create Client
+                  Buat Klien
                 </>
               )}
             </Button>

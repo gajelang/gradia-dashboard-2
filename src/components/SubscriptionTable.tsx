@@ -13,24 +13,24 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Loader2, 
-  RefreshCw, 
-  ArrowUpDown, 
-  Filter, 
+import {
+  Loader2,
+  RefreshCw,
+  ArrowUpDown,
+  Filter,
   MoreHorizontal,
   AlertCircle,
   Archive,
   Eye,
   EyeOff
 } from "lucide-react";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger
 } from "@/components/ui/dropdown-menu";
 import { toast } from "react-hot-toast";
 import { formatRupiah } from "@/lib/formatters";
@@ -95,12 +95,12 @@ export default function SubscriptionTable() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filterStatus, setFilterStatus] = useState<Subscription['paymentStatus'] | 'ALL'>('ALL');
   const [viewMode, setViewMode] = useState<"active" | "archived">("active");
-  
+
   // State for archiving dialog
   const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
   const [subscriptionToArchive, setSubscriptionToArchive] = useState<Subscription | null>(null);
   const [confirmArchiveText, setConfirmArchiveText] = useState("");
-  
+
   // State for restoring dialog
   const [isRestoreDialogOpen, setIsRestoreDialogOpen] = useState(false);
   const [subscriptionToRestore, setSubscriptionToRestore] = useState<Subscription | null>(null);
@@ -109,25 +109,25 @@ export default function SubscriptionTable() {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Add query parameter for archived subscriptions
       const queryParam = viewMode === "archived" ? "?deleted=true" : "";
-      
+
       // Use authenticated fetch
       const response = await fetchWithAuth(`/api/subscriptions${queryParam}`);
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to fetch subscriptions');
       }
-      
+
       const data: Subscription[] = await response.json();
       setSubscriptions(data);
     } catch (err: any) {
-      const errorMessage = err instanceof Error 
-        ? err.message 
+      const errorMessage = err instanceof Error
+        ? err.message
         : 'An unexpected error occurred';
-      
+
       setError(errorMessage);
       toast.error(`${errorMessage}. Unable to fetch subscriptions. Please try again.`);
     } finally {
@@ -141,30 +141,30 @@ export default function SubscriptionTable() {
 
   const filteredSubs = useMemo(() => {
     return subscriptions
-      .filter((sub) => 
+      .filter((sub) =>
         sub.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
         (filterStatus === 'ALL' || sub.paymentStatus === filterStatus)
       )
       .sort((a, b) => {
         if (!sortColumn) return 0;
-        
+
         const aValue = a[sortColumn];
         const bValue = b[sortColumn];
-        
+
         if (aValue === undefined || bValue === undefined) return 0;
-        
+
         if (typeof aValue === 'string' && typeof bValue === 'string') {
-          return sortDirection === 'asc' 
+          return sortDirection === 'asc'
             ? aValue.localeCompare(bValue)
             : bValue.localeCompare(aValue);
         }
-        
+
         if (typeof aValue === 'number' && typeof bValue === 'number') {
-          return sortDirection === 'asc' 
-            ? aValue - bValue 
+          return sortDirection === 'asc'
+            ? aValue - bValue
             : bValue - aValue;
         }
-        
+
         return 0;
       });
   }, [subscriptions, searchTerm, sortColumn, sortDirection, filterStatus]);
@@ -188,7 +188,7 @@ export default function SubscriptionTable() {
       default: return 'default';
     }
   };
-  
+
   // Handle archive subscription
   const handleArchiveClick = (subscription: Subscription) => {
     setSubscriptionToArchive(subscription);
@@ -201,26 +201,26 @@ export default function SubscriptionTable() {
       toast.error("Please type ARCHIVE to confirm");
       return;
     }
-    
+
     try {
       const res = await fetchWithAuth("/api/subscriptions/softDelete", {
         method: "POST",
         body: JSON.stringify({
           id: subscriptionToArchive.id,
-          deletedById: user?.userId
+          deletedById: user?.id
         }),
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || "Failed to archive subscription");
       }
-      
+
       toast.success("Subscription archived successfully");
-      
+
       // Refetch subscriptions
       fetchSubscriptions();
-      
+
       // Close dialog
       setIsArchiveDialogOpen(false);
       setSubscriptionToArchive(null);
@@ -230,7 +230,7 @@ export default function SubscriptionTable() {
       toast.error(error instanceof Error ? error.message : "Failed to archive subscription");
     }
   };
-  
+
   // Handle restore subscription
   const handleRestoreClick = (subscription: Subscription) => {
     setSubscriptionToRestore(subscription);
@@ -239,26 +239,26 @@ export default function SubscriptionTable() {
 
   const handleRestoreSubscription = async () => {
     if (!subscriptionToRestore) return;
-    
+
     try {
       const res = await fetchWithAuth("/api/subscriptions/restore", {
         method: "POST",
         body: JSON.stringify({
           id: subscriptionToRestore.id,
-          restoredById: user?.userId
+          restoredById: user?.id
         }),
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || "Failed to restore subscription");
       }
-      
+
       toast.success("Subscription restored successfully");
-      
+
       // Refetch subscriptions
       fetchSubscriptions();
-      
+
       // Close dialog
       setIsRestoreDialogOpen(false);
       setSubscriptionToRestore(null);
@@ -282,12 +282,12 @@ export default function SubscriptionTable() {
         <AlertCircle className="h-4 w-4" />
         <AlertTitle>Error</AlertTitle>
         <AlertDescription>{error}</AlertDescription>
-        <Button 
-          onClick={fetchSubscriptions} 
-          variant="destructive" 
+        <Button
+          onClick={fetchSubscriptions}
+          variant="destructive"
           className="mt-4"
         >
-          <RefreshCw className="mr-2 h-4 w-4" /> 
+          <RefreshCw className="mr-2 h-4 w-4" />
           Retry
         </Button>
       </Alert>
@@ -298,9 +298,9 @@ export default function SubscriptionTable() {
     <div className="p-4 space-y-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-semibold">Subscriptions</h2>
-        
+
         <div className="flex items-center gap-2">
-          <Button 
+          <Button
             variant={viewMode === "active" ? "default" : "outline"}
             onClick={() => setViewMode("active")}
             className="flex items-center gap-1"
@@ -308,7 +308,7 @@ export default function SubscriptionTable() {
             <Eye className="h-4 w-4" />
             Active
           </Button>
-          <Button 
+          <Button
             variant={viewMode === "archived" ? "default" : "outline"}
             onClick={() => setViewMode("archived")}
             className="flex items-center gap-1"
@@ -318,7 +318,7 @@ export default function SubscriptionTable() {
           </Button>
         </div>
       </div>
-      
+
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Input
@@ -337,25 +337,25 @@ export default function SubscriptionTable() {
             <DropdownMenuContent>
               <DropdownMenuLabel>Filter by Payment Status</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => setFilterStatus('ALL')}
                 className={filterStatus === 'ALL' ? 'bg-muted' : ''}
               >
                 All Subscriptions
               </DropdownMenuItem>
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => setFilterStatus('LUNAS')}
                 className={filterStatus === 'LUNAS' ? 'bg-muted' : ''}
               >
                 Paid
               </DropdownMenuItem>
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => setFilterStatus('DP')}
                 className={filterStatus === 'DP' ? 'bg-muted' : ''}
               >
                 Partial Payment
               </DropdownMenuItem>
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 onClick={() => setFilterStatus('BELUM_BAYAR')}
                 className={filterStatus === 'BELUM_BAYAR' ? 'bg-muted' : ''}
               >
@@ -368,22 +368,22 @@ export default function SubscriptionTable() {
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
-      
+
       <Table>
         <TableCaption>{filteredSubs.length} subscriptions found</TableCaption>
         <TableHeader>
           <TableRow>
-            <TableHead 
-              className="cursor-pointer hover:bg-muted" 
+            <TableHead
+              className="cursor-pointer hover:bg-muted"
               onClick={() => toggleSort('name')}
             >
               <div className="flex items-center">
-                Name 
+                Name
                 <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
               </div>
             </TableHead>
-            <TableHead 
-              className="cursor-pointer hover:bg-muted" 
+            <TableHead
+              className="cursor-pointer hover:bg-muted"
               onClick={() => toggleSort('paymentStatus')}
             >
               <div className="flex items-center">
@@ -391,8 +391,8 @@ export default function SubscriptionTable() {
                 <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
               </div>
             </TableHead>
-            <TableHead 
-              className="cursor-pointer hover:bg-muted" 
+            <TableHead
+              className="cursor-pointer hover:bg-muted"
               onClick={() => toggleSort('cost')}
             >
               <div className="flex items-center">
@@ -400,8 +400,8 @@ export default function SubscriptionTable() {
                 <ArrowUpDown className="ml-2 h-4 w-4 opacity-50" />
               </div>
             </TableHead>
-            <TableHead 
-              className="cursor-pointer hover:bg-muted" 
+            <TableHead
+              className="cursor-pointer hover:bg-muted"
               onClick={() => toggleSort('nextBillingDate')}
             >
               <div className="flex items-center">
@@ -428,13 +428,13 @@ export default function SubscriptionTable() {
                   <TableCell className="font-medium">{sub.name}</TableCell>
                   <TableCell>
                     <Badge variant={getStatusVariant(sub.paymentStatus)}>
-                      {sub.paymentStatus === 'LUNAS' ? 'Paid' 
-                        : sub.paymentStatus === 'DP' ? 'Partial' 
+                      {sub.paymentStatus === 'LUNAS' ? 'Paid'
+                        : sub.paymentStatus === 'DP' ? 'Partial'
                         : 'Unpaid'}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    Rp{formatRupiah(sub.cost)}/month
+                    {formatRupiah(sub.cost)}/month
                   </TableCell>
                   <TableCell>
                     <div className={`flex items-center gap-2 ${isDueSoon ? 'text-yellow-600 font-semibold' : ''}`}>
@@ -475,7 +475,7 @@ export default function SubscriptionTable() {
                               Edit
                             </DropdownMenuItem>
                             <DropdownMenuItem>Make Payment</DropdownMenuItem>
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               className="text-red-600"
                               onClick={() => handleArchiveClick(sub)}
                             >
@@ -492,7 +492,7 @@ export default function SubscriptionTable() {
                         )}
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    
+
                     {/* Hidden trigger buttons for edit modal (needed by inventory system) */}
                     <div className="hidden">
                       <span id={`update-inventory-${sub.id}`}></span>
@@ -504,7 +504,7 @@ export default function SubscriptionTable() {
           )}
         </TableBody>
       </Table>
-      
+
       {/* Archive Confirmation Dialog */}
       <Dialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -514,7 +514,7 @@ export default function SubscriptionTable() {
               This subscription will be archived. You can restore it later if needed.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4">
             <p className="mb-2 font-medium">Subscription: {subscriptionToArchive?.name}</p>
             <p className="mb-4 text-sm text-muted-foreground">Type &quot;ARCHIVE&quot; to confirm.</p>
@@ -524,13 +524,13 @@ export default function SubscriptionTable() {
               placeholder="Type ARCHIVE to confirm"
             />
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsArchiveDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={handleArchiveSubscription}
               disabled={confirmArchiveText !== "ARCHIVE"}
             >
@@ -539,7 +539,7 @@ export default function SubscriptionTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       {/* Restore Confirmation Dialog */}
       <Dialog open={isRestoreDialogOpen} onOpenChange={setIsRestoreDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -549,11 +549,11 @@ export default function SubscriptionTable() {
               This subscription will be restored and will appear in the active list again.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4">
             <p>Are you sure you want to restore subscription &quot;{subscriptionToRestore?.name}&quot;?</p>
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsRestoreDialogOpen(false)}>
               Cancel

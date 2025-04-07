@@ -38,6 +38,7 @@ import { fetchWithAuth } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import InvoicePreview from "@/components/InvoicePreview";
 import { generateInvoicePDF } from "@/lib/invoiceUtils";
+import { getClientDataFromTransaction } from "@/lib/clientUtils";
 
 // Types
 interface Transaction {
@@ -58,6 +59,7 @@ interface Transaction {
   client?: Client;
 }
 
+// Using the Client interface from clientUtils.ts
 interface Client {
   isDeleted: boolean;
   id: string;
@@ -94,7 +96,7 @@ export default function InvoiceCreator() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const invoiceRef = useRef<HTMLDivElement>(null);
-  
+
   // State for transactions and clients
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -223,10 +225,13 @@ export default function InvoiceCreator() {
   // Handle transaction selection
   const handleTransactionSelect = (transactionId: string) => {
     const transaction = transactions.find(tx => tx.id === transactionId);
-    
+
     if (transaction) {
       setSelectedTransaction(transactionId);
-      
+
+      // Get client data using the utility function
+      const clientData = getClientDataFromTransaction(transaction);
+
       // Update invoice data with transaction details
       setInvoiceData(prev => ({
         ...prev,
@@ -238,19 +243,13 @@ export default function InvoiceCreator() {
         totalAmount: (transaction.projectValue || 0) * 1.11,
         startDate: transaction.startDate || "",
         endDate: transaction.endDate || "",
-        // If transaction has a client, use their info
-        ...(transaction.client ? {
-          clientId: transaction.client.id,
-          clientName: transaction.client.name,
-          clientEmail: transaction.client.email || "",
-          clientPhone: transaction.client.phone || ""
-        } : {
-          clientId: "",
-          clientEmail: transaction.email || "",
-          clientPhone: transaction.phone || ""
-        })
+        // Use client data from utility function
+        clientId: clientData.clientId || "",
+        clientName: clientData.clientName || "",
+        clientEmail: clientData.clientEmail || "",
+        clientPhone: clientData.clientPhone || ""
       }));
-      
+
       // If transaction has a client, select that client
       if (transaction.client) {
         setSelectedClient(transaction.client.id);
@@ -263,10 +262,10 @@ export default function InvoiceCreator() {
   // Handle client selection
   const handleClientSelect = (clientId: string) => {
     const client = clients.find(c => c.id === clientId);
-    
+
     if (client) {
       setSelectedClient(clientId);
-      
+
       // Update invoice data with client details
       setInvoiceData(prev => ({
         ...prev,
@@ -286,7 +285,7 @@ export default function InvoiceCreator() {
     try {
       const fileName = `${invoiceData.invoiceNumber}.pdf`;
       const success = await generateInvoicePDF(invoiceRef, fileName);
-      
+
       if (success) {
         toast.success("Invoice downloaded successfully!");
       } else {
@@ -322,7 +321,7 @@ export default function InvoiceCreator() {
         description: invoiceData.description,
         clientId: invoiceData.clientId || null,
         transactionId: invoiceData.transactionId || null,
-        createdById: user?.userId || null
+        createdById: user?.id || null
       };
 
       // Send to API
@@ -452,11 +451,11 @@ export default function InvoiceCreator() {
               ) : filteredTransactions.length > 0 ? (
                 <div className="grid gap-3 max-h-[400px] overflow-y-auto pr-2">
                   {filteredTransactions.map(transaction => (
-                    <div 
+                    <div
                       key={transaction.id}
                       className={`p-4 border rounded-lg cursor-pointer transition-colors ${
-                        selectedTransaction === transaction.id 
-                          ? "border-blue-500 bg-blue-50" 
+                        selectedTransaction === transaction.id
+                          ? "border-blue-500 bg-blue-50"
                           : "hover:bg-gray-50"
                       }`}
                       onClick={() => handleTransactionSelect(transaction.id)}
@@ -470,8 +469,8 @@ export default function InvoiceCreator() {
                       <p className="text-sm text-gray-600 mb-2">{transaction.description}</p>
                       <div className="flex flex-wrap gap-2 text-xs">
                         <span className={`px-2 py-0.5 rounded-full ${
-                          transaction.paymentStatus === "Lunas" 
-                            ? "bg-green-100 text-green-800" 
+                          transaction.paymentStatus === "Lunas"
+                            ? "bg-green-100 text-green-800"
                             : transaction.paymentStatus === "DP"
                             ? "bg-yellow-100 text-yellow-800"
                             : "bg-red-100 text-red-800"
@@ -500,7 +499,7 @@ export default function InvoiceCreator() {
                 <Button variant="outline" onClick={() => setActiveTab("details")}>
                   Skip Selection
                 </Button>
-                <Button 
+                <Button
                   onClick={() => setActiveTab("details")}
                   disabled={!selectedTransaction}
                 >
@@ -574,8 +573,8 @@ export default function InvoiceCreator() {
                       <Loader2 className="h-4 w-4 animate-spin mx-auto" />
                     </div>
                   ) : clients.length > 0 && (
-                    <Select 
-                      value={selectedClient} 
+                    <Select
+                      value={selectedClient}
                       onValueChange={handleClientSelect}
                     >
                       <SelectTrigger className="w-[240px]">

@@ -50,7 +50,7 @@ export default function RecentFundTransactionsCard() {
       }
 
       const responseData = await response.json();
-      
+
       // Ensure transactions is always an array before setting the state
       let transactionsData: FundTransaction[] = [];
       if (Array.isArray(responseData)) {
@@ -73,7 +73,7 @@ export default function RecentFundTransactionsCard() {
     } catch (err) {
       console.error("Error fetching fund transactions:", err);
       setError(err instanceof Error ? err.message : "Unknown error occurred");
-      
+
       // Don't use fallback data if we already have data
       if (transactions.length === 0) {
         setUseFallbackData(true);
@@ -103,7 +103,7 @@ export default function RecentFundTransactionsCard() {
       setIsRefreshing(false);
     }
   };
-  
+
   // Format date
   const formatDate = (dateString: string) => {
     try {
@@ -120,7 +120,7 @@ export default function RecentFundTransactionsCard() {
       return "Invalid date";
     }
   };
-  
+
   // Get transaction type color
   const getTransactionTypeColor = (type: string) => {
     switch (type) {
@@ -132,7 +132,7 @@ export default function RecentFundTransactionsCard() {
       default: return "text-gray-600";
     }
   };
-  
+
   // Get transaction type display
   const getTransactionTypeDisplay = (type: string) => {
     switch (type) {
@@ -144,7 +144,7 @@ export default function RecentFundTransactionsCard() {
       default: return type;
     }
   };
-  
+
   // Get fund type display
   const getFundTypeDisplay = (type: string) => {
     switch (type) {
@@ -180,9 +180,9 @@ export default function RecentFundTransactionsCard() {
             Recent Fund Transactions
             {useFallbackData && <span className="text-xs text-amber-500 ml-2">(Default Data)</span>}
           </div>
-          
-          <Button 
-            variant="ghost" 
+
+          <Button
+            variant="ghost"
             size="sm"
             className="h-6 w-6 p-0"
             onClick={fetchTransactions}
@@ -196,7 +196,7 @@ export default function RecentFundTransactionsCard() {
           </Button>
         </CardTitle>
       </CardHeader>
-      
+
       {error && !useFallbackData && (
         <div className="px-4 py-2">
           <div className="bg-amber-50 text-amber-800 p-2 rounded text-xs flex items-center">
@@ -205,7 +205,7 @@ export default function RecentFundTransactionsCard() {
           </div>
         </div>
       )}
-      
+
       <CardContent className="p-0">
         {transactions.length === 0 ? (
           <div className="text-center py-6 text-sm text-muted-foreground">
@@ -226,7 +226,7 @@ export default function RecentFundTransactionsCard() {
                     <div className={`text-right ${transaction.amount >= 0 ? "text-green-600" : "text-red-600"}`}>
                       <div className="font-medium">
                         {transaction.amount >= 0 ? "+" : ""}
-                        Rp{formatRupiah(Math.abs(transaction.amount))}
+                        {formatRupiah(Math.abs(transaction.amount))}
                       </div>
                       <div className="text-xs text-gray-500">{getFundTypeDisplay(transaction.fundType)}</div>
                     </div>
@@ -237,7 +237,7 @@ export default function RecentFundTransactionsCard() {
                     </div>
                   )}
                   <div className="mt-1 text-xs text-gray-500 flex justify-between items-center">
-                    <span>Balance: Rp{formatRupiah(transaction.balanceAfter)}</span>
+                    <span>Balance: {formatRupiah(transaction.balanceAfter)}</span>
                     <span>{transaction.createdBy?.name || "System"}</span>
                   </div>
                 </div>

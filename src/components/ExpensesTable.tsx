@@ -4,12 +4,11 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  ArrowUpDown, 
-  ChevronUp, 
-  ChevronDown, 
+  ArrowUpDown,
+  ChevronUp,
+  ChevronDown,
   Search,
   X,
-  ExternalLink,
   Tag,
   Archive,
   Eye,
@@ -19,7 +18,6 @@ import {
   Info,
   RepeatIcon,
   MoreHorizontal,
-  AlertCircle,
   CheckCircle,
   XCircle,
   Loader2,
@@ -72,13 +70,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import UnpaidItemsSection from "@/components/expenses/UnpaidItemsSection";
 
 type SortDirection = "asc" | "desc" | null;
 type SortField = "category" | "amount" | "description" | "date" | "transactionId" | "createdBy" | "nextBillingDate" | null;
@@ -137,7 +133,7 @@ interface Expense {
 
 export default function ExpensesTable() {
   const { user } = useAuth();
-  
+
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [deletedExpenses, setDeletedExpenses] = useState<Expense[]>([]);
   const [recurringExpenses, setRecurringExpenses] = useState<Expense[]>([]);
@@ -156,20 +152,20 @@ export default function ExpensesTable() {
   const [availableTransactions, setAvailableTransactions] = useState<{id: string, name: string}[]>([]);
   const [availableCategories, setAvailableCategories] = useState<string[]>([]);
 
-  // View mode state 
+  // View mode state
   const [viewMode, setViewMode] = useState<"active" | "deleted" | "recurring">("active");
 
   // State for soft delete
   const [expenseToDelete, setExpenseToDelete] = useState<Expense | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmDeleteText, setConfirmDeleteText] = useState("");
-  
+
   // State for recurring expense management
   const [recurringExpenseDetails, setRecurringExpenseDetails] = useState<Expense | null>(null);
   const [showRecurringDetails, setShowRecurringDetails] = useState(false);
   const [cancellingRecurring, setCancellingRecurring] = useState<string | null>(null);
   const [processingPayment, setProcessingPayment] = useState<string | null>(null);
-  
+
   // Loading state
   const [loading, setLoading] = useState(false);
 
@@ -177,18 +173,18 @@ export default function ExpensesTable() {
   const fetchExpenses = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       let endpoint = "/api/expenses";
       let queryParam = "";
-      
+
       if (viewMode === "deleted") {
         queryParam = "?deleted=true";
       } else if (viewMode === "recurring") {
         endpoint = "/api/expenses/recurring";
       }
-      
+
       const res = await fetchWithAuth(`${endpoint}${queryParam}`, { cache: "no-store" });
-      
+
       if (!res.ok) {
         let errorText = "Failed to fetch expenses";
         try {
@@ -199,7 +195,7 @@ export default function ExpensesTable() {
         }
         throw new Error(errorText);
       }
-      
+
       let data: Expense[];
       try {
         data = await res.json();
@@ -208,7 +204,7 @@ export default function ExpensesTable() {
         console.error("Error parsing expense data:", jsonError);
         throw new Error("Invalid data format received from server");
       }
-      
+
       if (viewMode === "deleted") {
         setDeletedExpenses(data);
         setFilteredExpenses(data);
@@ -219,25 +215,25 @@ export default function ExpensesTable() {
         setExpenses(data);
         setFilteredExpenses(data);
       }
-      
+
       // Process available filter options
       const years = [...new Set(data.map(exp => new Date(exp.date).getFullYear()))];
       setAvailableYears(years.sort((a, b) => b - a));
-      
+
       const categories = [...new Set(data.map(exp => exp.category))];
       setAvailableCategories(categories.sort());
-      
+
       const transactions = data
         .filter(exp => exp.transaction)
         .map(exp => ({
           id: exp.transaction!.id,
           name: exp.transaction!.name
         }));
-      
+
       const uniqueTransactions = [...new Map(
         transactions.map(tx => [tx.id, tx])
       ).values()];
-      
+
       setAvailableTransactions(uniqueTransactions);
     } catch (error) {
       console.error("Error fetching expenses:", error);
@@ -255,7 +251,7 @@ export default function ExpensesTable() {
   // Filtering and Sorting Logic
   useEffect(() => {
     let result: Expense[] = [];
-    
+
     if (viewMode === "active") {
       result = [...expenses];
     } else if (viewMode === "deleted") {
@@ -263,27 +259,27 @@ export default function ExpensesTable() {
     } else if (viewMode === "recurring") {
       result = [...recurringExpenses];
     }
-    
+
     // Apply category filter
     if (categoryFilter) {
       result = result.filter(exp => exp.category === categoryFilter);
     }
-    
+
     // Apply transaction filter
     if (transactionFilter) {
       result = result.filter(exp => exp.transactionId === transactionFilter);
     }
-    
+
     // Apply fund type filter
     if (fundTypeFilter) {
       result = result.filter(exp => exp.fundType === fundTypeFilter);
     }
-    
+
     // Apply recurring filter
     if (recurringFilter !== null) {
       result = result.filter(exp => exp.isRecurringExpense === recurringFilter);
     }
-    
+
     // Apply date filter
     if (dateFilter.month !== null || dateFilter.year !== null) {
       result = result.filter(exp => {
@@ -300,7 +296,7 @@ export default function ExpensesTable() {
         return true;
       });
     }
-    
+
     // Apply sorting
     if (sortField && sortDirection) {
       result.sort((a, b) => {
@@ -339,51 +335,75 @@ export default function ExpensesTable() {
         }
       });
     }
-    
+
     setFilteredExpenses(result);
   }, [
-    expenses, 
-    deletedExpenses, 
-    recurringExpenses, 
-    sortField, 
-    sortDirection, 
-    dateFilter, 
-    categoryFilter, 
-    transactionFilter, 
-    fundTypeFilter, 
-    recurringFilter, 
+    expenses,
+    deletedExpenses,
+    recurringExpenses,
+    sortField,
+    sortDirection,
+    dateFilter,
+    categoryFilter,
+    transactionFilter,
+    fundTypeFilter,
+    recurringFilter,
     viewMode
   ]);
 
-  // Search function
+  // Search function - now real-time
+  useEffect(() => {
+    // Apply search filter to the current data
+    const applySearchFilter = () => {
+      if (!searchTerm.trim()) {
+        // If search is empty, just use the current data set based on view mode
+        if (viewMode === "active") {
+          setFilteredExpenses(expenses);
+        } else if (viewMode === "deleted") {
+          setFilteredExpenses(deletedExpenses);
+        } else if (viewMode === "recurring") {
+          setFilteredExpenses(recurringExpenses);
+        }
+        return;
+      }
+
+      const lowerCaseSearch = searchTerm.toLowerCase();
+      let dataToSearch: Expense[] = [];
+
+      if (viewMode === "active") {
+        dataToSearch = expenses;
+      } else if (viewMode === "deleted") {
+        dataToSearch = deletedExpenses;
+      } else if (viewMode === "recurring") {
+        dataToSearch = recurringExpenses;
+      }
+
+      const results = dataToSearch.filter(exp =>
+        exp.category.toLowerCase().includes(lowerCaseSearch) ||
+        (exp.description && exp.description.toLowerCase().includes(lowerCaseSearch)) ||
+        exp.amount.toString().includes(lowerCaseSearch) ||
+        (exp.transaction?.name && exp.transaction.name.toLowerCase().includes(lowerCaseSearch)) ||
+        (exp.inventory?.name && exp.inventory.name.toLowerCase().includes(lowerCaseSearch)) ||
+        (exp.createdBy?.name && exp.createdBy.name.toLowerCase().includes(lowerCaseSearch))
+      );
+
+      setFilteredExpenses(results);
+    };
+
+    // Apply the search filter
+    applySearchFilter();
+  }, [searchTerm, expenses, deletedExpenses, recurringExpenses, viewMode]);
+
+  // Legacy search function for the search button
   const handleSearch = () => {
     if (!searchTerm.trim()) {
       setSearchResults([]);
       setShowSearchResults(false);
       return;
     }
-    
-    const lowerCaseSearch = searchTerm.toLowerCase();
-    let dataToSearch: Expense[] = [];
-    
-    if (viewMode === "active") {
-      dataToSearch = expenses;
-    } else if (viewMode === "deleted") {
-      dataToSearch = deletedExpenses;
-    } else if (viewMode === "recurring") {
-      dataToSearch = recurringExpenses;
-    }
-    
-    const results = dataToSearch.filter(exp => 
-      exp.category.toLowerCase().includes(lowerCaseSearch) ||
-      (exp.description && exp.description.toLowerCase().includes(lowerCaseSearch)) ||
-      exp.amount.toString().includes(lowerCaseSearch) ||
-      (exp.transaction?.name && exp.transaction.name.toLowerCase().includes(lowerCaseSearch)) ||
-      (exp.inventory?.name && exp.inventory.name.toLowerCase().includes(lowerCaseSearch)) ||
-      (exp.createdBy?.name && exp.createdBy.name.toLowerCase().includes(lowerCaseSearch))
-    );
-    
-    setSearchResults(results);
+
+    // Set search results to the current filtered expenses
+    setSearchResults(filteredExpenses);
     setShowSearchResults(true);
   };
 
@@ -409,11 +429,11 @@ export default function ExpensesTable() {
   const handleTransactionChange = (value: string) => {
     setTransactionFilter(value === "all" ? null : value);
   };
-  
+
   const handleFundTypeChange = (value: string) => {
     setFundTypeFilter(value === "all" ? null : value);
   };
-  
+
   const handleRecurringChange = (value: string) => {
     setRecurringFilter(value === "all" ? null : value === "recurring");
   };
@@ -437,18 +457,18 @@ export default function ExpensesTable() {
 
   const getSortIcon = (field: SortField) => {
     if (sortField !== field) return <ArrowUpDown className="ml-1 h-4 w-4" />;
-    
-    return sortDirection === 'asc' 
-      ? <ChevronUp className="ml-1 h-4 w-4" /> 
+
+    return sortDirection === 'asc'
+      ? <ChevronUp className="ml-1 h-4 w-4" />
       : <ChevronDown className="ml-1 h-4 w-4" />;
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString(undefined, { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
     });
   };
 
@@ -477,9 +497,9 @@ export default function ExpensesTable() {
       const res = await fetchWithAuth("/api/expenses/softDelete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           id: expenseToDelete.id,
-          deletedBy: user?.userId
+          deletedBy: user?.id
         }),
       });
 
@@ -489,7 +509,7 @@ export default function ExpensesTable() {
       }
 
       toast.success("Expense moved to archive", { id: "deleteExpense" });
-      
+
       if (viewMode === "active") {
         setExpenses(prev => prev.filter(exp => exp.id !== expenseToDelete.id));
         setFilteredExpenses(prev => prev.filter(exp => exp.id !== expenseToDelete.id));
@@ -497,13 +517,13 @@ export default function ExpensesTable() {
         setRecurringExpenses(prev => prev.filter(exp => exp.id !== expenseToDelete.id));
         setFilteredExpenses(prev => prev.filter(exp => exp.id !== expenseToDelete.id));
       }
-      
+
       setDeleteDialogOpen(false);
       setExpenseToDelete(null);
       setConfirmDeleteText("");
     } catch (error) {
       console.error("Error archiving expense:", error);
-      toast.error(`Failed to archive expense: ${error instanceof Error ? error.message : "Unknown error"}`, 
+      toast.error(`Failed to archive expense: ${error instanceof Error ? error.message : "Unknown error"}`,
         { id: "deleteExpense" });
     }
   };
@@ -517,42 +537,42 @@ export default function ExpensesTable() {
     }
     toast.success("Expense updated successfully");
   };
-  
+
   // Cancel recurring expense function
   const cancelRecurringExpense = async (expenseId: string) => {
     if (!expenseId) return;
-    
+
     try {
       setCancellingRecurring(expenseId);
-      
+
       const res = await fetchWithAuth(`/api/expenses/recurring?id=${expenseId}`, {
         method: "DELETE",
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || "Failed to cancel recurring expense");
       }
-      
+
       toast.success("Recurring expense cancelled successfully");
-      
+
       // Update the list to reflect cancellation
-      setRecurringExpenses(prev => 
-        prev.map(exp => 
-          exp.id === expenseId 
-            ? { ...exp, isRecurringExpense: false, recurringFrequency: null, nextBillingDate: null } 
+      setRecurringExpenses(prev =>
+        prev.map(exp =>
+          exp.id === expenseId
+            ? { ...exp, isRecurringExpense: false, recurringFrequency: null, nextBillingDate: null }
             : exp
         )
       );
-      
-      setFilteredExpenses(prev => 
-        prev.map(exp => 
-          exp.id === expenseId 
-            ? { ...exp, isRecurringExpense: false, recurringFrequency: null, nextBillingDate: null } 
+
+      setFilteredExpenses(prev =>
+        prev.map(exp =>
+          exp.id === expenseId
+            ? { ...exp, isRecurringExpense: false, recurringFrequency: null, nextBillingDate: null }
             : exp
         )
       );
-      
+
       // If viewing details of this expense, close the dialog
       if (recurringExpenseDetails?.id === expenseId) {
         setShowRecurringDetails(false);
@@ -564,50 +584,50 @@ export default function ExpensesTable() {
       setCancellingRecurring(null);
     }
   };
-  
+
   // Process recurring payment manually
   const processRecurringPayment = async (expenseId: string) => {
     if (!expenseId) return;
-    
+
     try {
       setProcessingPayment(expenseId);
-      
+
       const res = await fetchWithAuth("/api/cron/recurring-payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           expenseIds: [expenseId]
         }),
       });
-      
+
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.message || "Failed to process payment");
       }
-      
+
       const result = await res.json();
-      
+
       if (result.results && result.results.length > 0 && result.results[0].status === "success") {
         toast.success("Payment processed successfully");
-        
+
         // Update the recurring expense with the new next billing date
         const updatedExpense = await fetchWithAuth(`/api/expenses/recurring?id=${expenseId}`);
-        
+
         if (updatedExpense.ok) {
           const expenseData = await updatedExpense.json();
-          
+
           if (Array.isArray(expenseData) && expenseData.length > 0) {
             const updated = expenseData[0];
-            
+
             // Update the recurring expenses list
-            setRecurringExpenses(prev => 
+            setRecurringExpenses(prev =>
               prev.map(exp => exp.id === expenseId ? updated : exp)
             );
-            
-            setFilteredExpenses(prev => 
+
+            setFilteredExpenses(prev =>
               prev.map(exp => exp.id === expenseId ? updated : exp)
             );
-            
+
             // If viewing details of this expense, update it
             if (recurringExpenseDetails?.id === expenseId) {
               setRecurringExpenseDetails(updated);
@@ -624,10 +644,10 @@ export default function ExpensesTable() {
       setProcessingPayment(null);
     }
   };
-  
+
   const getRecurringFrequencyDisplay = (frequency: string | null | undefined) => {
     if (!frequency) return "—";
-    
+
     switch (frequency) {
       case "MONTHLY":
         return "Monthly";
@@ -639,10 +659,10 @@ export default function ExpensesTable() {
         return frequency;
     }
   };
-  
+
   const getFundTypeDisplay = (fundType: string | undefined) => {
     if (!fundType) return "Petty Cash";
-    
+
     switch (fundType) {
       case "petty_cash":
         return "Petty Cash";
@@ -652,59 +672,62 @@ export default function ExpensesTable() {
         return fundType;
     }
   };
-  
+
   const isUpcomingBilling = (date: string | null | undefined) => {
     if (!date) return false;
-    
+
     const billingDate = new Date(date);
     const today = new Date();
     const sevenDaysFromNow = new Date();
     sevenDaysFromNow.setDate(today.getDate() + 7);
-    
+
     return billingDate <= sevenDaysFromNow && billingDate >= today;
   };
-  
+
   const daysUntilDate = (dateString: string | null | undefined) => {
     if (!dateString) return null;
-    
+
     const date = new Date(dateString);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     const diffTime = date.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     return diffDays;
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Expenses</h2>
-        
+        <h2 className="text-xl font-semibold">Pengeluaran</h2>
+
         {/* View Toggle */}
-        <Tabs 
-          value={viewMode} 
+        <Tabs
+          value={viewMode}
           onValueChange={(value) => setViewMode(value as "active" | "deleted" | "recurring")}
           className="w-[500px]"
         >
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="active" className="flex items-center gap-2">
               <Eye className="h-4 w-4" />
-              Active Expenses
+              Pengeluaran Aktif
             </TabsTrigger>
             <TabsTrigger value="recurring" className="flex items-center gap-2">
               <RepeatIcon className="h-4 w-4" />
-              Recurring Expenses
+              Pengeluaran Berulang
             </TabsTrigger>
             <TabsTrigger value="deleted" className="flex items-center gap-2">
               <Archive className="h-4 w-4" />
-              Archived Expenses
+              Pengeluaran Diarsipkan
             </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
-      
+
+      {/* Unpaid Items Section */}
+      <UnpaidItemsSection onPaymentProcessed={fetchExpenses} />
+
       <div className="flex flex-col sm:flex-row gap-4 justify-between">
         <div className="flex-1 flex items-center gap-2">
           <div className="relative flex-1">
@@ -714,12 +737,11 @@ export default function ExpensesTable() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 w-full"
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
           </div>
           <Dialog open={showSearchResults} onOpenChange={setShowSearchResults}>
             <DialogTrigger asChild>
-              <Button onClick={handleSearch}>Search</Button>
+              <Button onClick={handleSearch} className="hidden">Search</Button>
             </DialogTrigger>
             <DialogContent className="max-w-3xl">
               <DialogHeader>
@@ -743,7 +765,7 @@ export default function ExpensesTable() {
                       <TableRow key={exp.id} className={exp.isDeleted ? "bg-gray-50" : ""}>
                         <TableCell className="font-medium">{exp.category}</TableCell>
                         <TableCell>{exp.description}</TableCell>
-                        <TableCell>Rp{formatRupiah(exp.amount)}</TableCell>
+                        <TableCell>{formatRupiah(exp.amount)}</TableCell>
                         <TableCell>{getFundTypeDisplay(exp.fundType)}</TableCell>
                         <TableCell>{exp.transaction?.name || "—"}</TableCell>
                         <TableCell>{formatDate(exp.date)}</TableCell>
@@ -775,7 +797,7 @@ export default function ExpensesTable() {
               </SelectContent>
             </Select>
           </div>
-          
+
           {availableTransactions.length > 0 && (
             <Select onValueChange={handleTransactionChange} value={transactionFilter || "all"}>
               <SelectTrigger className="w-[150px]">
@@ -789,7 +811,7 @@ export default function ExpensesTable() {
               </SelectContent>
             </Select>
           )}
-          
+
           <Select onValueChange={handleFundTypeChange} value={fundTypeFilter || "all"}>
             <SelectTrigger className="w-[120px]">
               <SelectValue placeholder="Fund Type" />
@@ -800,7 +822,7 @@ export default function ExpensesTable() {
               <SelectItem value="profit_bank">Profit Bank</SelectItem>
             </SelectContent>
           </Select>
-          
+
           {viewMode === "active" && (
             <Select onValueChange={handleRecurringChange} value={recurringFilter === null ? "all" : recurringFilter ? "recurring" : "regular"}>
               <SelectTrigger className="w-[120px]">
@@ -813,7 +835,7 @@ export default function ExpensesTable() {
               </SelectContent>
             </Select>
           )}
-          
+
           <Select onValueChange={handleYearChange} value={dateFilter.year?.toString() || "all"}>
             <SelectTrigger className="w-[100px]">
               <SelectValue placeholder="Year" />
@@ -853,17 +875,17 @@ export default function ExpensesTable() {
       {!loading && (
         <Table>
           <TableCaption>
-            {viewMode === "active" 
-              ? "Active expenses list" 
-              : viewMode === "deleted" 
+            {viewMode === "active"
+              ? "Active expenses list"
+              : viewMode === "deleted"
                 ? "Archived expenses list"
                 : "Recurring expenses list"}
           </TableCaption>
           <TableHeader>
             <TableRow>
               <TableHead>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   onClick={() => handleSort('category')}
                   className="flex items-center p-0 hover:bg-transparent"
                 >
@@ -871,8 +893,8 @@ export default function ExpensesTable() {
                 </Button>
               </TableHead>
               <TableHead>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   onClick={() => handleSort('description')}
                   className="flex items-center p-0 hover:bg-transparent"
                 >
@@ -880,8 +902,8 @@ export default function ExpensesTable() {
                 </Button>
               </TableHead>
               <TableHead>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   onClick={() => handleSort('amount')}
                   className="flex items-center p-0 hover:bg-transparent"
                 >
@@ -892,8 +914,8 @@ export default function ExpensesTable() {
                 Fund Source
               </TableHead>
               <TableHead>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   onClick={() => handleSort('transactionId')}
                   className="flex items-center p-0 hover:bg-transparent"
                 >
@@ -901,8 +923,8 @@ export default function ExpensesTable() {
                 </Button>
               </TableHead>
               <TableHead>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   onClick={() => handleSort('date')}
                   className="flex items-center p-0 hover:bg-transparent"
                 >
@@ -911,8 +933,8 @@ export default function ExpensesTable() {
               </TableHead>
               {viewMode === "recurring" && (
                 <TableHead>
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     onClick={() => handleSort('nextBillingDate')}
                     className="flex items-center p-0 hover:bg-transparent"
                   >
@@ -921,8 +943,8 @@ export default function ExpensesTable() {
                 </TableHead>
               )}
               <TableHead>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   onClick={() => handleSort('createdBy')}
                   className="flex items-center p-0 hover:bg-transparent"
                 >
@@ -949,11 +971,11 @@ export default function ExpensesTable() {
                   </div>
                 </TableCell>
                 <TableCell>{exp.description}</TableCell>
-                <TableCell className="font-medium">Rp{formatRupiah(exp.amount)}</TableCell>
+                <TableCell className="font-medium">{formatRupiah(exp.amount)}</TableCell>
                 <TableCell>
                   <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                    exp.fundType === "profit_bank" 
-                      ? "bg-green-100 text-green-800" 
+                    exp.fundType === "profit_bank"
+                      ? "bg-green-100 text-green-800"
                       : "bg-yellow-100 text-yellow-800"
                   }`}>
                     <Wallet className="mr-1 h-3 w-3" />
@@ -1059,9 +1081,9 @@ export default function ExpensesTable() {
                           expense={exp}
                           onExpenseUpdated={handleExpenseUpdated}
                         />
-                        <Button 
-                          variant="destructive" 
-                          size="sm" 
+                        <Button
+                          variant="destructive"
+                          size="sm"
                           onClick={() => {
                             setExpenseToDelete(exp);
                             setConfirmDeleteText("");
@@ -1086,7 +1108,7 @@ export default function ExpensesTable() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Manage Recurring</DropdownMenuLabel>
-                          <DropdownMenuItem 
+                          <DropdownMenuItem
                             onClick={() => {
                               setRecurringExpenseDetails(exp);
                               setShowRecurringDetails(true);
@@ -1139,8 +1161,8 @@ export default function ExpensesTable() {
             {filteredExpenses.length === 0 && (
               <TableRow>
                 <TableCell colSpan={viewMode === "recurring" ? 10 : 9} className="text-center py-6">
-                  {(dateFilter.year !== null || categoryFilter !== null || transactionFilter !== null || fundTypeFilter !== null || recurringFilter !== null) 
-                    ? "No expenses found for the selected filters." 
+                  {(dateFilter.year !== null || categoryFilter !== null || transactionFilter !== null || fundTypeFilter !== null || recurringFilter !== null)
+                    ? "No expenses found for the selected filters."
                     : viewMode === "active"
                       ? "No active expenses found."
                       : viewMode === "deleted"
@@ -1162,7 +1184,7 @@ export default function ExpensesTable() {
               This expense will be archived.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="py-4">
             <p className="mb-2">Type "DELETE" to confirm.</p>
             <Input
@@ -1171,11 +1193,11 @@ export default function ExpensesTable() {
               placeholder="Type DELETE to confirm"
             />
           </div>
-          
+
           <DialogFooter className="mt-4">
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={softDeleteExpense}
               disabled={confirmDeleteText !== "DELETE"}
             >
@@ -1194,7 +1216,7 @@ export default function ExpensesTable() {
               Review and manage this recurring expense
             </DialogDescription>
           </DialogHeader>
-          
+
           {recurringExpenseDetails && (
             <ScrollArea className="max-h-[60vh]">
               <div className="space-y-4">
@@ -1213,34 +1235,34 @@ export default function ExpensesTable() {
                   <CardContent>
                     <dl className="grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <dt className="text-muted-foreground">Amount</dt>
-                        <dd className="font-medium">Rp{formatRupiah(recurringExpenseDetails.amount)}</dd>
+                        <dt className="text-muted-foreground">Jumlah</dt>
+                        <dd className="font-medium">{formatRupiah(recurringExpenseDetails.amount)}</dd>
                       </div>
                       <div>
-                        <dt className="text-muted-foreground">Fund Source</dt>
+                        <dt className="text-muted-foreground">Sumber Dana</dt>
                         <dd className="font-medium">{getFundTypeDisplay(recurringExpenseDetails.fundType)}</dd>
                       </div>
                       <div>
-                        <dt className="text-muted-foreground">First Payment</dt>
+                        <dt className="text-muted-foreground">Pembayaran Pertama</dt>
                         <dd className="font-medium">{formatDate(recurringExpenseDetails.date)}</dd>
                       </div>
                       <div>
-                        <dt className="text-muted-foreground">Next Payment</dt>
+                        <dt className="text-muted-foreground">Pembayaran Berikutnya</dt>
                         <dd className={`font-medium ${
                           isUpcomingBilling(recurringExpenseDetails.nextBillingDate) ? "text-yellow-600" : ""
                         }`}>
                           {recurringExpenseDetails.nextBillingDate ? formatDate(recurringExpenseDetails.nextBillingDate) : "—"}
                           {isUpcomingBilling(recurringExpenseDetails.nextBillingDate) && daysUntilDate(recurringExpenseDetails.nextBillingDate) !== null && (
                             <span className="block text-xs">
-                              in {daysUntilDate(recurringExpenseDetails.nextBillingDate)} days
+                              dalam {daysUntilDate(recurringExpenseDetails.nextBillingDate)} hari
                             </span>
                           )}
                         </dd>
                       </div>
-                      
+
                       {recurringExpenseDetails.inventory && (
                         <div className="col-span-2">
-                          <dt className="text-muted-foreground">Linked to</dt>
+                          <dt className="text-muted-foreground">Terhubung dengan</dt>
                           <dd className="font-medium flex items-center">
                             {recurringExpenseDetails.inventory.type === "SUBSCRIPTION" ? (
                               <Calendar className="h-4 w-4 mr-2 text-purple-500" />
@@ -1251,7 +1273,7 @@ export default function ExpensesTable() {
                           </dd>
                         </div>
                       )}
-                      
+
                       {recurringExpenseDetails.transaction && (
                         <div className="col-span-2">
                           <dt className="text-muted-foreground">Transaction</dt>
@@ -1264,18 +1286,18 @@ export default function ExpensesTable() {
                     </dl>
                   </CardContent>
                 </Card>
-                
+
                 <div className="space-y-2">
                   <h3 className="text-sm font-medium">Payment History</h3>
                   <Alert className="bg-gray-50">
                     <Info className="h-4 w-4" />
                     <AlertTitle>Payment Processing</AlertTitle>
                     <AlertDescription>
-                      Payments are automatically processed on the billing date. 
+                      Payments are automatically processed on the billing date.
                       You can also process a payment manually by clicking the button below.
                     </AlertDescription>
                   </Alert>
-                  
+
                   {/* Payment history would go here - this would need to be fetched separately */}
                   <div className="text-center py-4 text-muted-foreground text-sm">
                     Payment history is available in the regular expenses view.
@@ -1284,10 +1306,10 @@ export default function ExpensesTable() {
               </div>
             </ScrollArea>
           )}
-          
+
           <DialogFooter className="flex justify-between">
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={() => {
                 if (recurringExpenseDetails) {
                   cancelRecurringExpense(recurringExpenseDetails.id);
@@ -1308,16 +1330,16 @@ export default function ExpensesTable() {
                 </>
               )}
             </Button>
-            
+
             <div className="flex gap-2">
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={() => setShowRecurringDetails(false)}
               >
                 Close
               </Button>
-              
-              <Button 
+
+              <Button
                 variant="default"
                 onClick={() => {
                   if (recurringExpenseDetails) {

@@ -15,7 +15,7 @@ export default function ResourcesTab() {
   return (
     <div className="p-6">
       <Toaster position="top-right" />
-      <h2 className="text-2xl font-bold mb-6">Company Resources</h2>
+      <h2 className="text-2xl font-bold mb-6">Sumber Daya Perusahaan</h2>
       <div className="border-b mb-6">
         <div className="flex space-x-4">
           <button
@@ -27,7 +27,7 @@ export default function ResourcesTab() {
             }`}
           >
             <Users className="h-4 w-4 inline-block mr-1" />
-            Clients
+            Klien
           </button>
           <button
             onClick={() => setActiveTab("vendors")}
@@ -38,7 +38,7 @@ export default function ResourcesTab() {
             }`}
           >
             <Store className="h-4 w-4 inline-block mr-1" />
-            Vendors/Subcontractors
+            Vendor/Subkontraktor
           </button>
           <button
             onClick={() => setActiveTab("inventory")}
@@ -49,14 +49,14 @@ export default function ResourcesTab() {
             }`}
           >
             <Package className="h-4 w-4 inline-block mr-1" />
-            Inventory & Subscriptions
+            Inventaris & Langganan
           </button>
         </div>
       </div>
       {activeTab === "clients" && <ClientTable />}
       {activeTab === "vendors" && <VendorTable />}
       {activeTab === "inventory" && <InventoryTab />}
-      
+
       {/* Removed the separate subscriptions tab to eliminate the duplication */}
     </div>
   );

@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
   ResponsiveContainer,
   PieChart,
   Pie,
@@ -94,7 +94,6 @@ interface Expense {
 }
 
 interface MonthlyData {
-  // Kita tambahkan monthLabel agar menampilkan bulan + tahun
   monthLabel: string;
   month: string;
   monthNum: number;
@@ -129,8 +128,7 @@ interface CustomTooltipProps {
 
 // ======================= PERIOD FILTER TYPE =======================
 
-// Tambahkan "all" untuk All Time
-type PeriodFilter = 
+type PeriodFilter =
   | "all"
   | "this-month"
   | "this-quarter"
@@ -450,14 +448,11 @@ export default function CompanyFinance() {
       return expDate >= from && expDate <= to;
     });
 
-    const categoryMap = new Map<
-      string,
-      {
+    const categoryMap = new Map<string, {
         projectAmount: number;
         operationalAmount: number;
         totalAmount: number;
-      }
-    >();
+    }>();
 
     filteredExpenses.forEach((exp) => {
       const category = exp.category;
@@ -533,7 +528,7 @@ export default function CompanyFinance() {
                   <span className="text-gray-700">{entry.name}:</span>
                 </div>
                 <span className="ml-4 font-medium">
-                  Rp{formatRupiah(entry.value)}
+                  {formatRupiah(entry.value)}
                 </span>
               </div>
             ))}
@@ -553,7 +548,7 @@ export default function CompanyFinance() {
           <div className="grid gap-1">
             <div className="flex justify-between gap-4">
               <span>Amount:</span>
-              <span className="font-medium">Rp{formatRupiah(data.value)}</span>
+              <span className="font-medium">{formatRupiah(data.value)}</span>
             </div>
             <div className="flex justify-between gap-4">
               <span>Percentage:</span>
@@ -575,8 +570,8 @@ export default function CompanyFinance() {
 
         <div className="flex items-center gap-2">
           {/* TOMBOL DATE PICKER */}
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="flex items-center gap-2"
             onClick={() => setIsDatePickerOpen(true)}
           >
@@ -643,7 +638,7 @@ export default function CompanyFinance() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  Rp{formatRupiah(monthlyData.reduce((sum, data) => sum + data.revenue, 0))}
+                  {formatRupiah(monthlyData.reduce((sum, data) => sum + data.revenue, 0))}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   From {transactions.filter(t => t.paymentStatus !== "Belum Bayar").length} paid transactions
@@ -658,7 +653,7 @@ export default function CompanyFinance() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-rose-600">
-                  Rp{formatRupiah(operationalVsProjectExpenses.operational)}
+                  {formatRupiah(operationalVsProjectExpenses.operational)}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {(operationalVsProjectExpenses.total > 0
@@ -676,7 +671,7 @@ export default function CompanyFinance() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-amber-600">
-                  Rp{formatRupiah(operationalVsProjectExpenses.project)}
+                  {formatRupiah(operationalVsProjectExpenses.project)}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {(operationalVsProjectExpenses.total > 0
@@ -694,7 +689,7 @@ export default function CompanyFinance() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-emerald-600">
-                  Rp{formatRupiah(monthlyData.reduce((sum, data) => sum + data.netProfit, 0))}
+                  {formatRupiah(monthlyData.reduce((sum, data) => sum + data.netProfit, 0))}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   {monthlyData.reduce((sum, data) => sum + data.revenue, 0) > 0
@@ -714,69 +709,71 @@ export default function CompanyFinance() {
 
           {/* Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid grid-cols-4 w-[550px] mb-6">
+            <TabsList className="grid grid-cols-3 w-[450px] mb-6">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="categories">Categories</TabsTrigger>
               <TabsTrigger value="monthly">Monthly Analysis</TabsTrigger>
-              <TabsTrigger value="funds">Fund Management</TabsTrigger>
             </TabsList>
 
-            {/* ===================== OVERVIEW ===================== */}
+            {/* ===================== OVERVIEW TAB ===================== */}
             <TabsContent value="overview" className="space-y-6">
-
-              {/* 1. Revenue vs Expenses Chart */}
+              {/* 1. Comprehensive Finance Chart */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Revenue vs Expenses</CardTitle>
+                  <CardTitle>Revenue, Expenses & Profit Analysis</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {/* Wrapper agar bisa horizontal scroll jika data terlalu banyak */}
                   <div style={{ width: "100%", overflowX: "auto" }}>
-                    {/* Width chart disesuaikan dengan jumlah data */}
-                    <div>
-                      <ResponsiveContainer width="100%" height={400}>
-                        <ComposedChart data={monthlyData}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis dataKey="monthLabel" />
-                          <YAxis
-                            tickFormatter={(value) =>
-                              `Rp${
-                                value < 1_000_000
-                                  ? (value / 1_000).toFixed(0) + "K"
-                                  : (value / 1_000_000).toFixed(1) + "M"
-                              }`
-                            }
-                            width={80}
-                          />
-                          <Tooltip content={<CustomBarTooltip />} />
-                          <Legend />
-                          <Bar dataKey="revenue" name="Revenue" fill="#10b981" barSize={20} />
-                          <Bar dataKey="operationalExpenses" name="Operational Expenses" stackId="expenses" fill="#f97316" barSize={20} />
-                          <Bar dataKey="projectExpenses" name="Project Expenses" stackId="expenses" fill="#f59e0b" barSize={20} />
-                          <Line
-                            type="monotone"
-                            dataKey="netProfit"
-                            name="Net Profit"
-                            stroke="#6366f1"
-                            strokeWidth={2}
-                            dot={{ r: 5 }}
-                          />
-                        </ComposedChart>
-                      </ResponsiveContainer>
-                    </div>
+                    <ResponsiveContainer width="100%" height={400}>
+                      <ComposedChart data={monthlyData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="monthLabel" />
+                        <YAxis
+                          tickFormatter={(value) =>
+                            `Rp${
+                              value < 1_000_000
+                                ? (value / 1_000).toFixed(0) + "K"
+                                : (value / 1_000_000).toFixed(1) + "M"
+                            }`
+                          }
+                          width={80}
+                        />
+                        <Tooltip content={<CustomBarTooltip />} />
+                        <Legend />
+                        <Area
+                          type="monotone"
+                          dataKey="revenue"
+                          name="Revenue"
+                          fill="#dcfce7"
+                          stroke="#10b981"
+                          fillOpacity={0.5}
+                        />
+                        <Bar dataKey="operationalExpenses" name="Operational Expenses" stackId="expenses" fill="#f97316" barSize={20} />
+                        <Bar dataKey="projectExpenses" name="Project Expenses" stackId="expenses" fill="#f59e0b" barSize={20} />
+                        <Line
+                          type="monotone"
+                          dataKey="netProfit"
+                          name="Net Profit"
+                          stroke="#6366f1"
+                          strokeWidth={2}
+                          dot={{ r: 5 }}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* 2. Expense Distribution */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Expense Distribution</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="h-[300px] flex items-center justify-center">
-                      {operationalVsProjectExpenses.total > 0 ? (
+              {/* 2. Expense Distribution with Analysis */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Expense Distribution & Analysis</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h3 className="font-medium mb-4">Project vs Operational Split</h3>
+                      <div className="h-[250px]">
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             <Pie
@@ -816,15 +813,7 @@ export default function CompanyFinance() {
                             <Tooltip content={<CustomPieTooltip />} />
                           </PieChart>
                         </ResponsiveContainer>
-                      ) : (
-                        <div className="text-center text-muted-foreground">
-                          <BarChartIcon className="h-12 w-12 mx-auto text-gray-300 mb-2" />
-                          <p>No expense data available for this period</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {operationalVsProjectExpenses.total > 0 && (
+                      </div>
                       <div className="grid grid-cols-2 gap-4 mt-4">
                         <div className="bg-orange-50 p-3 rounded-md">
                           <div className="text-sm font-medium flex items-center">
@@ -833,7 +822,7 @@ export default function CompanyFinance() {
                           </div>
                           <div className="mt-1">
                             <span className="text-lg font-bold">
-                              Rp{formatRupiah(operationalVsProjectExpenses.operational)}
+                              {formatRupiah(operationalVsProjectExpenses.operational)}
                             </span>
                           </div>
                         </div>
@@ -844,348 +833,271 @@ export default function CompanyFinance() {
                           </div>
                           <div className="mt-1">
                             <span className="text-lg font-bold">
-                              Rp{formatRupiah(operationalVsProjectExpenses.project)}
+                              {formatRupiah(operationalVsProjectExpenses.project)}
                             </span>
                           </div>
                         </div>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
+                    </div>
 
-                {/* 3. Top Expense Categories */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Top Expense Categories</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <div className="space-y-4">
-                      {categoryExpenses.length > 0 ? (
-                        <>
-                          <div className="space-y-3">
-                            {categoryExpenses.slice(0, 5).map((category, index) => (
-                              <div key={index} className="flex flex-col">
-                                <div className="flex justify-between items-center mb-1">
-                                  <div className="flex items-center">
-                                    <div
-                                      className="w-3 h-3 rounded-full mr-2"
-                                      style={{
-                                        backgroundColor:
-                                          CHART_COLORS[index % CHART_COLORS.length],
-                                      }}
-                                    ></div>
-                                    <span className="text-sm font-medium">{category.category}</span>
-                                  </div>
-                                  <span className="text-sm font-bold">
-                                    Rp{formatRupiah(category.totalAmount)}
-                                  </span>
-                                </div>
-                                <div className="w-full bg-gray-200 h-2 rounded-full">
+                    <div>
+                      <h3 className="font-medium mb-4">Financial Insight</h3>
+                      <div className="space-y-4">
+                        <div className="p-4 border rounded-lg">
+                          <div className="text-sm font-medium mb-1">Operational Ratio</div>
+                          <div className="text-2xl font-bold">
+                            {operationalVsProjectExpenses.total > 0
+                              ? (
+                                  (operationalVsProjectExpenses.operational /
+                                    operationalVsProjectExpenses.total) *
+                                  100
+                                ).toFixed(1)
+                              : "0"}%
+                          </div>
+                          <div className="mt-2 text-sm text-muted-foreground">
+                            {operationalVsProjectExpenses.operational >
+                            operationalVsProjectExpenses.project ? (
+                              <div className="flex items-center text-rose-600">
+                                <AlertTriangle className="h-4 w-4 mr-1" />
+                                Operational costs are higher than project-related expenses
+                              </div>
+                            ) : (
+                              <div className="flex items-center text-emerald-600">
+                                <TrendingUp className="h-4 w-4 mr-1" />
+                                Project expenses properly exceed operational costs
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="p-4 border rounded-lg">
+                          <div className="text-sm font-medium mb-1">Revenue to Expense Ratio</div>
+                          <div className="text-2xl font-bold">
+                            {operationalVsProjectExpenses.total > 0 &&
+                            monthlyData.reduce((sum, data) => sum + data.revenue, 0) > 0
+                              ? (
+                                  (monthlyData.reduce((sum, data) => sum + data.revenue, 0) /
+                                    operationalVsProjectExpenses.total) *
+                                  100
+                                ).toFixed(1)
+                              : "0"}%
+                          </div>
+                          <div className="mt-2 text-sm text-muted-foreground">
+                            {monthlyData.reduce((sum, data) => sum + data.revenue, 0) >
+                            operationalVsProjectExpenses.total ? (
+                              <div className="flex items-center text-emerald-600">
+                                <TrendingUp className="h-4 w-4 mr-1" />
+                                Revenue exceeds expenses - positive cashflow
+                              </div>
+                            ) : (
+                              <div className="flex items-center text-rose-600">
+                                <TrendingDown className="h-4 w-4 mr-1" />
+                                Expenses exceed revenue - negative cashflow
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* 3. Top Categories Summary */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Top Expense Categories</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {categoryExpenses.length > 0 ? (
+                      <>
+                        <div className="space-y-3">
+                          {categoryExpenses.slice(0, 5).map((category, index) => (
+                            <div key={index} className="flex flex-col">
+                              <div className="flex justify-between items-center mb-1">
+                                <div className="flex items-center">
                                   <div
-                                    className="h-2 rounded-full"
+                                    className="w-3 h-3 rounded-full mr-2"
                                     style={{
-                                      width: `${category.percentage}%`,
                                       backgroundColor:
                                         CHART_COLORS[index % CHART_COLORS.length],
                                     }}
                                   ></div>
+                                  <span className="text-sm font-medium">{category.category}</span>
                                 </div>
-                                <div className="flex justify-between text-xs text-gray-500 mt-1">
-                                  <div className="flex items-center">
-                                    <span>{category.percentage.toFixed(1)}% of total</span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <span>Project: Rp{formatRupiah(category.projectAmount)}</span>
-                                  </div>
+                                <span className="text-sm font-bold">
+                                  {formatRupiah(category.totalAmount)}
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-200 h-2 rounded-full">
+                                <div
+                                  className="h-2 rounded-full"
+                                  style={{
+                                    width: `${category.percentage}%`,
+                                    backgroundColor:
+                                      CHART_COLORS[index % CHART_COLORS.length],
+                                  }}
+                                ></div>
+                              </div>
+                              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                                <div className="flex items-center">
+                                  <span>{category.percentage.toFixed(1)}% of total</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <span>Project: {formatRupiah(category.projectAmount)}</span>
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                          {categoryExpenses.length > 5 && (
-                            <div className="text-center text-sm text-muted-foreground">
-                              + {categoryExpenses.length - 5} more categories
                             </div>
-                          )}
-                        </>
-                      ) : (
-                        <div className="text-center py-8 text-muted-foreground">
-                          <PieChartIcon className="h-12 w-12 mx-auto text-gray-300 mb-2" />
-                          <p>No category data available for this period</p>
+                          ))}
                         </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                        {categoryExpenses.length > 5 && (
+                          <div className="text-center">
+                            <Button 
+                              variant="outline" 
+                              onClick={() => setActiveTab("categories")}
+                              className="mt-2"
+                            >
+                              View All Categories
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <PieChartIcon className="h-12 w-12 mx-auto text-gray-300 mb-2" />
+                        <p>No category data available for this period</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
 
-              {/* 4. Cashflow Trend */}
+            {/* ===================== CATEGORIES TAB ===================== */}
+            <TabsContent value="categories" className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Cashflow Trend</CardTitle>
+                  <CardTitle>Expense Categories Analysis</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div style={{ width: "100%", overflowX: "auto" }}>
+                  <div className="space-y-6">
+                    {/* Category Distribution Chart */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h3 className="font-medium mb-4">Category Distribution</h3>
+                        <div className="h-[300px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={categoryExpenses}
+                                cx="50%"
+                                cy="50%"
+                                outerRadius={100}
+                                dataKey="totalAmount"
+                                nameKey="category"
+                              >
+                                {categoryExpenses.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <Tooltip formatter={(value: number | string) => formatRupiah(Number(value))} />
+                              <Legend />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <h3 className="font-medium mb-4">Project vs Operational by Category</h3>
+                        <div className="h-[300px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart 
+                              data={categoryExpenses.slice(0, 5)}
+                              layout="vertical"
+                            >
+                              <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                              <XAxis type="number" tickFormatter={(value) => 
+                                `Rp${value < 1_000_000 ? (value / 1_000).toFixed(0) + "K" : (value / 1_000_000).toFixed(1) + "M"}`
+                              } />
+                              <YAxis type="category" dataKey="category" width={100} />
+                              <Tooltip content={<CustomBarTooltip />} />
+                              <Legend />
+                              <Bar dataKey="projectAmount" name="Project" stackId="a" fill="#f59e0b" />
+                              <Bar dataKey="operationalAmount" name="Operational" stackId="a" fill="#f97316" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Detailed Category List */}
                     <div>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <ComposedChart data={monthlyData}>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis dataKey="monthLabel" />
-                          <YAxis
-                            tickFormatter={(value) =>
-                              `Rp${
-                                value < 1_000_000
-                                  ? (value / 1_000).toFixed(0) + "K"
-                                  : (value / 1_000_000).toFixed(1) + "M"
-                              }`
-                            }
-                            width={80}
-                          />
-                          <Tooltip content={<CustomBarTooltip />} />
-                          <Legend />
-                          <Area
-                            type="monotone"
-                            dataKey="revenue"
-                            name="Revenue"
-                            fill="#dcfce7"
-                            stroke="#10b981"
-                            fillOpacity={0.5}
-                          />
-                          <Area
-                            type="monotone"
-                            dataKey="totalExpenses"
-                            name="Total Expenses"
-                            fill="#fee2e2"
-                            stroke="#ef4444"
-                            fillOpacity={0.5}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="netProfit"
-                            name="Net Profit"
-                            stroke="#6366f1"
-                            dot={{ fill: "#6366f1", r: 5 }}
-                            strokeWidth={2}
-                          />
-                        </ComposedChart>
-                      </ResponsiveContainer>
+                      <h3 className="font-medium mb-4">Detailed Category Breakdown</h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="bg-gray-50">
+                              <th className="border px-4 py-2 text-left">Category</th>
+                              <th className="border px-4 py-2 text-right">Project</th>
+                              <th className="border px-4 py-2 text-right">Operational</th>
+                              <th className="border px-4 py-2 text-right">Total</th>
+                              <th className="border px-4 py-2 text-right">Percentage</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {categoryExpenses.map((category, index) => (
+                              <tr key={index} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                                <td className="border px-4 py-2 font-medium">
+                                  <div className="flex items-center">
+                                    <div
+                                      className="w-3 h-3 rounded-full mr-2"
+                                      style={{
+                                        backgroundColor: CHART_COLORS[index % CHART_COLORS.length],
+                                      }}
+                                    ></div>
+                                    {category.category}
+                                  </div>
+                                </td>
+                                <td className="border px-4 py-2 text-right">
+                                  {formatRupiah(category.projectAmount)}
+                                </td>
+                                <td className="border px-4 py-2 text-right">
+                                  {formatRupiah(category.operationalAmount)}
+                                </td>
+                                <td className="border px-4 py-2 text-right font-medium">
+                                  {formatRupiah(category.totalAmount)}
+                                </td>
+                                <td className="border px-4 py-2 text-right">
+                                  {category.percentage.toFixed(1)}%
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot className="bg-gray-100 font-medium">
+                            <tr>
+                              <td className="border px-4 py-2">TOTAL</td>
+                              <td className="border px-4 py-2 text-right">
+                                {formatRupiah(operationalVsProjectExpenses.project)}
+                              </td>
+                              <td className="border px-4 py-2 text-right">
+                                {formatRupiah(operationalVsProjectExpenses.operational)}
+                              </td>
+                              <td className="border px-4 py-2 text-right">
+                                {formatRupiah(operationalVsProjectExpenses.total)}
+                              </td>
+                              <td className="border px-4 py-2 text-right">100%</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* ===================== CATEGORIES ===================== */}
-            <TabsContent value="categories" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Expense Categories Breakdown</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {categoryExpenses.length > 0 ? (
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {categoryExpenses.map((category, index) => (
-                          <div
-                            key={index}
-                            className="p-4 border rounded-lg hover:shadow-md transition-shadow bg-white"
-                          >
-                            <div className="flex justify-between items-center mb-2">
-                              <div className="flex items-center">
-                                <div
-                                  className="w-3 h-3 rounded-full mr-2"
-                                  style={{
-                                    backgroundColor:
-                                      CHART_COLORS[index % CHART_COLORS.length],
-                                  }}
-                                ></div>
-                                <span className="font-medium">{category.category}</span>
-                              </div>
-                              <Badge variant="outline">{category.percentage.toFixed(1)}%</Badge>
-                            </div>
-                            <div className="text-lg font-bold">
-                              Rp{formatRupiah(category.totalAmount)}
-                            </div>
-                            <div className="mt-3 space-y-2">
-                              <div className="grid grid-cols-2 gap-2 text-sm">
-                                <div className="flex justify-between items-center p-2 bg-amber-50 rounded">
-                                  <span className="text-amber-700">Project:</span>
-                                  <span className="font-medium">
-                                    Rp{formatRupiah(category.projectAmount)}
-                                  </span>
-                                </div>
-                                <div className="flex justify-between items-center p-2 bg-orange-50 rounded">
-                                  <span className="text-orange-700">Operational:</span>
-                                  <span className="font-medium">
-                                    Rp{formatRupiah(category.operationalAmount)}
-                                  </span>
-                                </div>
-                              </div>
-                              <div className="w-full bg-gray-200 h-2 rounded-full mt-2">
-                                <div className="flex h-2 rounded-full">
-                                  <div
-                                    className="h-2 rounded-l-full"
-                                    style={{
-                                      width:
-                                        category.totalAmount > 0
-                                          ? `${
-                                              (category.projectAmount / category.totalAmount) * 100
-                                            }%`
-                                          : "0%",
-                                      backgroundColor: "#f59e0b",
-                                    }}
-                                  ></div>
-                                  <div
-                                    className="h-2 rounded-r-full"
-                                    style={{
-                                      width:
-                                        category.totalAmount > 0
-                                          ? `${
-                                              (category.operationalAmount / category.totalAmount) *
-                                              100
-                                            }%`
-                                          : "0%",
-                                      backgroundColor: "#f97316",
-                                    }}
-                                  ></div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 text-muted-foreground">
-                      <PieChartIcon className="h-12 w-12 mx-auto text-gray-300 mb-2" />
-                      <p>No category data available for this period</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Expense Distribution Analysis</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {operationalVsProjectExpenses.total > 0 ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <h3 className="font-medium mb-4">Project vs Operational Split</h3>
-                        <div className="h-60">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie
-                                data={[
-                                  {
-                                    name: "Operational Expenses",
-                                    value: operationalVsProjectExpenses.operational,
-                                    percentage:
-                                      operationalVsProjectExpenses.total > 0
-                                        ? (operationalVsProjectExpenses.operational /
-                                            operationalVsProjectExpenses.total) *
-                                          100
-                                        : 0,
-                                  },
-                                  {
-                                    name: "Project Expenses",
-                                    value: operationalVsProjectExpenses.project,
-                                    percentage:
-                                      operationalVsProjectExpenses.total > 0
-                                        ? (operationalVsProjectExpenses.project /
-                                            operationalVsProjectExpenses.total) *
-                                          100
-                                        : 0,
-                                  },
-                                ]}
-                                cx="50%"
-                                cy="50%"
-                                outerRadius={80}
-                                dataKey="value"
-                                label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                              >
-                                <Cell fill="#f97316" />
-                                <Cell fill="#f59e0b" />
-                              </Pie>
-                              <Tooltip content={<CustomPieTooltip />} />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h3 className="font-medium mb-4">Analysis</h3>
-                        <div className="space-y-4">
-                          <div className="p-4 border rounded-lg">
-                            <div className="text-sm font-medium mb-1">Operational Ratio</div>
-                            <div className="text-2xl font-bold">
-                              {operationalVsProjectExpenses.total > 0
-                                ? (
-                                    (operationalVsProjectExpenses.operational /
-                                      operationalVsProjectExpenses.total) *
-                                    100
-                                  ).toFixed(1)
-                                : "0"}
-                              %
-                            </div>
-                            <div className="mt-2 text-sm text-muted-foreground">
-                              {operationalVsProjectExpenses.operational >
-                              operationalVsProjectExpenses.project ? (
-                                <div className="flex items-center text-rose-600">
-                                  <AlertTriangle className="h-4 w-4 mr-1" />
-                                  Operational costs are higher than project-related expenses
-                                </div>
-                              ) : (
-                                <div className="flex items-center text-emerald-600">
-                                  <TrendingUp className="h-4 w-4 mr-1" />
-                                  Project expenses properly exceed operational costs
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="p-4 border rounded-lg">
-                            <div className="text-sm font-medium mb-1">Revenue to Expense Ratio</div>
-                            <div className="text-2xl font-bold">
-                              {operationalVsProjectExpenses.total > 0 &&
-                              monthlyData.reduce((sum, data) => sum + data.revenue, 0) > 0
-                                ? (
-                                    (monthlyData.reduce((sum, data) => sum + data.revenue, 0) /
-                                      operationalVsProjectExpenses.total) *
-                                    100
-                                  ).toFixed(1)
-                                : "0"}
-                              %
-                            </div>
-                            <div className="mt-2 text-sm text-muted-foreground">
-                              {monthlyData.reduce((sum, data) => sum + data.revenue, 0) >
-                              operationalVsProjectExpenses.total ? (
-                                <div className="flex items-center text-emerald-600">
-                                  <TrendingUp className="h-4 w-4 mr-1" />
-                                  Revenue exceeds expenses - positive cashflow
-                                </div>
-                              ) : (
-                                <div className="flex items-center text-rose-600">
-                                  <TrendingDown className="h-4 w-4 mr-1" />
-                                  Expenses exceed revenue - negative cashflow
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-12 text-muted-foreground">
-                      <BarChartIcon className="h-12 w-12 mx-auto text-gray-300 mb-2" />
-                      <p>No expense data available for this period</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* ===================== MONTHLY ===================== */}
+            {/* ===================== MONTHLY TAB ===================== */}
             <TabsContent value="monthly" className="space-y-6">
               <Card>
                 <CardHeader>
@@ -1194,6 +1106,7 @@ export default function CompanyFinance() {
                 <CardContent>
                   {monthlyData.length > 0 ? (
                     <div className="space-y-6">
+                      {/* Monthly Performance Table */}
                       <div className="overflow-x-auto">
                         <table className="w-full border-collapse">
                           <thead>
@@ -1224,16 +1137,16 @@ export default function CompanyFinance() {
                                     {data.monthLabel}
                                   </td>
                                   <td className="border px-4 py-2 text-right">
-                                    Rp{formatRupiah(data.revenue)}
+                                    {formatRupiah(data.revenue)}
                                   </td>
                                   <td className="border px-4 py-2 text-right text-orange-600">
-                                    Rp{formatRupiah(data.operationalExpenses)}
+                                    {formatRupiah(data.operationalExpenses)}
                                   </td>
                                   <td className="border px-4 py-2 text-right text-amber-600">
-                                    Rp{formatRupiah(data.projectExpenses)}
+                                    {formatRupiah(data.projectExpenses)}
                                   </td>
                                   <td className="border px-4 py-2 text-right text-rose-600">
-                                    Rp{formatRupiah(data.totalExpenses)}
+                                    {formatRupiah(data.totalExpenses)}
                                   </td>
                                   <td
                                     className={`border px-4 py-2 text-right font-medium ${
@@ -1242,7 +1155,7 @@ export default function CompanyFinance() {
                                         : "text-red-600"
                                     }`}
                                   >
-                                    Rp{formatRupiah(Math.abs(data.netProfit))}
+                                    {formatRupiah(Math.abs(data.netProfit))}
                                     {data.netProfit < 0 && " (Loss)"}
                                   </td>
                                   <td
@@ -1262,7 +1175,7 @@ export default function CompanyFinance() {
                             <tr>
                               <td className="border px-4 py-2">TOTAL</td>
                               <td className="border px-4 py-2 text-right">
-                                Rp{formatRupiah(
+                                {formatRupiah(
                                   monthlyData.reduce(
                                     (sum, data) => sum + data.revenue,
                                     0
@@ -1270,7 +1183,7 @@ export default function CompanyFinance() {
                                 )}
                               </td>
                               <td className="border px-4 py-2 text-right text-orange-600">
-                                Rp{formatRupiah(
+                                {formatRupiah(
                                   monthlyData.reduce(
                                     (sum, data) =>
                                       sum + data.operationalExpenses,
@@ -1279,7 +1192,7 @@ export default function CompanyFinance() {
                                 )}
                               </td>
                               <td className="border px-4 py-2 text-right text-amber-600">
-                                Rp{formatRupiah(
+                                {formatRupiah(
                                   monthlyData.reduce(
                                     (sum, data) => sum + data.projectExpenses,
                                     0
@@ -1287,7 +1200,7 @@ export default function CompanyFinance() {
                                 )}
                               </td>
                               <td className="border px-4 py-2 text-right text-rose-600">
-                                Rp{formatRupiah(
+                                {formatRupiah(
                                   monthlyData.reduce(
                                     (sum, data) => sum + data.totalExpenses,
                                     0
@@ -1304,7 +1217,7 @@ export default function CompanyFinance() {
                                     : "text-red-600"
                                 }`}
                               >
-                                Rp{formatRupiah(
+                                {formatRupiah(
                                   Math.abs(
                                     monthlyData.reduce(
                                       (sum, data) => sum + data.netProfit,
@@ -1360,91 +1273,77 @@ export default function CompanyFinance() {
                         </table>
                       </div>
 
-                      {/* B. CHARTS (NET PROFIT TREND & REVENUE VS EXPENSES) */}
+                      {/* Monthly charts */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
                           <h3 className="font-medium mb-4">Monthly Net Profit Trend</h3>
-                          <div style={{ width: "100%", overflowX: "auto" }}>
-                            <div
-                              style={{
-                                width: monthlyData.length * 80,
-                                minWidth: 400,
-                              }}
-                            >
-                              <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={monthlyData}>
-                                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                  <XAxis dataKey="monthLabel" />
-                                  <YAxis
-                                    tickFormatter={(value) =>
-                                      `Rp${
-                                        value < 1_000_000
-                                          ? (value / 1_000).toFixed(0) + "K"
-                                          : (value / 1_000_000).toFixed(1) + "M"
-                                      }`
-                                    }
-                                  />
-                                  <Tooltip content={<CustomBarTooltip />} />
-                                  <Bar
-                                    dataKey="netProfit"
-                                    name="Net Profit"
-                                    fill="#10b981"
-                                    radius={[4, 4, 0, 0]}
-                                  >
-                                    {monthlyData.map((entry, index) => (
-                                      <Cell
-                                        key={`cell-${index}`}
-                                        fill={
-                                          entry.netProfit >= 0 ? "#10b981" : "#ef4444"
-                                        }
-                                      />
-                                    ))}
-                                  </Bar>
-                                </BarChart>
-                              </ResponsiveContainer>
-                            </div>
+                          <div className="h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={monthlyData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="monthLabel" />
+                                <YAxis
+                                  tickFormatter={(value) =>
+                                    `Rp${
+                                      value < 1_000_000
+                                        ? (value / 1_000).toFixed(0) + "K"
+                                        : (value / 1_000_000).toFixed(1) + "M"
+                                    }`
+                                  }
+                                />
+                                <Tooltip content={<CustomBarTooltip />} />
+                                <Bar
+                                  dataKey="netProfit"
+                                  name="Net Profit"
+                                  fill="#10b981"
+                                  radius={[4, 4, 0, 0]}
+                                >
+                                  {monthlyData.map((entry, index) => (
+                                    <Cell
+                                      key={`cell-${index}`}
+                                      fill={
+                                        entry.netProfit >= 0 ? "#10b981" : "#ef4444"
+                                      }
+                                    />
+                                  ))}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
                           </div>
                         </div>
 
                         <div>
                           <h3 className="font-medium mb-4">Revenue vs Expenses</h3>
-                          <div style={{ width: "100%", overflowX: "auto" }}>
-                            <div
-                              style={{
-                                width: monthlyData.length * 80,
-                                minWidth: 400,
-                              }}
-                            >
-                              <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={monthlyData}>
-                                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                  <XAxis dataKey="monthLabel" />
-                                  <YAxis
-                                    tickFormatter={(value) =>
-                                      `Rp${
-                                        value < 1_000_000
-                                          ? (value / 1_000).toFixed(0) + "K"
-                                          : (value / 1_000_000).toFixed(1) + "M"
-                                      }`
-                                    }
-                                  />
-                                  <Tooltip content={<CustomBarTooltip />} />
-                                  <Legend />
-                                  <Bar
-                                    dataKey="revenue"
-                                    name="Revenue"
-                                    fill="#10b981"
-                                    radius={[4, 4, 0, 0]}
-                                  />
-                                  <Bar
-                                    dataKey="totalExpenses"
-                                    name="Total Expenses"
-                                    fill="#ef4444"
-                                    radius={[4, 4, 0, 0]}
-                                  />
-                                </BarChart>
-                              </ResponsiveContainer>
-                            </div>
+                          <div className="h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart data={monthlyData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="monthLabel" />
+                                <YAxis
+                                  tickFormatter={(value) =>
+                                    `Rp${
+                                      value < 1_000_000
+                                        ? (value / 1_000).toFixed(0) + "K"
+                                        : (value / 1_000_000).toFixed(1) + "M"
+                                    }`
+                                  }
+                                />
+                                <Tooltip content={<CustomBarTooltip />} />
+                                <Legend />
+                                <Bar
+                                  dataKey="revenue"
+                                  name="Revenue"
+                                  fill="#10b981"
+                                  radius={[4, 4, 0, 0]}
+                                />
+                                <Bar
+                                  dataKey="totalExpenses"
+                                  name="Total Expenses"
+                                  fill="#ef4444"
+                                  radius={[4, 4, 0, 0]}
+                                />
+                              </BarChart>
+                            </ResponsiveContainer>
                           </div>
                         </div>
                       </div>
@@ -1458,7 +1357,7 @@ export default function CompanyFinance() {
                 </CardContent>
               </Card>
             </TabsContent>
-            
+
             {/* ===================== FUNDS ===================== */}
             <TabsContent value="funds" className="space-y-6">
               <FundManagement />

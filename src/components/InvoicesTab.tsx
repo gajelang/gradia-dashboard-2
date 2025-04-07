@@ -38,15 +38,15 @@ export default function InvoicesTab({ transaction }: InvoicesTabProps) {
   useEffect(() => {
     const fetchInvoices = async () => {
       if (!transaction?.id) return;
-      
+
       try {
         setLoading(true);
         const res = await fetchWithAuth(`/api/invoices?transactionId=${transaction.id}`, {
           cache: "no-store",
         });
-        
+
         if (!res.ok) throw new Error("Failed to fetch invoices");
-        
+
         const data = await res.json();
         setInvoices(Array.isArray(data) ? data : []);
       } catch (error) {
@@ -76,8 +76,8 @@ export default function InvoicesTab({ transaction }: InvoicesTabProps) {
     <div className="space-y-4">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">Transaction Invoices</h3>
-        <Button 
-          size="sm" 
+        <Button
+          size="sm"
           onClick={handleCreateInvoice}
           className="flex items-center gap-1"
         >
@@ -93,7 +93,7 @@ export default function InvoicesTab({ transaction }: InvoicesTabProps) {
         <div className="text-center py-8 bg-gray-50 rounded-lg border">
           <FileText className="h-12 w-12 text-gray-300 mx-auto mb-2" />
           <p className="text-muted-foreground">No invoices created for this transaction</p>
-          <Button 
+          <Button
             variant="outline"
             className="mt-4"
             onClick={handleCreateInvoice}
@@ -123,7 +123,7 @@ export default function InvoicesTab({ transaction }: InvoicesTabProps) {
                   <TableCell>{formatDate(invoice.date)}</TableCell>
                   <TableCell>{formatDate(invoice.dueDate)}</TableCell>
                   <TableCell className="text-right">
-                    Rp{formatRupiah(invoice.totalAmount)}
+                    {formatRupiah(invoice.totalAmount)}
                   </TableCell>
                   <TableCell>
                     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getStatusColor(invoice.paymentStatus)}`}>

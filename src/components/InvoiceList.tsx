@@ -61,16 +61,16 @@ import { toast } from "react-hot-toast";
 import { fetchWithAuth } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import InvoiceDetail from "./InvoiceDetail";
-import { 
-  Invoice, 
-  formatDate, 
-  formatRupiah, 
-  getStatusColor 
+import {
+  Invoice,
+  formatDate,
+  formatRupiah,
+  getStatusColor
 } from "@/lib/invoiceUtils";
 
 export default function InvoiceList() {
   const router = useRouter();
-  
+
   // State
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
@@ -85,16 +85,16 @@ export default function InvoiceList() {
     year: null,
   });
   const [availableYears, setAvailableYears] = useState<number[]>([]);
-  
+
   // Dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [currentInvoice, setCurrentInvoice] = useState<Invoice | null>(null);
   const [newStatus, setNewStatus] = useState("");
-  
+
   // Delete confirmation dialog
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
-  
+
   // Invoice detail dialog
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -105,18 +105,18 @@ export default function InvoiceList() {
       setLoading(true);
       const res = await fetchWithAuth("/api/invoices", { cache: "no-store" });
       if (!res.ok) throw new Error("Failed to fetch invoices");
-      
+
       const data = await res.json();
       setInvoices(data);
       setFilteredInvoices(data);
-      
+
       // Extract years for filtering
       const yearsSet = new Set<number>();
       data.forEach((invoice: Invoice) => {
         const date = new Date(invoice.date);
         yearsSet.add(date.getFullYear());
       });
-      
+
       // Convert to array and sort
       const yearArray = Array.from(yearsSet).sort((a, b) => b - a);
       setAvailableYears(yearArray);
@@ -136,7 +136,7 @@ export default function InvoiceList() {
   // Filter invoices based on search, status, and date
   useEffect(() => {
     let filtered = [...invoices];
-    
+
     // Search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
@@ -147,21 +147,21 @@ export default function InvoiceList() {
           (invoice.transaction?.name || "").toLowerCase().includes(term)
       );
     }
-    
+
     // Status filter
     if (statusFilter !== "all") {
       filtered = filtered.filter(
         (invoice) => invoice.paymentStatus === statusFilter
       );
     }
-    
+
     // Date filter
     if (dateFilter.month !== null || dateFilter.year !== null) {
       filtered = filtered.filter((invoice) => {
         const invoiceDate = new Date(invoice.date);
         const month = invoiceDate.getMonth();
         const year = invoiceDate.getFullYear();
-        
+
         if (dateFilter.month !== null && dateFilter.year !== null) {
           return month === dateFilter.month && year === dateFilter.year;
         } else if (dateFilter.month !== null) {
@@ -172,14 +172,14 @@ export default function InvoiceList() {
         return true;
       });
     }
-    
+
     setFilteredInvoices(filtered);
   }, [invoices, searchTerm, statusFilter, dateFilter]);
 
   // Handle invoice status update
   const handleUpdateInvoiceStatus = async () => {
     if (!currentInvoice || !newStatus) return;
-    
+
     try {
       const res = await fetchWithAuth("/api/invoices", {
         method: "PATCH",
@@ -188,18 +188,18 @@ export default function InvoiceList() {
           paymentStatus: newStatus,
         }),
       });
-      
+
       if (!res.ok) throw new Error("Failed to update invoice status");
-      
+
       const data = await res.json();
-      
+
       // Update local data
       setInvoices((prev) =>
         prev.map((inv) =>
           inv.id === currentInvoice.id ? data.invoice : inv
         )
       );
-      
+
       toast.success("Invoice status updated successfully");
       setEditDialogOpen(false);
     } catch (error) {
@@ -211,17 +211,17 @@ export default function InvoiceList() {
   // Handle invoice deletion
   const handleDeleteInvoice = async () => {
     if (!invoiceToDelete) return;
-    
+
     try {
       const res = await fetchWithAuth(`/api/invoices/${invoiceToDelete.id}`, {
         method: "DELETE",
       });
-      
+
       if (!res.ok) throw new Error("Failed to delete invoice");
-      
+
       // Remove from local data
       setInvoices((prev) => prev.filter((inv) => inv.id !== invoiceToDelete.id));
-      
+
       toast.success("Invoice deleted successfully");
       setDeleteDialogOpen(false);
     } catch (error) {
@@ -261,7 +261,7 @@ export default function InvoiceList() {
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between items-start md:items-center gap-4">
         <h2 className="text-2xl font-bold">Invoice Management</h2>
-        
+
         <Button onClick={() => router.push('/invoices/create')}>
           <FileText className="mr-2 h-4 w-4" />
           Create New Invoice
@@ -279,13 +279,13 @@ export default function InvoiceList() {
             className="pl-10"
           />
         </div>
-        
+
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm">Filters:</span>
           </div>
-          
+
           <Select
             value={statusFilter}
             onValueChange={setStatusFilter}
@@ -300,10 +300,10 @@ export default function InvoiceList() {
               <SelectItem value="Belum Bayar">Belum Bayar</SelectItem>
             </SelectContent>
           </Select>
-          
+
           <Select
             value={dateFilter.month?.toString() || "all"}
-            onValueChange={(value) => 
+            onValueChange={(value) =>
               setDateFilter((prev) => ({
                 ...prev,
                 month: value === "all" ? null : parseInt(value),
@@ -322,10 +322,10 @@ export default function InvoiceList() {
               ))}
             </SelectContent>
           </Select>
-          
+
           <Select
             value={dateFilter.year?.toString() || "all"}
-            onValueChange={(value) => 
+            onValueChange={(value) =>
               setDateFilter((prev) => ({
                 ...prev,
                 year: value === "all" ? null : parseInt(value),
@@ -344,7 +344,7 @@ export default function InvoiceList() {
               ))}
             </SelectContent>
           </Select>
-          
+
           {(searchTerm || statusFilter !== "all"|| dateFilter.month !== null || dateFilter.year !== null) && (
             <Button variant="ghost" size="icon" onClick={clearFilters} title="Clear filters">
               <X className="h-4 w-4" />
@@ -363,7 +363,7 @@ export default function InvoiceList() {
               ? "No invoices found"
               : `Total ${filteredInvoices.length} invoices`}
           </TableCaption>
-          
+
           <TableHeader>
             <TableRow>
               <TableHead>Invoice Number</TableHead>
@@ -376,7 +376,7 @@ export default function InvoiceList() {
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
-          
+
           <TableBody>
             {loading ? (
               <TableRow>
@@ -400,7 +400,7 @@ export default function InvoiceList() {
                   <TableCell>{invoice.transaction?.name || "-"}</TableCell>
                   <TableCell>{formatDate(invoice.date)}</TableCell>
                   <TableCell>{formatDate(invoice.dueDate)}</TableCell>
-                  <TableCell className="text-right">Rp{formatRupiah(invoice.totalAmount)}</TableCell>
+                  <TableCell className="text-right">{formatRupiah(invoice.totalAmount)}</TableCell>
                   <TableCell>
                     <span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${getStatusColor(invoice.paymentStatus)}`}>
                       {invoice.paymentStatus}
@@ -430,7 +430,7 @@ export default function InvoiceList() {
                           Update Status
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem 
+                        <DropdownMenuItem
                           className="text-red-600"
                           onClick={() => {
                             setInvoiceToDelete(invoice);
@@ -456,7 +456,7 @@ export default function InvoiceList() {
           <DialogHeader>
             <DialogTitle>Update Invoice Status</DialogTitle>
           </DialogHeader>
-          
+
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <p className="text-sm font-medium">Invoice: {currentInvoice?.invoiceNumber}</p>
@@ -467,7 +467,7 @@ export default function InvoiceList() {
                 {currentInvoice?.paymentStatus}
               </span>
             </div>
-            
+
             <div className="space-y-2">
               <label className="text-sm font-medium">New Status:</label>
               <Select
@@ -485,7 +485,7 @@ export default function InvoiceList() {
               </Select>
             </div>
           </div>
-          
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
               Cancel
@@ -509,7 +509,7 @@ export default function InvoiceList() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleDeleteInvoice}
               className="bg-red-600 hover:bg-red-700">
               Delete

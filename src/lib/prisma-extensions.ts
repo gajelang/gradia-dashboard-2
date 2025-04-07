@@ -27,7 +27,7 @@ export interface FundTransaction {
 }
 
 // Define the extension of PrismaClient with your new models
-export interface ExtendedPrismaClient extends PrismaClient {
+export interface ExtendedPrismaClient extends Omit<PrismaClient, 'fundBalance' | 'fundTransaction'> {
   fundBalance: {
     findMany: (args?: any) => Promise<FundBalance[]>;
     findUnique: (args: { where: { fundType: string } }) => Promise<FundBalance | null>;
@@ -35,7 +35,7 @@ export interface ExtendedPrismaClient extends PrismaClient {
     createMany: (args: { data: any[] }) => Promise<{ count: number }>;
     update: (args: { where: { fundType: string }; data: any }) => Promise<FundBalance>;
   };
-  
+
   fundTransaction: {
     findMany: (args?: any) => Promise<FundTransaction[]>;
     count: (args?: any) => Promise<number>;

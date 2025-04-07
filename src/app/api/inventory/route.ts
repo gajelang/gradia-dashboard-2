@@ -16,12 +16,12 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const fetchDeleted = searchParams.get('deleted') === 'true';
     const category = searchParams.get('category');
-    
+
     // Build where clause for query
-    const whereClause = {
+    const whereClause: any = {
       isDeleted: fetchDeleted
     };
-    
+
     // Add category filter if provided
     if (category) {
       whereClause.category = category;
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { 
+    const {
       name,
       type,
       description,
@@ -188,14 +188,14 @@ export async function PATCH(request: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: 'Inventory item ID is required' }, { status: 400 });
     }
-    
+
     // Find the original item to check if quantities or other critical fields have changed
     const originalItem = await prisma.inventory.findUnique({
       where: { id },
-      select: { 
+      select: {
         id: true,
         quantity: true,
-        unitPrice: true 
+        unitPrice: true
       }
     });
 
@@ -214,7 +214,7 @@ export async function PATCH(request: NextRequest) {
     if (data.purchaseDate) {
       data.purchaseDate = new Date(data.purchaseDate);
     }
-    
+
     if (data.expiryDate) {
       data.expiryDate = new Date(data.expiryDate);
     }

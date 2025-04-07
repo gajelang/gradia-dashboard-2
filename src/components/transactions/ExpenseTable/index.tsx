@@ -33,7 +33,7 @@ export default function ExpenseTable({
   onExpensesUpdated
 }: ExpenseTableProps) {
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
-  
+
   // Format date for display
   const formatDate = (dateString: string | undefined | null) => {
     if (!dateString) return "-";
@@ -44,33 +44,33 @@ export default function ExpenseTable({
       day: "numeric",
     });
   };
-  
+
   // Calculate total expense amount
   const totalActiveExpenses = activeExpenses.reduce(
-    (sum, expense) => sum + (typeof expense.amount === 'number' ? 
-      expense.amount : parseFloat(expense.amount) || 0), 
+    (sum, expense) => sum + (typeof expense.amount === 'number' ?
+      expense.amount : parseFloat(expense.amount) || 0),
     0
   );
-  
+
   const totalArchivedExpenses = archivedExpenses.reduce(
-    (sum, expense) => sum + (typeof expense.amount === 'number' ? 
-      expense.amount : parseFloat(expense.amount) || 0), 
+    (sum, expense) => sum + (typeof expense.amount === 'number' ?
+      expense.amount : parseFloat(expense.amount) || 0),
     0
   );
-  
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-semibold">Transaction Expenses</h3>
-        <Button 
-          size="sm" 
+        <Button
+          size="sm"
           onClick={() => setIsAddExpenseOpen(true)}
           className="flex items-center gap-1"
         >
           <PlusCircle className="h-4 w-4" /> Add Expense
         </Button>
       </div>
-      
+
       <Tabs defaultValue="active" className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-4">
           <TabsTrigger value="active">
@@ -111,7 +111,7 @@ export default function ExpenseTable({
                         </TableCell>
                         <TableCell>{vendorName || "N/A"}</TableCell>
                         <TableCell>
-                          Rp{formatRupiah(expense.amount)}
+                          {formatRupiah(expense.amount)}
                         </TableCell>
                         <TableCell>
                           <FundTypeIndicator fundType={expense.fundType || "petty_cash"} size="sm" />
@@ -132,7 +132,7 @@ export default function ExpenseTable({
               </Table>
 
               <div className="mt-4 text-right font-bold">
-                Total: Rp{formatRupiah(totalActiveExpenses)}
+                Total: {formatRupiah(totalActiveExpenses)}
               </div>
             </div>
           ) : (
@@ -171,7 +171,7 @@ export default function ExpenseTable({
                         </TableCell>
                         <TableCell>{vendorName || "N/A"}</TableCell>
                         <TableCell>
-                          Rp{formatRupiah(expense.amount)}
+                          {formatRupiah(expense.amount)}
                         </TableCell>
                         <TableCell>
                           <FundTypeIndicator fundType={expense.fundType || "petty_cash"} size="sm" />
@@ -196,7 +196,7 @@ export default function ExpenseTable({
                   Archived expenses are not included in the capital cost calculation
                 </p>
                 <p className="font-medium mt-1">
-                  Total Archived: Rp{formatRupiah(totalArchivedExpenses)}
+                  Total Archived: {formatRupiah(totalArchivedExpenses)}
                 </p>
               </div>
             </div>
@@ -207,9 +207,9 @@ export default function ExpenseTable({
           )}
         </TabsContent>
       </Tabs>
-      
+
       {/* AddExpense component will be a Sheet/Modal for adding expenses */}
-      <AddExpense 
+      <AddExpense
         isOpen={isAddExpenseOpen}
         onClose={() => setIsAddExpenseOpen(false)}
         transaction={transaction}

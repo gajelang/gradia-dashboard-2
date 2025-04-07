@@ -12,8 +12,7 @@ import {
   X,
   Loader2,
   Archive,
-  Eye,
-  RefreshCw
+  Eye
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
@@ -115,12 +114,12 @@ export default function TransactionTable() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [deletedTransactions, setDeletedTransactions] = useState<any[]>([]);
   const [filteredTransactions, setFilteredTransactions] = useState<any[]>([]);
-  
+
   // Search state
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  
+
   // Filter state
   const [sortField, setSortField] = useState<SortField>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
@@ -130,18 +129,16 @@ export default function TransactionTable() {
   });
   const [availableYears, setAvailableYears] = useState<number[]>([]);
   const [broadcastFilter, setBroadcastFilter] = useState("Semua");
-  
+
   // UI state
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<ViewMode>("active");
-  
+
   // Transaction action state
   const [transactionToDelete, setTransactionToDelete] = useState<any | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [confirmDeleteText, setConfirmDeleteText] = useState("");
-  const [transactionToRestore, setTransactionToRestore] = useState<any | null>(null);
-  const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
-  
+
   // Transaction details state
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedDetailTransaction, setSelectedDetailTransaction] = useState<any | null>(null);
@@ -203,7 +200,7 @@ export default function TransactionTable() {
   // -------------------------------------------------------------
   // Transaction Actions
   // -------------------------------------------------------------
-  
+
   // Soft delete transaction
   const softDeleteTransaction = async () => {
     if (!transactionToDelete || !transactionToDelete.id) {
@@ -221,7 +218,7 @@ export default function TransactionTable() {
         },
         body: JSON.stringify({
           id: transactionToDelete.id,
-          deletedBy: user?.userId,
+          deletedBy: user?.id,
         }),
       });
 
@@ -261,73 +258,22 @@ export default function TransactionTable() {
     }
   };
 
-  // Restore transaction
-  const restoreTransaction = async () => {
-    if (!transactionToRestore) {
-      toast.error("No transaction selected for restoration");
-      return;
-    }
-
-    try {
-      toast.loading("Restoring transaction...", { id: "restoreTransaction" });
-
-      const res = await fetchWithAuth("/api/transactions/restore", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: transactionToRestore.id,
-          restoredBy: user?.userId,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.message || `Server returned ${res.status}`);
-      }
-
-      toast.success(data?.message || "Transaction restored successfully", {
-        id: "restoreTransaction",
-      });
-
-      // Remove the transaction from deleted list
-      setDeletedTransactions((prev) =>
-        prev.filter((t) => t.id !== transactionToRestore.id)
-      );
-      setFilteredTransactions((prev) =>
-        prev.filter((t) => t.id !== transactionToRestore.id)
-      );
-
-      // Refresh both active and deleted transaction lists
-      fetchTransactions();
-
-      setRestoreDialogOpen(false);
-      setTransactionToRestore(null);
-    } catch (error) {
-      console.error("Error restoring transaction:", error);
-      toast.error(
-        error instanceof Error ? error.message : "Failed to restore transaction",
-        { id: "restoreTransaction" }
-      );
-    }
-  };
-
   // Handle transaction update
   const handleTransactionUpdated = (updatedTransaction: any) => {
     // Update transaction in list
-    setTransactions(prevTransactions => 
-      prevTransactions.map(tx => 
+    setTransactions(prevTransactions =>
+      prevTransactions.map(tx =>
         tx.id === updatedTransaction.id ? updatedTransaction : tx
       )
     );
-    
+
     // Update filtered transactions
-    setFilteredTransactions(prevTransactions => 
-      prevTransactions.map(tx => 
+    setFilteredTransactions(prevTransactions =>
+      prevTransactions.map(tx =>
         tx.id === updatedTransaction.id ? updatedTransaction : tx
       )
     );
-    
+
     // Update selected transaction
     if (selectedDetailTransaction?.id === updatedTransaction.id) {
       setSelectedDetailTransaction(updatedTransaction);
@@ -337,7 +283,7 @@ export default function TransactionTable() {
   // -------------------------------------------------------------
   // Filtering & Sorting
   // -------------------------------------------------------------
-  
+
   // Filter and sort transactions
   useEffect(() => {
     let result =
@@ -408,7 +354,43 @@ export default function TransactionTable() {
     viewMode,
   ]);
 
-  // Search function
+  // Real-time search function
+  useEffect(() => {
+    // Apply search filter to the current data
+    const applySearchFilter = () => {
+      if (!searchTerm.trim()) {
+        // If search is empty, just use the current data set based on view mode
+        if (viewMode === "active") {
+          setFilteredTransactions(transactions);
+        } else if (viewMode === "deleted") {
+          setFilteredTransactions(deletedTransactions);
+        }
+        return;
+      }
+
+      const lowerCaseSearch = searchTerm.toLowerCase();
+      const dataToSearch = viewMode === "active" ? transactions : deletedTransactions;
+
+      const results = dataToSearch.filter(
+        (tx) =>
+          tx.name.toLowerCase().includes(lowerCaseSearch) ||
+          tx.description.toLowerCase().includes(lowerCaseSearch) ||
+          (tx.email && tx.email.toLowerCase().includes(lowerCaseSearch)) ||
+          (tx.phone && tx.phone.toLowerCase().includes(lowerCaseSearch)) ||
+          tx.paymentStatus.toLowerCase().includes(lowerCaseSearch) ||
+          tx.amount.toString().includes(lowerCaseSearch) ||
+          (tx.createdBy?.name &&
+            tx.createdBy.name.toLowerCase().includes(lowerCaseSearch))
+      );
+
+      setFilteredTransactions(results);
+    };
+
+    // Apply the search filter
+    applySearchFilter();
+  }, [searchTerm, transactions, deletedTransactions, viewMode]);
+
+  // Legacy search function for the search button
   const handleSearch = () => {
     if (!searchTerm.trim()) {
       setSearchResults([]);
@@ -416,22 +398,8 @@ export default function TransactionTable() {
       return;
     }
 
-    const lowerCaseSearch = searchTerm.toLowerCase();
-    const dataToSearch = viewMode === "active" ? transactions : deletedTransactions;
-
-    const results = dataToSearch.filter(
-      (tx) =>
-        tx.name.toLowerCase().includes(lowerCaseSearch) ||
-        tx.description.toLowerCase().includes(lowerCaseSearch) ||
-        (tx.email && tx.email.toLowerCase().includes(lowerCaseSearch)) ||
-        (tx.phone && tx.phone.toLowerCase().includes(lowerCaseSearch)) ||
-        tx.paymentStatus.toLowerCase().includes(lowerCaseSearch) ||
-        tx.amount.toString().includes(lowerCaseSearch) ||
-        (tx.createdBy?.name &&
-          tx.createdBy.name.toLowerCase().includes(lowerCaseSearch))
-    );
-
-    setSearchResults(results);
+    // Set search results to the current filtered transactions
+    setSearchResults(filteredTransactions);
     setShowSearchResults(true);
   };
 
@@ -482,7 +450,7 @@ export default function TransactionTable() {
   // -------------------------------------------------------------
   // UI Handlers
   // -------------------------------------------------------------
-  
+
   // Handle transaction row click to open detail modal
   const handleTransactionClick = (transaction: any) => {
     setSelectedDetailTransaction(transaction);
@@ -557,10 +525,8 @@ export default function TransactionTable() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 w-full"
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             />
           </div>
-          <Button onClick={handleSearch}>Cari</Button>
         </div>
 
         {/* Filters */}
@@ -708,9 +674,9 @@ export default function TransactionTable() {
                 <FundTypeIndicator fundType={tx.fundType || "petty_cash"} size="sm" />
               </TableCell>
               <TableCell>
-                <div>Rp{formatRupiah(tx.projectValue || 0)}</div>
+                <div>{formatRupiah(tx.projectValue || 0)}</div>
                 <div className="text-xs text-muted-foreground">
-                  Net: Rp{formatRupiah(calculateNetProfit(tx))}
+                  Net: {formatRupiah(calculateNetProfit(tx))}
                 </div>
               </TableCell>
               <TableCell>
@@ -744,18 +710,7 @@ export default function TransactionTable() {
                     }}
                   />
                 ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setTransactionToRestore(tx);
-                      setRestoreDialogOpen(true);
-                    }}
-                    className="text-green-600"
-                    title="Restore Transaction"
-                  >
-                    <RefreshCw className="h-4 w-4" />
-                  </Button>
+                  <span className="text-xs text-gray-500">Archived</span>
                 )}
               </TableCell>
             </TableRow>
@@ -791,7 +746,7 @@ export default function TransactionTable() {
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         title="Konfirmasi Pengarsipan"
-        description="Transaksi ini akan diarsipkan dan tidak akan muncul di daftar transaksi aktif. Anda dapat mengembalikannya dari tampilan arsip jika diperlukan."
+        description="Transaksi ini akan diarsipkan dan tidak akan muncul di daftar transaksi aktif."
         confirmText="DELETE"
         actionLabel="Arsipkan Transaksi"
         actionVariant="destructive"
@@ -799,19 +754,6 @@ export default function TransactionTable() {
         onConfirm={softDeleteTransaction}
         confirmValue={confirmDeleteText}
         onConfirmValueChange={(value) => setConfirmDeleteText(value)}
-      />
-
-      {/* Restore Confirmation Dialog */}
-      <ConfirmDialog
-        open={restoreDialogOpen}
-        onOpenChange={setRestoreDialogOpen}
-        title="Konfirmasi Pemulihan"
-        description="Transaksi ini akan dipulihkan dan akan muncul kembali di daftar transaksi aktif."
-        actionLabel="Pulihkan Transaksi"
-        actionVariant="default"
-        confirmRequired={false}
-        onConfirm={restoreTransaction}
-        actionClassName="bg-green-600 hover:bg-green-700"
       />
     </div>
   );

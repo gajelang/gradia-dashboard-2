@@ -9,9 +9,9 @@ import { fetchWithAuth } from "@/lib/api";
 import { formatRupiah } from "@/lib/formatters";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouter } from "next/navigation";
-import { 
-  Activity, 
-  Loader2, 
+import {
+  Activity,
+  Loader2,
   Calendar,
   RefreshCw,
   CreditCard,
@@ -55,10 +55,10 @@ export default function RecentTransactionsCard({ timeRange = { type: 'all_time' 
       }
 
       const data = await response.json();
-      
+
       // Filter transactions based on timeRange
       const { startDate, endDate } = getDateRangeFromTimeRange(timeRange);
-      
+
       // Ensure we have an array of transactions
       let transactionsData: any[] = [];
       if (Array.isArray(data)) {
@@ -68,17 +68,17 @@ export default function RecentTransactionsCard({ timeRange = { type: 'all_time' 
       } else {
         console.warn('Unexpected API response format:', data);
       }
-      
+
       // IMPORTANT: Filter out deleted transactions AND apply time range filter
       const filteredTransactions = transactionsData.filter(tx => {
         if (tx.isDeleted) return false;
-        
+
         const txDate = new Date(tx.date);
         return txDate >= startDate && txDate <= endDate;
       });
-      
+
       // Sort by date (newest first)
-      const sortedTransactions = filteredTransactions.sort((a, b) => 
+      const sortedTransactions = filteredTransactions.sort((a, b) =>
         new Date(b.date).getTime() - new Date(a.date).getTime()
       );
 
@@ -100,7 +100,7 @@ export default function RecentTransactionsCard({ timeRange = { type: 'all_time' 
   // Get broadcast status
   const getBroadcastStatus = (tx: any): string => {
     if (!tx.startDate && !tx.endDate) return "Tidak Ada";
-    
+
     const now = new Date();
     if (tx.startDate) {
       const start = new Date(tx.startDate);
@@ -125,12 +125,12 @@ export default function RecentTransactionsCard({ timeRange = { type: 'all_time' 
       if (paymentFilter !== "all" && tx.paymentStatus.toLowerCase() !== paymentFilter.toLowerCase()) {
         return false;
       }
-      
+
       // Filter by project/broadcast status
       if (projectFilter !== "all" && getBroadcastStatus(tx) !== projectFilter) {
         return false;
       }
-      
+
       return true;
     });
   };
@@ -229,8 +229,8 @@ export default function RecentTransactionsCard({ timeRange = { type: 'all_time' 
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="sm"
             className="h-8 w-8 p-0"
             onClick={fetchTransactions}
@@ -244,13 +244,13 @@ export default function RecentTransactionsCard({ timeRange = { type: 'all_time' 
           </Button>
         </div>
       </CardHeader>
-      
+
       {error && (
         <Alert variant="destructive" className="mx-4 my-2">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
-      
+
       <div className="px-4 py-2 flex space-x-2">
         <div className="flex items-center space-x-2 flex-1">
           <PaymentIcon className="h-4 w-4 text-muted-foreground" />
@@ -269,7 +269,7 @@ export default function RecentTransactionsCard({ timeRange = { type: 'all_time' 
             </SelectContent>
           </Select>
         </div>
-        
+
         <div className="flex items-center space-x-2 flex-1">
           <ProjectIcon className="h-4 w-4 text-muted-foreground" />
           <Select
@@ -289,7 +289,7 @@ export default function RecentTransactionsCard({ timeRange = { type: 'all_time' 
           </Select>
         </div>
       </div>
-      
+
       <CardContent className="p-0">
         {filteredTransactions.length === 0 ? (
           <div className="text-sm text-gray-500 py-4 text-center">
@@ -299,8 +299,8 @@ export default function RecentTransactionsCard({ timeRange = { type: 'all_time' 
           <ScrollArea className="h-[240px]">
             <div className="space-y-3 py-3 px-4">
               {filteredTransactions.map((transaction) => (
-                <div 
-                  key={transaction.id} 
+                <div
+                  key={transaction.id}
                   className="bg-white rounded-lg p-3 shadow-sm border border-gray-100 cursor-pointer hover:bg-gray-50"
                   onClick={() => handleTransactionClick(transaction.id)}
                 >
@@ -311,48 +311,48 @@ export default function RecentTransactionsCard({ timeRange = { type: 'all_time' 
                         <p className="text-xs text-gray-500 truncate">{transaction.description}</p>
                       )}
                     </div>
-                    
+
                     <div className="text-right ml-2">
-                      <Badge 
-                        variant="outline" 
+                      <Badge
+                        variant="outline"
                         className={getPaymentStatusStyle(transaction.paymentStatus)}
                       >
                         {transaction.paymentStatus}
                       </Badge>
                     </div>
                   </div>
-                  
+
                   <div className="mt-2 grid grid-cols-2 gap-2">
                     <div>
                       <div className="text-xs text-gray-500">Value</div>
                       <div className="text-sm font-medium">
-                        Rp{formatRupiah(transaction.projectValue || 0)}
+                        {formatRupiah(transaction.projectValue || 0)}
                       </div>
                     </div>
                     <div>
                       <div className="text-xs text-gray-500">Net Profit</div>
                       <div className="text-sm font-medium text-green-600">
-                        Rp{formatRupiah(calculateNetProfit(transaction))}
+                        {formatRupiah(calculateNetProfit(transaction))}
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="mt-2 flex justify-between items-center text-xs text-gray-500">
                     <div className="flex items-center gap-2">
                       <div className="flex items-center">
                         <Calendar className="h-3 w-3 mr-1" />
                         {formatDate(transaction.date)}
                       </div>
-                      
+
                       {(transaction.startDate || transaction.endDate) && (
-                        <span 
+                        <span
                           className={`px-1.5 py-0.5 rounded text-white text-[10px] ${getStatusBadgeColor(getBroadcastStatus(transaction))}`}
                         >
                           {getBroadcastStatus(transaction)}
                         </span>
                       )}
                     </div>
-                    
+
                     <div>
                       {getFundTypeDisplay(transaction.fundType)}
                     </div>

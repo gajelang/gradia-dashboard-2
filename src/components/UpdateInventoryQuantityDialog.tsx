@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { InventoryItem } from "./InventoryTab";
+import { Inventory } from "@/app/types/inventory";
 import { fetchWithAuth } from "@/lib/api";
 import { Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -28,9 +28,9 @@ import { toast } from "react-hot-toast";
 interface UpdateInventoryQuantityDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  item: InventoryItem;
+  item: Inventory;
   adjustmentType: "increase" | "decrease";
-  onQuantityUpdated: (updatedItem: InventoryItem) => void;
+  onQuantityUpdated: (updatedItem: Inventory) => void;
 }
 
 const reasonOptions = [
@@ -64,21 +64,21 @@ export default function UpdateInventoryQuantityDialog({
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
-    
+
     const quantityValue = parseInt(quantity, 10);
     if (!quantity || isNaN(quantityValue) || quantityValue <= 0) {
       errors.quantity = "Please enter a valid positive number";
     }
-    
+
     // For decrease, check if there's enough stock
-    if (adjustmentType === "decrease" && quantityValue > item.quantity) {
-      errors.quantity = `Cannot decrease by more than current quantity (${item.quantity})`;
+    if (adjustmentType === "decrease" && quantityValue > (item.quantity || 0)) {
+      errors.quantity = `Cannot decrease by more than current quantity (${item.quantity || 0})`;
     }
-    
+
     if (!reason) {
       errors.reason = "Please select a reason";
     }
-    
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -110,11 +110,11 @@ export default function UpdateInventoryQuantityDialog({
 
       const data = await res.json();
       toast.success(`Inventory quantity ${adjustmentType}d successfully`);
-      
+
       if (onQuantityUpdated) {
         onQuantityUpdated(data.item);
       }
-      
+
       onClose();
     } catch (error) {
       console.error("Error updating inventory quantity:", error);
@@ -141,8 +141,8 @@ export default function UpdateInventoryQuantityDialog({
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>
-            {adjustmentType === "increase" 
-              ? "Increase Inventory Quantity" 
+            {adjustmentType === "increase"
+              ? "Increase Inventory Quantity"
               : "Decrease Inventory Quantity"}
           </DialogTitle>
           <DialogDescription>
@@ -151,7 +151,7 @@ export default function UpdateInventoryQuantityDialog({
               : "Remove units from the inventory stock."}
           </DialogDescription>
         </DialogHeader>
-        
+
         <div className="grid gap-4 py-4">
           <div>
             <Label className="text-base font-medium">
@@ -163,7 +163,7 @@ export default function UpdateInventoryQuantityDialog({
               </p>
             )}
           </div>
-          
+
           {/* Quantity Input */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="quantity" className="text-right">
@@ -183,7 +183,7 @@ export default function UpdateInventoryQuantityDialog({
               )}
             </div>
           </div>
-          
+
           {/* Reason Select */}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="reason" className="text-right">
@@ -191,15 +191,15 @@ export default function UpdateInventoryQuantityDialog({
             </Label>
             <div className="col-span-3">
               <Select value={reason} onValueChange={setReason}>
-                <SelectTrigger 
+                <SelectTrigger
                   className={formErrors.reason ? "border-red-500" : ""}
                 >
                   <SelectValue placeholder="Select reason" />
                 </SelectTrigger>
                 <SelectContent>
                   {reasonOptions
-                    .filter(option => 
-                      adjustmentType === "increase" 
+                    .filter(option =>
+                      adjustmentType === "increase"
                         ? ["purchase", "returned", "correction", "other"].includes(option.value)
                         : ["sales", "damaged", "correction", "other"].includes(option.value)
                     )
@@ -216,7 +216,7 @@ export default function UpdateInventoryQuantityDialog({
               )}
             </div>
           </div>
-          
+
           {/* Notes Textarea */}
           <div className="grid grid-cols-4 items-start gap-4">
             <Label htmlFor="notes" className="text-right pt-2">
@@ -232,12 +232,12 @@ export default function UpdateInventoryQuantityDialog({
             />
           </div>
         </div>
-        
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button 
+          <Button
             onClick={handleSubmit}
             disabled={isSubmitting}
             variant={adjustmentType === "decrease" ? "destructive" : "default"}
@@ -248,8 +248,8 @@ export default function UpdateInventoryQuantityDialog({
                 Processing...
               </>
             ) : (
-              adjustmentType === "increase" 
-                ? "Add Stock" 
+              adjustmentType === "increase"
+                ? "Add Stock"
                 : "Remove Stock"
             )}
           </Button>
