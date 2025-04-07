@@ -122,8 +122,11 @@ export default function InventoryTab() {
 
   // Calculate inventory statistics
   const calculateStats = (items: Inventory[]) => {
-    const totalItems = items.length;
-    const totalValue = items.reduce((sum, item) => {
+    // Filter out archived items
+    const activeItems = items.filter(item => !item.isDeleted);
+
+    const totalItems = activeItems.length;
+    const totalValue = activeItems.reduce((sum, item) => {
       // Pastikan nilai yang digunakan adalah numerik
       const value = typeof item.totalValue === 'string' ? parseFloat(item.totalValue) :
                    (item.totalValue ||
@@ -133,20 +136,20 @@ export default function InventoryTab() {
       return sum + value;
     }, 0);
 
-    const lowStockItems = items.filter(item =>
+    const lowStockItems = activeItems.filter(item =>
       item.type !== "SUBSCRIPTION" &&
       (item.quantity || 0) <= (item.minimumStock || 0) &&
       (item.quantity || 0) > 0
     ).length;
 
-    const uniqueCategories = new Set(items.map(item => item.category).filter(Boolean)).size;
+    const uniqueCategories = new Set(activeItems.map(item => item.category).filter(Boolean)).size;
 
     // Calculate upcoming subscription renewals (due in the next 30 days)
     const today = new Date();
     const thirtyDaysFromNow = new Date();
     thirtyDaysFromNow.setDate(today.getDate() + 30);
 
-    const upcomingRenewals = items.filter(item =>
+    const upcomingRenewals = activeItems.filter(item =>
       item.type === "SUBSCRIPTION" &&
       item.nextBillingDate &&
       new Date(item.nextBillingDate) >= today &&
@@ -154,7 +157,7 @@ export default function InventoryTab() {
     ).length;
 
     // Calculate monthly subscription cost
-    const subscriptionCost = items
+    const subscriptionCost = activeItems
       .filter(item => item.type === "SUBSCRIPTION")
       .reduce((sum, item) => {
         const cost = typeof item.cost === 'string' ? parseFloat(item.cost) : (item.cost || 0);

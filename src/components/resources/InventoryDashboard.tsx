@@ -94,7 +94,8 @@ export default function InventoryDashboard() {
 
   // Calculate inventory by category for pie chart
   const inventoryByCategory = categories.map(category => {
-    const items = inventory.filter(item => item.category === category);
+    // Filter out archived items
+    const items = inventory.filter(item => item.category === category && !item.isDeleted);
     const totalValue = items.reduce((sum, item) => {
       const value = typeof item.totalValue === 'string' ? parseFloat(item.totalValue) : (item.totalValue || 0);
       return sum + value;
@@ -104,6 +105,7 @@ export default function InventoryDashboard() {
 
   // Get low stock items
   const lowStockItems = inventory.filter(item =>
+    !item.isDeleted &&
     item.type !== "SUBSCRIPTION" &&
     (item.quantity || 0) <= (item.minimumStock || 0) &&
     (item.quantity || 0) > 0

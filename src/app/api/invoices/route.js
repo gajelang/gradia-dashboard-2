@@ -16,15 +16,15 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const transactionId = searchParams.get('transactionId');
     const invoiceId = searchParams.get('id');
-    
+
     // Build where clause for the query
     const whereClause = {};
-    
+
     // Filter by transactionId if provided
     if (transactionId) {
       whereClause.transactionId = transactionId;
     }
-    
+
     // Filter by invoiceId if provided
     if (invoiceId) {
       whereClause.id = invoiceId;
@@ -81,7 +81,7 @@ export async function DELETE(request) {
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    
+
     if (!id) {
       return createSafeResponse({ error: "Invoice ID is required" }, 400);
     }
@@ -116,11 +116,11 @@ export async function POST(request) {
     }
 
     const data = await request.json();
-    
+
     // Validate required fields
     if (!data.invoiceNumber || !data.date || !data.dueDate || !data.amount) {
-      return createSafeResponse({ 
-        error: 'Invoice number, date, due date, and amount are required' 
+      return createSafeResponse({
+        error: 'Invoice number, date, due date, and amount are required'
       }, 400);
     }
 
@@ -130,8 +130,8 @@ export async function POST(request) {
     });
 
     if (existingInvoice) {
-      return createSafeResponse({ 
-        error: 'An invoice with this number already exists' 
+      return createSafeResponse({
+        error: 'An invoice with this number already exists'
       }, 400);
     }
 
@@ -186,7 +186,7 @@ export async function PATCH(request) {
     }
 
     const data = await request.json();
-    
+
     // Validate required fields
     if (!data.id) {
       return createSafeResponse({ error: 'Invoice ID is required' }, 400);
@@ -206,10 +206,17 @@ export async function PATCH(request) {
       updatedAt: new Date()
     };
 
-    // Add optional fields if they exist
+    // Add all editable fields if they exist
+    if (data.invoiceNumber !== undefined) updateData.invoiceNumber = data.invoiceNumber;
+    if (data.date !== undefined) updateData.date = new Date(data.date);
+    if (data.dueDate !== undefined) updateData.dueDate = new Date(data.dueDate);
+    if (data.amount !== undefined) updateData.amount = parseFloat(data.amount);
+    if (data.tax !== undefined) updateData.tax = parseFloat(data.tax);
+    if (data.totalAmount !== undefined) updateData.totalAmount = parseFloat(data.totalAmount);
     if (data.paymentStatus !== undefined) updateData.paymentStatus = data.paymentStatus;
     if (data.description !== undefined) updateData.description = data.description;
-    if (data.dueDate !== undefined) updateData.dueDate = new Date(data.dueDate);
+    if (data.clientId !== undefined) updateData.clientId = data.clientId;
+    if (data.transactionId !== undefined) updateData.transactionId = data.transactionId;
 
     const updatedInvoice = await prisma.invoice.update({
       where: { id: data.id },

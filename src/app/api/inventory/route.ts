@@ -2,14 +2,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyAuthToken } from '@/lib/auth';
+import { authorizeRequest } from '@/lib/authorization';
 
 // Handler for GET requests - Fetch inventory items
 export async function GET(request: NextRequest) {
   try {
-    // Verify authentication
-    const authResult = await verifyAuthToken(request);
-    if (!authResult.isAuthenticated) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Check authorization
+    const authResponse = await authorizeRequest(request, 'inventory:read');
+    if (authResponse) {
+      return authResponse;
     }
 
     // Parse URL to get query parameters
@@ -75,10 +76,14 @@ export async function GET(request: NextRequest) {
 // Handler for POST requests - Create new inventory item
 export async function POST(request: NextRequest) {
   try {
-    const authResult = await verifyAuthToken(request);
-    if (!authResult.isAuthenticated) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Check authorization
+    const authResponse = await authorizeRequest(request, 'inventory:write');
+    if (authResponse) {
+      return authResponse;
     }
+
+    // Get user information
+    const { user } = await verifyAuthToken(request);
 
     const body = await request.json();
     const {
@@ -144,7 +149,7 @@ export async function POST(request: NextRequest) {
         minimumStock: minimumStock ? parseInt(minimumStock) : null,
         supplier: supplier || null,
         isDeleted: false,
-        createdById: authResult.user?.userId || null
+        createdById: user?.id || null
       },
       include: {
         vendor: {
@@ -177,10 +182,14 @@ export async function POST(request: NextRequest) {
 // Handler for PATCH requests - Update inventory item
 export async function PATCH(request: NextRequest) {
   try {
-    const authResult = await verifyAuthToken(request);
-    if (!authResult.isAuthenticated) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Check authorization
+    const authResponse = await authorizeRequest(request, 'inventory:write');
+    if (authResponse) {
+      return authResponse;
     }
+
+    // Get user information
+    const { user } = await verifyAuthToken(request);
 
     const body = await request.json();
     const { id, ...updateData } = body;
@@ -206,7 +215,7 @@ export async function PATCH(request: NextRequest) {
     // Prepare update data
     const data = {
       ...updateData,
-      updatedById: authResult.user?.userId || null,
+      updatedById: user?.id || null,
       updatedAt: new Date()
     };
 
