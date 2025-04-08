@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fetchWithAuth } from "@/lib/api";
+import { fetchWithAuth } from "@/lib/api/api";
 import { DateRange as DayPickerDateRange } from "react-day-picker";
 
 // Define DateRange to match exactly with the parent component

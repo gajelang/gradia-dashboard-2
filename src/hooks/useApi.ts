@@ -2,7 +2,7 @@
  * Hook untuk penanganan API yang konsisten
  */
 import { useState, useCallback } from 'react';
-import { fetchWithAuth } from '@/lib/api';
+import { fetchWithAuth } from '@/lib/api/api';
 import { toast } from 'react-hot-toast';
 import { messages } from '@/lib/translations';
 

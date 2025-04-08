@@ -31,8 +31,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatRupiah } from "@/lib/formatters";
-import { fetchWithAuth } from "@/lib/api";
+import { formatRupiah } from "@/lib/formatters/formatters";
+import { fetchWithAuth } from "@/lib/api/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 

@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { formatRupiah } from "@/lib/formatters";
+import { formatRupiah } from "@/lib/formatters/formatters";
 import { format, parseISO } from "date-fns";
 import { id } from "date-fns/locale";
 import {
@@ -59,7 +59,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { formatDate } from "@/lib/dateUtils";
+import { formatDate } from "@/lib/formatters/dateUtils";
 
 export default function ImprovedSubscriptionManagement() {
   const [activeTab, setActiveTab] = useState<"upcoming" | "all">("upcoming");
@@ -425,3 +425,4 @@ export default function ImprovedSubscriptionManagement() {
     </ResourceErrorBoundary>
   );
 }
+

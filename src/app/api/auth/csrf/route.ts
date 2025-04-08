@@ -1,6 +1,6 @@
 // app/api/auth/csrf/route.ts
 import { NextRequest } from "next/server";
-import { verifyAuthToken, createSafeResponse } from "@/lib/auth";
+import { verifyAuthToken, createSafeResponse } from "@/lib/auth/auth";
 import { v4 as uuidv4 } from 'uuid';
 
 // Add cache control to prevent excessive requests

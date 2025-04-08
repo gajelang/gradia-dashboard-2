@@ -3,7 +3,7 @@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, ArrowUp } from "lucide-react";
 import FundTypeIndicator from "@/components/common/FundTypeIndicator";
-import { formatRupiah } from "@/lib/formatters";
+import { formatRupiah } from "@/lib/formatters/formatters";
 
 interface FinancialImpact {
   amount: number;

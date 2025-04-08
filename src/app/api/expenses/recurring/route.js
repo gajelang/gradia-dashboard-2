@@ -1,7 +1,7 @@
 // app/api/expenses/recurring/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuthToken } from '@/lib/auth';
+import { verifyAuthToken } from "@/lib/auth/auth";
 
 /**
  * GET handler - Fetch recurring expenses

@@ -1,7 +1,7 @@
 // app/api/inventory/adjustment/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuthToken } from '@/lib/auth';
+import { verifyAuthToken } from "@/lib/auth/auth";
 
 // Handler for POST requests - Create new inventory adjustment
 export async function POST(request) {

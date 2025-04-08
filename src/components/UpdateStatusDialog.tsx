@@ -13,8 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Save, Wallet, CreditCard } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { fetchWithAuth } from "@/lib/api"; // Import the authentication utility
-import { formatRupiah } from "@/lib/formatters";
+import { fetchWithAuth } from "@/lib/api/api"; // Import the authentication utility
+import { formatRupiah } from "@/lib/formatters/formatters";
 import { useAuth } from "@/contexts/AuthContext";
 
 // Define a proper Transaction interface

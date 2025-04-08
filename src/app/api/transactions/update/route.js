@@ -1,7 +1,7 @@
 // file: app/api/transactions/update/route.js
 
 import { PrismaClient } from "@prisma/client";
-import { verifyAuthToken } from "@/lib/auth"; // Add auth verification
+import { verifyAuthToken } from "@/lib/auth/auth"; // Add auth verification
 
 const prisma = new PrismaClient();
 

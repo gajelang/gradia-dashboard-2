@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { formatRupiah } from "@/lib/formatters";
+import { formatRupiah } from "@/lib/formatters/formatters";
 import {
   BarChart,
   Bar,

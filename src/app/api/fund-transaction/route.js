@@ -1,7 +1,7 @@
 // Fixed src/app/api/fund-transaction/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuthToken } from '@/lib/auth';
+import { verifyAuthToken } from "@/lib/auth/auth";
 
 // Handle OPTIONS requests for CORS preflight
 export async function OPTIONS(request) {

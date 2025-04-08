@@ -19,8 +19,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Calendar, DollarSign, FileText } from "lucide-react";
-import { fetchWithAuth } from "@/lib/api";
-import { formatRupiah } from "@/lib/formatters";
+import { fetchWithAuth } from "@/lib/api/api";
+import { formatRupiah } from "@/lib/formatters/formatters";
 
 interface Transaction {
   id: string;

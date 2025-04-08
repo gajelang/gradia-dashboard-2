@@ -46,8 +46,8 @@ import {
   Search,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { formatRupiah } from "@/lib/formatters";
-import { fetchWithAuth } from "@/lib/api";
+import { formatRupiah } from "@/lib/formatters/formatters";
+import { fetchWithAuth } from "@/lib/api/api";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Client,
@@ -56,7 +56,7 @@ import {
   checkClientCodeExists,
   searchClients,
   createClient
-} from "@/lib/clientUtils";
+} from "@/lib/formatters/clientUtils";
 import { TransactionData } from "@/app/types/transaction";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {

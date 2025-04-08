@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import DateRangePicker from "@/components/DateRangePicker";
-import { TimeRange, formatTimePeriodLabel } from "@/lib/apiController";
+import { TimeRange, formatTimePeriodLabel } from "@/lib/api/apiController";
 import { RefreshCw } from "lucide-react";
 
 interface TimeRangeFilterProps {
@@ -36,13 +36,13 @@ export default function TimeRangeFilter({
   useEffect(() => {
     // Update local state when props change
     setSelectedType(timeRange.type);
-    
+
     if (timeRange.type === 'custom' && timeRange.startDate && timeRange.endDate) {
       setDateRange({ from: timeRange.startDate, to: timeRange.endDate });
     } else {
       setDateRange(undefined);
     }
-    
+
     setIsChanged(false);
   }, [timeRange]);
 
@@ -66,7 +66,7 @@ export default function TimeRangeFilter({
       startDate: selectedType === 'custom' ? dateRange?.from : undefined,
       endDate: selectedType === 'custom' ? dateRange?.to : undefined
     };
-    
+
     onFilterChange(newTimeRange);
     setIsChanged(false);
   };

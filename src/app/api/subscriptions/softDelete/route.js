@@ -1,7 +1,7 @@
 // src/app/api/subscriptions/softDelete/route.js
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { verifyAuthToken } from "@/lib/auth";
+import { verifyAuthToken } from "@/lib/auth/auth";
 
 export async function POST(request) {
   try {

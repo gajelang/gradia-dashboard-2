@@ -1,8 +1,8 @@
 // app/api/expenses/route.js - Enhanced with subscription handling and fund management integration
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuthToken, createSafeResponse } from '@/lib/auth';
-import { authorizeRequest } from '@/lib/authorization';
+import { verifyAuthToken, createSafeResponse } from "@/lib/auth/auth";
+import { authorizeRequest } from '@/lib/auth/authorization';
 
 // Handler for GET requests - Fetch expenses
 export async function GET(request) {

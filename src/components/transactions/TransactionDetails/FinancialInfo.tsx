@@ -1,7 +1,7 @@
 "use client";
 
 import { DollarSign, ExternalLink } from "lucide-react";
-import { formatRupiah } from "@/lib/formatters";
+import { formatRupiah } from "@/lib/formatters/formatters";
 import FundTypeIndicator from "@/components/common/FundTypeIndicator";
 import StatusBadge from "@/components/common/StatusBadge";
 

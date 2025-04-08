@@ -3,7 +3,7 @@
 import { useState } from "react";
 import ClientTable from "@/components/ClientTable";
 import VendorTable from "@/components/VendorTable";
-import InventoryTab from "@/components/InventoryTab";
+import InventoryTab from "@/components/inventory/InventoryTab";
 import { Users, Store, Package } from "lucide-react";
 import { Toaster } from "sonner";
 

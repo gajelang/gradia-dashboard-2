@@ -1,6 +1,6 @@
 // src/hooks/useDataFetching.ts
 import { useState, useEffect, useCallback } from 'react';
-import { fetchWithAuth } from '@/lib/api';
+import { fetchWithAuth } from '@/lib/api/api';
 
 interface FetchOptions {
   url: string;

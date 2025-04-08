@@ -1,6 +1,6 @@
 // src/hooks/useInventoryData.ts
 import { useState, useEffect, useCallback } from 'react';
-import { fetchWithAuth } from '@/lib/api';
+import { fetchWithAuth } from '@/lib/api/api';
 import { Inventory } from '@/app/types/inventory';
 import { toast } from 'react-hot-toast';
 

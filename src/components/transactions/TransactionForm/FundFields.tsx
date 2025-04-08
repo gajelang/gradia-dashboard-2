@@ -3,8 +3,8 @@
 import { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Wallet, CreditCard, DollarSign } from "lucide-react";
-import { fetchWithAuth } from "@/lib/api";
-import { formatRupiah } from "@/lib/formatters";
+import { fetchWithAuth } from "@/lib/api/api";
+import { formatRupiah } from "@/lib/formatters/formatters";
 import FundTypeIndicator from "@/components/common/FundTypeIndicator";
 
 interface FundFieldsProps {

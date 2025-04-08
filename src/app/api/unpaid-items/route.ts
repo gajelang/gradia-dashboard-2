@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuthToken } from '@/lib/auth';
+import { verifyAuthToken } from "@/lib/auth/auth";
 import prisma from '@/lib/prisma';
 
 // Handler for GET requests - Fetch unpaid inventory and subscription items

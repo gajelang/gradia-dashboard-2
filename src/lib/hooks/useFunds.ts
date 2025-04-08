@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { fetchWithAuth } from "@/lib/api";
+import { fetchWithAuth } from "@/lib/api/api";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 

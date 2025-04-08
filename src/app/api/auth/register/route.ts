@@ -2,10 +2,10 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { NextRequest } from "next/server";
-import { generateToken, setAuthCookie, createSafeResponse } from "@/lib/auth";
+import { generateToken, setAuthCookie, createSafeResponse } from "@/lib/auth/auth";
 import { v4 as uuidv4 } from 'uuid';
-import { registrationLimiter, applyRateLimit } from "@/lib/rate-limiter";
-import { validateRequest, handleValidationErrors, rules } from "@/lib/input-validation";
+import { registrationLimiter, applyRateLimit } from "@/lib/auth/rate-limiter";
+import { validateRequest, handleValidationErrors, rules } from "@/lib/validation/input-validation";
 
 const prisma = new PrismaClient();
 

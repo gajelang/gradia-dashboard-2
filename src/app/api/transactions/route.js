@@ -1,7 +1,7 @@
 // Improved /api/transactions GET method that properly filters out deleted expenses
 import { PrismaClient } from "@prisma/client";
-import { verifyAuthToken, createSafeResponse } from "@/lib/auth";
-import { authorizeRequest } from "@/lib/authorization";
+import { verifyAuthToken, createSafeResponse } from "@/lib/auth/auth";
+import { authorizeRequest } from "@/lib/auth/authorization";
 
 const prisma = new PrismaClient();
 

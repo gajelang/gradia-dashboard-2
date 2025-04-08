@@ -6,7 +6,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { formatRupiah } from "@/lib/formatters";
+import { formatRupiah } from "@/lib/formatters/formatters";
 import {
   BarChart,
   Bar,

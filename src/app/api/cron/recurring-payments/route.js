@@ -1,7 +1,7 @@
 // app/api/cron/recurring-payments/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuthToken } from '@/lib/auth';
+import { verifyAuthToken } from "@/lib/auth/auth";
 
 /**
  * This API route handles processing of recurring payments.

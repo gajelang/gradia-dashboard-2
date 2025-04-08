@@ -15,7 +15,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Loader2 } from "lucide-react";
-import { fetchWithAuth } from "@/lib/api";
+import { fetchWithAuth } from "@/lib/api/api";
 import { toast } from "react-hot-toast";
 
 // Import detail section components
@@ -24,7 +24,7 @@ import FinancialInfo from "./FinancialInfo";
 import BroadcastInfo from "./BroadcastInfo";
 import AuditInfo from "./AuditInfo";
 import ExpenseTable from "../ExpenseTable";
-import InvoicesTab from "@/components/InvoicesTab";
+import InvoicesTab from "@/components/invoices/InvoicesTab";
 
 // Import dialogs
 import UpdateStatusDialog from "@/components/UpdateStatusDialog";

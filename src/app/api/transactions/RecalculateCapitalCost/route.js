@@ -1,7 +1,7 @@
 // Fixed src/app/api/transactions/recalculateCapitalCost/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuthToken } from '@/lib/auth';
+import { verifyAuthToken } from "@/lib/auth/auth";
 
 export async function POST(request) {
   try {

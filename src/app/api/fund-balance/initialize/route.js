@@ -1,7 +1,7 @@
 // src/app/api/fund-balance/initialize/route.js
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuthToken } from '@/lib/auth';
+import { verifyAuthToken } from "@/lib/auth/auth";
 
 export async function GET(req) {
   // Verify auth token (optional, remove if causing issues during testing)

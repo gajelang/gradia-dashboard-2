@@ -1,6 +1,6 @@
 // src/hooks/useSubscriptionData.ts
 import { useState, useEffect, useCallback } from 'react';
-import { fetchWithAuth } from '@/lib/api';
+import { fetchWithAuth } from '@/lib/api/api';
 import { toast } from 'react-hot-toast';
 
 export interface Vendor {

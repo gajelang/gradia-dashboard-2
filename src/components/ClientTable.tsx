@@ -42,7 +42,7 @@ import {
   User,
   Clock
 } from "lucide-react";
-import { fetchWithAuth } from "@/lib/api";
+import { fetchWithAuth } from "@/lib/api/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 

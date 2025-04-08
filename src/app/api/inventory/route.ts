@@ -1,8 +1,8 @@
 // app/api/inventory/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyAuthToken } from '@/lib/auth';
-import { authorizeRequest } from '@/lib/authorization';
+import { verifyAuthToken } from "@/lib/auth/auth";
+import { authorizeRequest } from '@/lib/auth/authorization';
 
 // Handler for GET requests - Fetch inventory items
 export async function GET(request: NextRequest) {

@@ -37,8 +37,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { formatRupiah } from "@/lib/formatters";
-import { fetchWithAuth } from "@/lib/api";
+import { formatRupiah } from "@/lib/formatters/formatters";
+import { fetchWithAuth } from "@/lib/api/api";
 import { toast } from "react-hot-toast";
 import {
   AlertCircle,

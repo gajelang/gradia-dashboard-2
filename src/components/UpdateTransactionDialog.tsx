@@ -32,7 +32,7 @@ import {
   ArrowDown
 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { formatRupiah } from "@/lib/formatters";
+import { formatRupiah } from "@/lib/formatters/formatters";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,7 +44,7 @@ import {
   SheetDescription,
   SheetFooter
 } from "@/components/ui/sheet";
-import { fetchWithAuth } from "@/lib/api"; // Import fetchWithAuth for authenticated requests
+import { fetchWithAuth } from "@/lib/api/api"; // Import fetchWithAuth for authenticated requests
 import { useAuth } from "@/contexts/AuthContext"; // Import useAuth to get current user
 
 interface Expense {

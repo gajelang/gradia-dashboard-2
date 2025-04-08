@@ -21,7 +21,7 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { Calendar, LinkIcon, Loader2, Package2 } from "lucide-react";
-import { fetchWithAuth } from "@/lib/api";
+import { fetchWithAuth } from "@/lib/api/api";
 import { toast } from "react-hot-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import FundFields from "../TransactionForm/FundFields";

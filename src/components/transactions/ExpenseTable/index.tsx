@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { PlusCircle } from "lucide-react";
-import { formatRupiah } from "@/lib/formatters";
+import { formatRupiah } from "@/lib/formatters/formatters";
 import FundTypeIndicator from "@/components/common/FundTypeIndicator";
 import AddExpense from "./AddExpense";
 

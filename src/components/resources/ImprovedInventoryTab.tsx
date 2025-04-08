@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import InventoryTable from "@/components/InventoryTable";
-import AddInventoryModal from "@/components/AddInventoryModal";
-import SubscriptionManagement from "@/components/SubscriptionManagement";
+import InventoryTable from "@/components/inventory/InventoryTable";
+import AddInventoryModal from "@/components/inventory/AddInventoryModal";
+import SubscriptionManagement from "@/components/inventory/SubscriptionManagement";
 import { Input } from "@/components/ui/input";
 import {
   Select,

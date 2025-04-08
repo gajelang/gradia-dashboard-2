@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { verifyAuthToken } from "@/lib/auth";
+import { verifyAuthToken } from "@/lib/auth/auth";
 import { createSafeResponse } from "@/lib/api";
 import { NextRequest } from "next/server";
 

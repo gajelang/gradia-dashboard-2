@@ -1,7 +1,7 @@
 // src/app/api/clients/search/route.js
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
-import { verifyAuthToken } from "@/lib/auth";
+import { verifyAuthToken } from "@/lib/auth/auth";
 
 const prisma = new PrismaClient();
 
