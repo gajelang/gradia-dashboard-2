@@ -1,7 +1,7 @@
 // Fixed src/app/api/expenses/softDelete/route.js
 import { PrismaClient } from "@prisma/client";
 import { verifyAuthToken } from "@/lib/auth/auth";
-import { createSafeResponse } from "@/lib/api";
+import { createSafeResponse } from "@/lib/api/api";
 
 const prisma = new PrismaClient();
 

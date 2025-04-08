@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { verifyAuthToken } from "@/lib/auth/auth";
-import { createSafeResponse } from "@/lib/api";
+import { createSafeResponse } from "@/lib/api/api";
 
 const prisma = new PrismaClient();
 
@@ -15,7 +15,7 @@ export async function GET(request) {
     // Check for query parameters
     const { searchParams } = new URL(request.url);
     const fetchDeleted = searchParams.get('deleted') === 'true';
-    
+
     // Query for clients based on whether we want active or deleted ones
     const clients = await prisma.client.findMany({
       where: {
@@ -65,7 +65,7 @@ export async function POST(request) {
     }
 
     const data = await request.json();
-    
+
     // Validate required fields
     if (!data.code || !data.name) {
       return createSafeResponse({ error: 'Client code and name are required' }, 400);
@@ -118,7 +118,7 @@ export async function PATCH(request) {
     }
 
     const data = await request.json();
-    
+
     // Validate required fields
     if (!data.id || !data.name) {
       return createSafeResponse({ error: 'Client ID and name are required' }, 400);

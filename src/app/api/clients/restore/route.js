@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { verifyAuthToken } from "@/lib/auth/auth";
-import { createSafeResponse } from "@/lib/api";
+import { createSafeResponse } from "@/lib/api/api";
 
 const prisma = new PrismaClient();
 
@@ -13,7 +13,7 @@ export async function POST(request) {
     }
 
     const { id, restoredById } = await request.json();
-    
+
     if (!id) {
       return createSafeResponse({ error: "Client ID is required" }, 400);
     }
@@ -22,7 +22,7 @@ export async function POST(request) {
     const client = await prisma.client.findUnique({
       where: { id }
     });
-    
+
     if (!client) {
       return createSafeResponse({ error: "Client not found" }, 404);
     }
@@ -44,7 +44,7 @@ export async function POST(request) {
       }
     });
 
-    return createSafeResponse({ 
+    return createSafeResponse({
       message: "Client restored successfully",
       client: updatedClient
     });
